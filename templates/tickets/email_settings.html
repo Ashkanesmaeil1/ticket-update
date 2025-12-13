@@ -1,0 +1,800 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "تنظیمات ایمیل" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #06b6d4;
+        --dark: #1f2937;
+        --light: #f8fafc;
+        --border: #e2e8f0;
+        --text: #374151;
+        --text-light: #6b7280;
+        --email-bg: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+    }
+
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .email-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 900px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .email-header {
+        background: linear-gradient(135deg, var(--info) 0%, #0891b2 100%);
+        color: white;
+        padding: 3rem 2rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .email-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+    }
+
+    .email-header h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .email-header p {
+        font-size: 1.1rem;
+        opacity: 0.9;
+        margin-bottom: 2rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        position: relative;
+        z-index: 2;
+    }
+
+    .btn-modern {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-modern:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+        color: white;
+    }
+
+    .email-content {
+        padding: 2rem;
+    }
+
+    .form-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+    }
+
+    .form-section {
+        margin-bottom: 2rem;
+    }
+
+    .form-section-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .form-section-title i {
+        color: var(--info);
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-label {
+        display: block;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+    }
+
+    .form-control-modern {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        background: white;
+    }
+
+    .form-control-modern:focus {
+        outline: none;
+        border-color: var(--info);
+        box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
+    }
+
+    .form-control-modern.error {
+        border-color: var(--danger);
+    }
+
+    .form-select-modern {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        background: white;
+        cursor: pointer;
+    }
+
+    .form-select-modern:focus {
+        outline: none;
+        border-color: var(--info);
+        box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
+    }
+
+    .checkbox-group {
+        display: flex;
+        gap: 2rem;
+        align-items: center;
+        padding: 1rem;
+        background: var(--light);
+        border-radius: 12px;
+        border: 2px solid var(--border);
+        transition: all 0.3s ease;
+    }
+
+    .checkbox-group:hover {
+        border-color: var(--info);
+        background: rgba(6, 182, 212, 0.05);
+    }
+
+    .checkbox-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        cursor: pointer;
+    }
+
+    .checkbox-item input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+        border: 2px solid var(--border);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .checkbox-item input[type="checkbox"]:checked {
+        background: var(--info);
+        border-color: var(--info);
+    }
+
+    .checkbox-label {
+        font-weight: 600;
+        color: var(--text);
+        cursor: pointer;
+    }
+
+    .help-text {
+        font-size: 0.85rem;
+        color: var(--text-light);
+        margin-top: 0.5rem;
+        line-height: 1.4;
+    }
+
+    .error-message {
+        color: var(--danger);
+        font-size: 0.85rem;
+        margin-top: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .form-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 2rem;
+        border-top: 2px solid var(--border);
+        gap: 1rem;
+    }
+
+    .btn-test {
+        background: rgba(107, 114, 128, 0.1);
+        color: var(--text);
+        border: 2px solid var(--border);
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    .btn-test:hover {
+        background: var(--text);
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .btn-save {
+        background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    .btn-save:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4);
+    }
+
+    .info-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+    }
+
+    .info-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .info-title i {
+        color: var(--info);
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .info-item {
+        padding: 1.5rem;
+        background: var(--light);
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        text-align: center;
+    }
+
+    .info-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 16px;
+        background: var(--email-bg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        color: white;
+        margin: 0 auto 1rem;
+    }
+
+    .info-label {
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 0.5rem;
+    }
+
+    .info-value {
+        color: var(--text-light);
+        font-size: 0.9rem;
+    }
+
+    .status-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.8rem;
+        margin-top: 0.5rem;
+    }
+
+    .status-indicator.configured {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--success);
+    }
+
+    .status-indicator.not-configured {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger);
+    }
+
+    @media (max-width: 768px) {
+        .email-container {
+            margin: 1rem;
+            border-radius: 16px;
+        }
+
+        .email-header {
+            padding: 2rem 1rem;
+        }
+
+        .email-header h1 {
+            font-size: 2rem;
+        }
+
+        .header-actions {
+            flex-direction: column;
+        }
+
+        .form-row {
+            grid-template-columns: 1fr;
+        }
+
+        .form-actions {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .checkbox-group {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .info-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="email-container">
+    <!-- Header -->
+    <div class="email-header">
+        <h1>
+            <i class="fas fa-envelope me-3"></i>
+            {% trans "تنظیمات ایمیل" %}
+        </h1>
+        <p>{% trans "مدیریت تنظیمات SMTP برای ارسال ایمیل‌های سیستم" %}</p>
+        <div class="header-actions">
+            <button class="btn-modern" onclick="testEmailConnection()">
+                <i class="fas fa-paper-plane"></i>
+                {% trans "تست اتصال" %}
+            </button>
+        </div>
+    </div>
+
+    <div class="email-content">
+        <!-- Configuration Status -->
+        <div class="info-card">
+            <div class="info-title">
+                <i class="fas fa-info-circle"></i>
+                {% trans "وضعیت تنظیمات" %}
+            </div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-server"></i>
+                    </div>
+                    <div class="info-label">{% trans "هاست SMTP" %}</div>
+                    <div class="info-value">
+                        {% if config.host %}
+                            {{ config.host }}
+                            <div class="status-indicator configured">
+                                <i class="fas fa-check-circle"></i>
+                                {% trans "تنظیم شده" %}
+                            </div>
+                        {% else %}
+                            {% trans "تنظیم نشده" %}
+                            <div class="status-indicator not-configured">
+                                <i class="fas fa-exclamation-circle"></i>
+                                {% trans "نیاز به تنظیم" %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="info-label">{% trans "ایمیل فرستنده" %}</div>
+                    <div class="info-value">
+                        {% if config.username %}
+                            {{ config.username }}
+                            <div class="status-indicator configured">
+                                <i class="fas fa-check-circle"></i>
+                                {% trans "تنظیم شده" %}
+                            </div>
+                        {% else %}
+                            {% trans "تنظیم نشده" %}
+                            <div class="status-indicator not-configured">
+                                <i class="fas fa-exclamation-circle"></i>
+                                {% trans "نیاز به تنظیم" %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <div class="info-label">{% trans "امنیت" %}</div>
+                    <div class="info-value">
+                        {% if config.use_tls %}
+                            TLS (پورت {{ config.port }})
+                        {% elif config.use_ssl %}
+                            SSL (پورت {{ config.port }})
+                        {% else %}
+                            {% trans "بدون رمزگذاری" %}
+                        {% endif %}
+                        <div class="status-indicator configured">
+                            <i class="fas fa-check-circle"></i>
+                            {% trans "فعال" %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Card -->
+        <div class="form-card">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    {{ form.non_field_errors }}
+                </div>
+                        {% endif %}
+
+                <!-- SMTP Server Configuration -->
+                <div class="form-section">
+                    <div class="form-section-title">
+                        <i class="fas fa-server"></i>
+                        {% trans "تنظیمات سرور SMTP" %}
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="{{ form.host.id_for_label }}">
+                                <i class="fas fa-globe me-1"></i>
+                                {{ form.host.label }}
+                            </label>
+                            <input type="text" 
+                                   name="{{ form.host.name }}" 
+                                   id="{{ form.host.id_for_label }}"
+                                   class="form-control-modern {% if form.host.errors %}error{% endif %}"
+                                   value="{{ form.host.value|default:'' }}"
+                                   placeholder="{% trans 'مثال: smtp.gmail.com' %}">
+                            {% if form.host.help_text %}
+                            <div class="help-text">{{ form.host.help_text }}</div>
+                            {% endif %}
+                            {% if form.host.errors %}
+                            <div class="error-message">
+                                <i class="fas fa-exclamation-circle"></i>
+                                {% for error in form.host.errors %}
+                                {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label" for="{{ form.port.id_for_label }}">
+                                <i class="fas fa-network-wired me-1"></i>
+                                {{ form.port.label }}
+                            </label>
+                            <input type="number" 
+                                   name="{{ form.port.name }}" 
+                                   id="{{ form.port.id_for_label }}"
+                                   class="form-control-modern {% if form.port.errors %}error{% endif %}"
+                                   value="{{ form.port.value|default:'587' }}"
+                                   placeholder="587">
+                            {% if form.port.help_text %}
+                            <div class="help-text">{{ form.port.help_text }}</div>
+                            {% endif %}
+                            {% if form.port.errors %}
+                            <div class="error-message">
+                                <i class="fas fa-exclamation-circle"></i>
+                                {% for error in form.port.errors %}
+                                {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" 
+                                   name="{{ form.use_tls.name }}" 
+                                   id="{{ form.use_tls.id_for_label }}"
+                                   {% if form.use_tls.value %}checked{% endif %}>
+                            <label class="checkbox-label" for="{{ form.use_tls.id_for_label }}">
+                                <i class="fas fa-lock me-1"></i>
+                                TLS
+                            </label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" 
+                                   name="{{ form.use_ssl.name }}" 
+                                   id="{{ form.use_ssl.id_for_label }}"
+                                   {% if form.use_ssl.value %}checked{% endif %}>
+                            <label class="checkbox-label" for="{{ form.use_ssl.id_for_label }}">
+                                <i class="fas fa-shield-alt me-1"></i>
+                                SSL
+                            </label>
+                        </div>
+                                </div>
+                    <div class="help-text">
+                        <i class="fas fa-info-circle me-1"></i>
+                        {% trans "فقط یکی از TLS یا SSL باید فعال باشد. TLS برای پورت 587 و SSL برای پورت 465 توصیه می‌شود." %}
+                                </div>
+                            </div>
+
+                <!-- Authentication Configuration -->
+                <div class="form-section">
+                    <div class="form-section-title">
+                        <i class="fas fa-user-lock"></i>
+                        {% trans "احراز هویت" %}
+                            </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="{{ form.username.id_for_label }}">
+                                <i class="fas fa-envelope me-1"></i>
+                                {{ form.username.label }}
+                            </label>
+                            <input type="email" 
+                                   name="{{ form.username.name }}" 
+                                   id="{{ form.username.id_for_label }}"
+                                   class="form-control-modern {% if form.username.errors %}error{% endif %}"
+                                   value="{{ form.username.value|default:'' }}"
+                                   placeholder="{% trans 'example@gmail.com' %}">
+                            {% if form.username.help_text %}
+                            <div class="help-text">{{ form.username.help_text }}</div>
+                            {% endif %}
+                            {% if form.username.errors %}
+                            <div class="error-message">
+                                <i class="fas fa-exclamation-circle"></i>
+                                {% for error in form.username.errors %}
+                                {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label" for="{{ form.from_name.id_for_label }}">
+                                <i class="fas fa-user me-1"></i>
+                                {{ form.from_name.label }}
+                            </label>
+                            <input type="text" 
+                                   name="{{ form.from_name.name }}" 
+                                   id="{{ form.from_name.id_for_label }}"
+                                   class="form-control-modern {% if form.from_name.errors %}error{% endif %}"
+                                   value="{{ form.from_name.value|default:'' }}"
+                                   placeholder="{% trans 'سیستم تیکت' %}">
+                            {% if form.from_name.help_text %}
+                            <div class="help-text">{{ form.from_name.help_text }}</div>
+                            {% endif %}
+                            {% if form.from_name.errors %}
+                            <div class="error-message">
+                                <i class="fas fa-exclamation-circle"></i>
+                                {% for error in form.from_name.errors %}
+                                {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            </div>
+                        </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="{{ form.password.id_for_label }}">
+                            <i class="fas fa-key me-1"></i>
+                            {{ form.password.label }}
+                        </label>
+                        <input type="password" 
+                               name="{{ form.password.name }}" 
+                               id="{{ form.password.id_for_label }}"
+                               class="form-control-modern {% if form.password.errors %}error{% endif %}"
+                               value="{{ form.password.value|default:'' }}"
+                               placeholder="{% trans 'رمز عبور ایمیل' %}">
+                        {% if form.password.help_text %}
+                        <div class="help-text">{{ form.password.help_text }}</div>
+                        {% endif %}
+                        {% if form.password.errors %}
+                        <div class="error-message">
+                            <i class="fas fa-exclamation-circle"></i>
+                            {% for error in form.password.errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Form Actions -->
+                <div class="form-actions">
+                    <button type="submit" class="btn-save">
+                        <i class="fas fa-save"></i>
+                        {% trans "ذخیره تنظیمات" %}
+                    </button>
+            </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Add loading animation
+document.addEventListener('DOMContentLoaded', function() {
+    const cards = document.querySelectorAll('.info-card, .form-card');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+            card.style.transition = 'all 0.6s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 200);
+    });
+});
+
+// Form validation enhancement
+document.querySelector('form').addEventListener('submit', function(e) {
+    const submitBtn = this.querySelector('.btn-save');
+    const testBtn = this.querySelector('.btn-test');
+    const originalSaveText = submitBtn.innerHTML;
+    const originalTestText = testBtn.innerHTML;
+    
+    if (e.submitter === submitBtn) {
+        // Show loading state for save
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> در حال ذخیره...';
+        submitBtn.disabled = true;
+        
+        // Re-enable after 3 seconds if form doesn't submit
+        setTimeout(() => {
+            submitBtn.innerHTML = originalSaveText;
+            submitBtn.disabled = false;
+        }, 3000);
+    } else if (e.submitter === testBtn) {
+        // Show loading state for test
+        testBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> در حال ارسال...';
+        testBtn.disabled = true;
+        
+        // Re-enable after 5 seconds if form doesn't submit
+        setTimeout(() => {
+            testBtn.innerHTML = originalTestText;
+            testBtn.disabled = false;
+        }, 5000);
+    }
+});
+
+// Test email connection function
+function testEmailConnection() {
+    const testBtn = document.querySelector('.btn-modern');
+    const originalText = testBtn.innerHTML;
+    
+    // Show loading state
+    testBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> در حال تست اتصال...';
+    testBtn.disabled = true;
+    
+    // Get CSRF token
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    // Make AJAX request to test connection
+    fetch('{% url "tickets:test_email_connection" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+        },
+        body: JSON.stringify({})
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Reset button
+        testBtn.innerHTML = originalText;
+        testBtn.disabled = false;
+        
+        // Show result
+        if (data.success) {
+            showNotification(data.message, 'success');
+        } else {
+            showNotification(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        // Reset button
+        testBtn.innerHTML = originalText;
+        testBtn.disabled = false;
+        
+        // Show error
+        showNotification('خطا در ارتباط با سرور', 'error');
+        console.error('Error:', error);
+    });
+}
+
+// Auto-focus on first input
+document.addEventListener('DOMContentLoaded', function() {
+    const firstInput = document.querySelector('.form-control-modern');
+    if (firstInput) {
+        firstInput.focus();
+    }
+});
+</script>
+{% endblock %}
+

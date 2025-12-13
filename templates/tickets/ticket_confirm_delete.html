@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "حذف تیکت" %} - {{ ticket.title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        {% trans "تأیید حذف تیکت" %}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        {% trans "آیا مطمئن هستید که می‌خواهید این تیکت را حذف کنید؟" %}
+                    </div>
+                    
+                    <div class="ticket-info mb-4">
+                        <h5>{% trans "اطلاعات تیکت:" %}</h5>
+                        <ul class="list-unstyled">
+                            <li><strong>{% trans "عنوان:" %}</strong> {{ ticket.title }}</li>
+                            <li><strong>{% trans "وضعیت:" %}</strong> {{ ticket.get_status_display }}</li>
+                            <li><strong>{% trans "اولویت:" %}</strong> {{ ticket.get_priority_display }}</li>
+                            <li><strong>{% trans "دسته‌بندی:" %}</strong> {{ ticket.get_category_display }}</li>
+                            <li><strong>{% trans "تاریخ ایجاد:" %}</strong> {{ ticket.created_at|date:"Y/m/d H:i" }}</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="alert alert-danger">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "این عملیات غیرقابل بازگشت است و تمام اطلاعات مربوط به این تیکت حذف خواهد شد." %}
+                    </div>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-trash me-2"></i>
+                                {% trans "بله، حذف کن" %}
+                            </button>
+                            <a href="{% url 'tickets:ticket_list' %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-2"></i>
+                                {% trans "انصراف" %}
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

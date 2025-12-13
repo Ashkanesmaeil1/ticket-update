@@ -1,0 +1,609 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "حذف بخش" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #06b6d4;
+        --dark: #1f2937;
+        --light: #f8fafc;
+        --border: #e2e8f0;
+        --text: #374151;
+        --text-light: #6b7280;
+        --employee-bg: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+        --technician-bg: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    }
+
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .delete-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 700px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .delete-header {
+        background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+        color: white;
+        padding: 3rem 2rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .delete-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+    }
+
+    .delete-header h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .delete-header p {
+        font-size: 1.1rem;
+        opacity: 0.9;
+        margin-bottom: 2rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        position: relative;
+        z-index: 2;
+    }
+
+    .btn-modern {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-modern:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+        color: white;
+    }
+
+    .delete-content {
+        padding: 2rem;
+    }
+
+    .warning-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        margin-bottom: 2rem;
+        text-align: center;
+    }
+
+    .warning-icon {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 3rem;
+        color: white;
+        margin: 0 auto 1.5rem;
+        box-shadow: 0 10px 25px -5px rgba(239, 68, 68, 0.4);
+    }
+
+    .warning-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text);
+    }
+
+    .warning-text {
+        color: var(--text-light);
+        font-size: 1rem;
+        line-height: 1.6;
+    }
+
+    .department-info-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        margin-bottom: 2rem;
+    }
+
+    .info-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .info-title i {
+        color: var(--primary);
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .info-item {
+        padding: 1rem;
+        background: var(--light);
+        border-radius: 12px;
+        border: 1px solid var(--border);
+    }
+
+    .info-label {
+        font-size: 0.85rem;
+        color: var(--text-light);
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .info-value {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--text);
+    }
+
+    .status-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.8rem;
+        display: inline-block;
+    }
+
+    .status-badge.active {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--success);
+    }
+
+    .status-badge.inactive {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger);
+    }
+
+    .type-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.8rem;
+        display: inline-block;
+    }
+
+    .type-badge.employee {
+        background: rgba(6, 182, 212, 0.1);
+        color: var(--info);
+    }
+
+    .type-badge.technician {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--success);
+    }
+
+    .alert-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        margin-bottom: 2rem;
+    }
+
+    .alert-danger {
+        border-left: 4px solid var(--danger);
+        background: rgba(239, 68, 68, 0.05);
+    }
+
+    .alert-info {
+        border-left: 4px solid var(--info);
+        background: rgba(6, 182, 212, 0.05);
+    }
+
+    .alert-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .alert-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        color: white;
+    }
+
+    .alert-icon.danger {
+        background: var(--danger);
+    }
+
+    .alert-icon.info {
+        background: var(--info);
+    }
+
+    .alert-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--text);
+    }
+
+    .alert-content {
+        color: var(--text-light);
+        line-height: 1.6;
+    }
+
+    .alert-content strong {
+        color: var(--text);
+    }
+
+    .form-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        margin-top: 2rem;
+    }
+
+    .btn-cancel {
+        background: rgba(107, 114, 128, 0.1);
+        color: var(--text);
+        border: 2px solid var(--border);
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-cancel:hover {
+        background: var(--text);
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .btn-delete {
+        background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    .btn-delete:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(239, 68, 68, 0.4);
+    }
+
+    .btn-delete:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .related-actions-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        margin-top: 2rem;
+    }
+
+    .related-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .related-title i {
+        color: var(--primary);
+    }
+
+    .related-text {
+        color: var(--text-light);
+        margin-bottom: 1.5rem;
+        line-height: 1.6;
+    }
+
+    .related-buttons {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .btn-related {
+        background: rgba(99, 102, 241, 0.1);
+        color: var(--primary);
+        border: 2px solid rgba(99, 102, 241, 0.2);
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-related:hover {
+        background: var(--primary);
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    @media (max-width: 768px) {
+        .delete-container {
+            margin: 1rem;
+            border-radius: 16px;
+        }
+
+        .delete-header {
+            padding: 2rem 1rem;
+        }
+
+        .delete-header h1 {
+            font-size: 2rem;
+        }
+
+        .header-actions {
+            flex-direction: column;
+        }
+
+        .info-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .form-actions {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .related-buttons {
+            flex-direction: column;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="delete-container">
+    <!-- Header -->
+    <div class="delete-header">
+        <h1>
+            <i class="fas fa-trash me-3"></i>
+            {% trans "حذف بخش" %}
+        </h1>
+        <p>{% trans "تایید حذف بخش از سیستم" %}</p>
+        <div class="header-actions">
+            <a href="{% url 'tickets:department_management' %}" class="btn-modern">
+                <i class="fas fa-arrow-left"></i>
+                {% trans "بازگشت به مدیریت بخش‌ها" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="delete-content">
+        <!-- Warning Card -->
+        <div class="warning-card">
+            <div class="warning-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div class="warning-title">{% trans "آیا از حذف این بخش اطمینان دارید؟" %}</div>
+        </div>
+
+        <!-- Department Information -->
+        <div class="department-info-card">
+            <div class="info-title">
+                <i class="fas fa-info-circle"></i>
+                {% trans "اطلاعات بخش" %}
+            </div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">{% trans "نام بخش" %}</div>
+                    <div class="info-value">{{ department.name }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">{% trans "نوع بخش" %}</div>
+                    <div class="info-value">
+                        <span class="type-badge {{ department.department_type }}">
+                            {% if department.department_type == 'employee' %}{% trans "کارمندی" %}{% else %}{% trans "فنی" %}{% endif %}
+                        </span>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">{% trans "تعداد کاربران" %}</div>
+                    <div class="info-value">{{ user_count }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">{% trans "وضعیت" %}</div>
+                    <div class="info-value">
+                        <span class="status-badge {% if department.is_active %}active{% else %}inactive{% endif %}">
+                            {% if department.is_active %}{% trans "فعال" %}{% else %}{% trans "غیرفعال" %}{% endif %}
+                        </span>
+                    </div>
+                </div>
+                {% if department.description %}
+                <div class="info-item" style="grid-column: 1 / -1;">
+                    <div class="info-label">{% trans "توضیحات" %}</div>
+                    <div class="info-value">{{ department.description }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Warning Alert -->
+        {% if user_count > 0 %}
+        <div class="alert-card alert-danger">
+            <div class="alert-header">
+                <div class="alert-icon danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="alert-title">{% trans "هشدار!" %}</div>
+            </div>
+            <div class="alert-content">
+                {% trans "این بخش دارای" %} <strong>{{ user_count }}</strong> {% trans "کاربر است و نمی‌توان آن را حذف کرد." %}
+                <br><br>
+                {% trans "ابتدا کاربران را به بخش دیگری منتقل کنید." %}
+            </div>
+        </div>
+        {% else %}
+        <div class="alert-card alert-info">
+            <div class="alert-header">
+                <div class="alert-icon info">
+                    <i class="fas fa-info-circle"></i>
+                </div>
+                <div class="alert-title">{% trans "توجه" %}</div>
+            </div>
+            <div class="alert-content">
+                {% trans "این عملیات غیرقابل بازگشت است. پس از حذف، تمام اطلاعات این بخش از دیتابیس پاک خواهد شد." %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Form Actions -->
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-actions">
+                <a href="{% url 'tickets:department_management' %}" class="btn-cancel">
+                    <i class="fas fa-times"></i>
+                    {% trans "انصراف" %}
+                </a>
+                {% if user_count == 0 %}
+                <button type="submit" class="btn-delete">
+                    <i class="fas fa-trash"></i>
+                    {% trans "حذف بخش" %}
+                </button>
+                {% else %}
+                <button type="button" class="btn-delete" disabled>
+                    <i class="fas fa-trash"></i>
+                    {% trans "حذف بخش" %}
+                </button>
+                {% endif %}
+            </div>
+        </form>
+
+        <!-- Related Actions -->
+        {% if user_count > 0 %}
+        <div class="related-actions-card">
+            <div class="related-title">
+                <i class="fas fa-users"></i>
+                {% trans "عملیات مرتبط" %}
+            </div>
+            <div class="related-text">
+                {% trans "برای حذف این بخش، ابتدا باید کاربران آن را به بخش دیگری منتقل کنید:" %}
+            </div>
+            <div class="related-buttons">
+                <a href="{% url 'tickets:user_management' %}" class="btn-related">
+                    <i class="fas fa-users"></i>
+                    {% trans "مدیریت کاربران" %}
+                </a>
+                <a href="{% url 'tickets:department_management' %}" class="btn-related">
+                    <i class="fas fa-building"></i>
+                    {% trans "مشاهده بخش‌ها" %}
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Add loading animation
+document.addEventListener('DOMContentLoaded', function() {
+    const cards = document.querySelectorAll('.warning-card, .department-info-card, .alert-card, .related-actions-card');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+            card.style.transition = 'all 0.6s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 200);
+    });
+});
+
+// Form submission enhancement
+document.querySelector('form').addEventListener('submit', function(e) {
+    const deleteBtn = this.querySelector('.btn-delete');
+    if (deleteBtn && !deleteBtn.disabled) {
+        const originalText = deleteBtn.innerHTML;
+        
+        // Show loading state
+        deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> در حال حذف...';
+        deleteBtn.disabled = true;
+        
+        // Re-enable after 3 seconds if form doesn't submit
+        setTimeout(() => {
+            deleteBtn.innerHTML = originalText;
+            deleteBtn.disabled = false;
+        }, 3000);
+    }
+});
+</script>
+{% endblock %} 

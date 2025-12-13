@@ -1,0 +1,1090 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load crispy_forms_tags %}
+{% load persian_date %}
+
+{% block title %}{% trans "مدیریت بخش‌ها" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #06b6d4;
+        --dark: #1f2937;
+        --light: #f8fafc;
+        --border: #e2e8f0;
+        --text: #374151;
+        --text-light: #6b7280;
+        --employee-bg: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+        --technician-bg: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        --all-bg: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    }
+
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .dept-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 1400px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .dept-header {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        color: white;
+        padding: 3rem 2rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .dept-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+    }
+
+    .dept-header h1 {
+        font-size: 3rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .dept-header p {
+        font-size: 1.2rem;
+        opacity: 0.9;
+        margin-bottom: 2rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        position: relative;
+        z-index: 2;
+    }
+
+    .btn-modern {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+    }
+
+    .btn-modern:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+        color: white;
+    }
+
+    .dept-content {
+        padding: 2rem;
+    }
+
+    .stats-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+        text-align: center;
+    }
+
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+    }
+
+    .stat-card.all::before { background: var(--all-bg); }
+    .stat-card.employee::before { background: var(--employee-bg); }
+    .stat-card.technician::before { background: var(--technician-bg); }
+
+    .stat-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15);
+    }
+
+    .stat-icon {
+        width: 80px;
+        height: 80px;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        color: white;
+        margin: 0 auto 1rem;
+    }
+
+    .stat-icon.all { background: var(--all-bg); }
+    .stat-icon.employee { background: var(--employee-bg); }
+    .stat-icon.technician { background: var(--technician-bg); }
+
+    .stat-value {
+        font-size: 3rem;
+        font-weight: 800;
+        color: var(--text);
+        line-height: 1;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+        font-size: 1.1rem;
+        color: var(--text-light);
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+
+    .action-bar {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .btn-create {
+        background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+        border: none;
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-create:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4);
+        color: white;
+    }
+
+    .search-box {
+        position: relative;
+        flex: 1;
+        max-width: 400px;
+    }
+
+    .search-box input {
+        width: 100%;
+        padding: 0.75rem 1rem 0.75rem 3rem;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+
+    .search-box input:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        outline: none;
+    }
+
+    .search-box i {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-light);
+    }
+
+    .tabs-modern {
+        background: white;
+        border-radius: 16px;
+        padding: 0.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .tab-btn {
+        flex: 1;
+        background: transparent;
+        border: none;
+        padding: 1rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        color: var(--text-light);
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        position: relative;
+    }
+
+    .tab-btn.active {
+        background: var(--primary);
+        color: white;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    .tab-btn:hover:not(.active) {
+        background: var(--light);
+        color: var(--text);
+    }
+
+    .tab-badge {
+        background: rgba(255, 255, 255, 0.2);
+        color: inherit;
+        padding: 0.5rem 0.7rem 0.3rem;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 700;
+    }
+
+    .tab-btn.active .tab-badge {
+        background: rgba(255, 255, 255, 0.3);
+    }
+
+    .dept-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .dept-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .dept-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+    }
+
+    .dept-card.employee::before { background: var(--employee-bg); }
+    .dept-card.technician::before { background: var(--technician-bg); }
+
+    .dept-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15);
+    }
+
+    .dept-header-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+    }
+
+    .dept-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .dept-avatar {
+        width: 60px;
+        height: 60px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: white;
+    }
+
+    .dept-avatar.employee { background: var(--employee-bg); }
+    .dept-avatar.technician { background: var(--technician-bg); }
+
+    .dept-details h3 {
+        margin: 0;
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: var(--text);
+    }
+
+    .dept-details p {
+        margin: 0.25rem 0 0;
+        color: var(--text-light);
+        font-size: 0.9rem;
+    }
+
+    .dept-status {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.5rem;
+    }
+
+    .status-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.8rem;
+    }
+
+    .status-badge.active {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--success);
+    }
+
+    .status-badge.inactive {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger);
+    }
+
+    .type-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.8rem;
+    }
+
+    .type-badge.employee {
+        background: rgba(6, 182, 212, 0.1);
+        color: var(--info);
+    }
+
+    .type-badge.technician {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--success);
+    }
+
+    .dept-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .stat-item {
+        text-align: center;
+        padding: 1rem;
+        background: var(--light);
+        border-radius: 12px;
+    }
+
+    .stat-item-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 0.25rem;
+    }
+
+    .stat-item-label {
+        font-size: 0.8rem;
+        color: var(--text-light);
+        font-weight: 600;
+    }
+
+    .dept-actions {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: flex-end;
+    }
+
+    .btn-action {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-edit {
+        background: rgba(99, 102, 241, 0.1);
+        color: var(--primary);
+        border: 1px solid rgba(99, 102, 241, 0.2);
+    }
+
+    .btn-edit:hover {
+        background: var(--primary);
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .btn-delete {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger);
+        border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    .btn-delete:hover {
+        background: var(--danger);
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+    }
+
+    .empty-state i {
+        font-size: 1.5rem;
+        color: var(--text-light);
+    }
+
+    .empty-state h3 {
+        color: var(--text);
+        margin-bottom: 0.5rem;
+    }
+
+    .empty-state p {
+        color: var(--text-light);
+        margin-bottom: 2rem;
+    }
+
+    @media (max-width: 768px) {
+        .dept-container {
+            margin: 1rem;
+            border-radius: 16px;
+        }
+
+        .dept-header {
+            padding: 2rem 1rem;
+        }
+
+        .dept-header h1 {
+            font-size: 2rem;
+        }
+
+        .header-actions {
+            flex-direction: column;
+        }
+
+        .stats-cards {
+            grid-template-columns: 1fr;
+        }
+
+        .dept-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .action-bar {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .search-box {
+            max-width: none;
+        }
+
+        .tabs-modern {
+            flex-direction: column;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dept-container">
+    <!-- Header -->
+    <div class="dept-header">
+        <h1>
+            <i class="fas fa-building me-3"></i>
+            {% trans "مدیریت بخش‌ها" %}
+        </h1>
+        <p>{% trans "ایجاد و مدیریت بخش‌های کارمندی و فنی سازمان" %}</p>
+        <div class="header-actions">
+            <button class="btn btn-modern" onclick="refreshPage()">
+                <i class="fas fa-sync-alt me-2"></i>
+                {% trans "بروزرسانی" %}
+            </button>
+        </div>
+    </div>
+
+    <div class="dept-content">
+        <!-- Statistics Cards -->
+        <div class="stats-cards">
+            <div class="stat-card all">
+                <div class="stat-icon all">
+                    <i class="fas fa-building"></i>
+                </div>
+                <div class="stat-value">{{ total_departments }}</div>
+                <div class="stat-label">{% trans "کل بخش‌ها" %}</div>
+                    </div>
+
+            <div class="stat-card employee">
+                <div class="stat-icon employee">
+                    <i class="fas fa-user"></i>
+                    </div>
+                <div class="stat-value">{{ total_employee_departments }}</div>
+                <div class="stat-label">{% trans "بخش‌های کارمندی" %}</div>
+                    </div>
+
+            <div class="stat-card technician">
+                <div class="stat-icon technician">
+                    <i class="fas fa-tools"></i>
+                </div>
+                <div class="stat-value">{{ total_technician_departments }}</div>
+                <div class="stat-label">{% trans "بخش‌های فنی" %}</div>
+            </div>
+        </div>
+
+        <!-- Action Bar -->
+        <div class="action-bar">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="{% trans 'جستجو در بخش‌ها...' %}" onkeyup="filterDepartments()">
+    </div>
+
+            <a href="{% url 'tickets:department_create' %}" class="btn-create">
+                <i class="fas fa-plus"></i>
+                {% trans "ایجاد بخش جدید" %}
+            </a>
+    </div>
+
+        <!-- Modern Tabs -->
+        <div class="tabs-modern">
+            <button class="tab-btn active" onclick="showTab('all')">
+                <i class="fas fa-list"></i>
+                {% trans "همه بخش‌ها" %}
+                <span class="tab-badge">{{ total_departments }}</span>
+            </button>
+            <button class="tab-btn" onclick="showTab('employee')">
+                <i class="fas fa-user"></i>
+                {% trans "بخش‌های کارمندی" %}
+                <span class="tab-badge">{{ total_employee_departments }}</span>
+            </button>
+            <button class="tab-btn" onclick="showTab('technician')">
+                <i class="fas fa-tools"></i>
+                {% trans "بخش‌های فنی" %}
+                <span class="tab-badge">{{ total_technician_departments }}</span>
+            </button>
+        </div>
+
+    <!-- Tab Content -->
+        <div id="tabContent">
+            <!-- All Departments -->
+            <div id="allTab" class="tab-content active">
+                {% if departments %}
+                <div class="dept-grid">
+                                {% for department in departments %}
+                    <div class="dept-card {{ department.department_type }}" data-search="{{ department.name|lower }} {{ department.description|lower }}">
+                        <div class="dept-header-card">
+                            <div class="dept-info">
+                                <div class="dept-avatar {{ department.department_type }}">
+                                                {{ department.name|first }}
+                                            </div>
+                                <div class="dept-details">
+                                    <h3>{{ department.name }}</h3>
+                                                {% if department.description %}
+                                    <p title="{{ department.description }}">{{ department.description|truncatechars:15 }}</p>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                            <div class="dept-status">
+                                <span class="status-badge {% if department.is_active %}active{% else %}inactive{% endif %}">
+                                    {% if department.is_active %}{% trans "فعال" %}{% else %}{% trans "غیرفعال" %}{% endif %}
+                                </span>
+                                <span class="type-badge {{ department.department_type }}">
+                                    {% if department.department_type == 'employee' %}{% trans "کارمندی" %}{% else %}{% trans "فنی" %}{% endif %}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="dept-stats">
+                            <div class="stat-item">
+                                <div class="stat-item-value">{{ department.get_user_count }}</div>
+                                <div class="stat-item-label">{% trans "کاربران" %}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-item-value">{{ department.created_at|persian_date_only }}</div>
+                                <div class="stat-item-label">{% trans "تاریخ ایجاد" %}</div>
+                            </div>
+                        </div>
+
+                        <!-- Branch Information -->
+                        <div class="branch-info-section" style="margin-top: 1rem; margin-bottom: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 12px;">
+                            <div style="font-weight: 600; margin-bottom: 0.5rem; color: var(--text);">
+                                <i class="fas fa-map-marker-alt" style="margin-left: 0.5rem;"></i>
+                                {% trans "اطلاعات شعبه" %}
+                            </div>
+                            {% if department.branch %}
+                                <div style="font-size: 0.9rem; color: var(--text);">
+                                    <div style="margin-bottom: 0.25rem;">
+                                        <strong>{% trans "نام:" %}</strong> {{ department.branch.name }}
+                                    </div>
+                                    <div style="margin-bottom: 0.25rem;">
+                                        <strong>{% trans "کد شعبه:" %}</strong> {{ department.branch.branch_code }}
+                                    </div>
+                                    <div style="margin-bottom: 0.25rem;">
+                                        <strong>{% trans "وضعیت:" %}</strong>
+                                        <span class="badge {% if department.branch.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                            {% if department.branch.is_active %}{% trans "فعال" %}{% else %}{% trans "غیرفعال" %}{% endif %}
+                                        </span>
+                                    </div>
+                                    <div style="margin-bottom: 0.5rem;">
+                                        <strong>{% trans "نوع بخش:" %}</strong>
+                                        <span class="badge {% if department.department_type == 'employee' %}bg-info{% else %}bg-success{% endif %}">
+                                            {% if department.department_type == 'employee' %}{% trans "کارمندی" %}{% else %}{% trans "فنی" %}{% endif %}
+                                        </span>
+                                    </div>
+                                    <!-- Toggle for can_receive_tickets -->
+                                    <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #dee2e6;">
+                                        {% if department.branch %}
+                                            <form method="post" action="{% url 'tickets:department_toggle_tickets' department.id %}" style="display: inline;">
+                                                {% csrf_token %}
+                                                <div class="form-check form-switch" style="display: flex; align-items: center; gap: 0.5rem;">
+                                                    <input class="form-check-input" type="checkbox" 
+                                                           id="can_receive_tickets_{{ department.id }}" 
+                                                           {% if department.can_receive_tickets %}checked{% endif %}
+                                                           onchange="this.form.submit()"
+                                                           style="cursor: pointer; width: 2.5rem; height: 1.25rem;">
+                                                    <label class="form-check-label" for="can_receive_tickets_{{ department.id }}" style="cursor: pointer; font-weight: 600; color: var(--text);">
+                                                        {% trans "قابلیت دریافت تیکت" %}
+                                                    </label>
+                                                </div>
+                                            </form>
+                                            {% if department.can_receive_tickets %}
+                                                <div style="font-size: 0.85rem; color: var(--success); margin-top: 0.5rem;">
+                                                    <i class="fas fa-check-circle"></i>
+                                                    {% trans "این بخش می‌تواند تیکت دریافت کند. انتخاب پاسخ‌دهنده توسط سرپرست بخش انجام می‌شود." %}
+                                                </div>
+                                            {% endif %}
+                                        {% else %}
+                                            <div style="font-size: 0.85rem; color: var(--warning);">
+                                                <i class="fas fa-exclamation-triangle"></i>
+                                                {% trans "برای فعال‌سازی دریافت تیکت، ابتدا باید یک شعبه به این بخش اختصاص دهید." %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% else %}
+                                <div style="font-size: 0.9rem; color: var(--danger);">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    {% trans "شعبه پیکربندی نشده" %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="dept-actions">
+                            <a href="{% url 'tickets:department_edit' department.id %}" class="btn-action btn-edit">
+                                                <i class="fas fa-edit"></i>
+                                {% trans "ویرایش" %}
+                                            </a>
+                            <a href="{% url 'tickets:department_delete' department.id %}" class="btn-action btn-delete">
+                                                <i class="fas fa-trash"></i>
+                                {% trans "حذف" %}
+                                            </a>
+                                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-building"></i>
+                    <h3>{% trans "هیچ بخشی یافت نشد" %}</h3>
+                    <p>{% trans "برای شروع، اولین بخش خود را ایجاد کنید" %}</p>
+                    <a href="{% url 'tickets:department_create' %}" class="btn-create">
+                        <i class="fas fa-plus me-2"></i>
+                        {% trans "ایجاد اولین بخش" %}
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Employee Departments -->
+            <div id="employeeTab" class="tab-content" style="display: none;">
+                {% if employee_departments %}
+                <div class="dept-grid">
+                                {% for department in employee_departments %}
+                    <div class="dept-card employee" data-search="{{ department.name|lower }} {{ department.description|lower }}">
+                        <div class="dept-header-card">
+                            <div class="dept-info">
+                                <div class="dept-avatar employee">
+                                                {{ department.name|first }}
+                                            </div>
+                                <div class="dept-details">
+                                    <h3>{{ department.name }}</h3>
+                                                {% if department.description %}
+                                    <p title="{{ department.description }}">{{ department.description|truncatechars:15 }}</p>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                            <div class="dept-status">
+                                <span class="status-badge {% if department.is_active %}active{% else %}inactive{% endif %}">
+                                    {% if department.is_active %}{% trans "فعال" %}{% else %}{% trans "غیرفعال" %}{% endif %}
+                                </span>
+                                <span class="type-badge employee">{% trans "کارمندی" %}</span>
+                            </div>
+                        </div>
+
+                        <div class="dept-stats">
+                            <div class="stat-item">
+                                <div class="stat-item-value">{{ department.get_user_count }}</div>
+                                <div class="stat-item-label">{% trans "کاربران" %}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-item-value">{{ department.created_at|persian_date_only }}</div>
+                                <div class="stat-item-label">{% trans "تاریخ ایجاد" %}</div>
+                            </div>
+                        </div>
+
+                        <!-- Branch Information -->
+                        <div class="branch-info-section" style="margin-top: 1rem; margin-bottom: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 12px;">
+                            <div style="font-weight: 600; margin-bottom: 0.5rem; color: var(--text);">
+                                <i class="fas fa-map-marker-alt" style="margin-left: 0.5rem;"></i>
+                                {% trans "اطلاعات شعبه" %}
+                            </div>
+                            {% if department.branch %}
+                                <div style="font-size: 0.9rem; color: var(--text);">
+                                    <div style="margin-bottom: 0.25rem;">
+                                        <strong>{% trans "نام:" %}</strong> {{ department.branch.name }}
+                                    </div>
+                                    <div style="margin-bottom: 0.25rem;">
+                                        <strong>{% trans "کد شعبه:" %}</strong> {{ department.branch.branch_code }}
+                                    </div>
+                                    <div style="margin-bottom: 0.25rem;">
+                                        <strong>{% trans "وضعیت:" %}</strong>
+                                        <span class="badge {% if department.branch.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                            {% if department.branch.is_active %}{% trans "فعال" %}{% else %}{% trans "غیرفعال" %}{% endif %}
+                                        </span>
+                                    </div>
+                                    <div style="margin-bottom: 0.5rem;">
+                                        <strong>{% trans "نوع بخش:" %}</strong>
+                                        <span class="badge {% if department.department_type == 'employee' %}bg-info{% else %}bg-success{% endif %}">
+                                            {% if department.department_type == 'employee' %}{% trans "کارمندی" %}{% else %}{% trans "فنی" %}{% endif %}
+                                        </span>
+                                    </div>
+                                    <!-- Toggle for can_receive_tickets -->
+                                    <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #dee2e6;">
+                                        {% if department.branch %}
+                                            <form method="post" action="{% url 'tickets:department_toggle_tickets' department.id %}" style="display: inline;">
+                                                {% csrf_token %}
+                                                <div class="form-check form-switch" style="display: flex; align-items: center; gap: 0.5rem;">
+                                                    <input class="form-check-input" type="checkbox" 
+                                                           id="can_receive_tickets_{{ department.id }}" 
+                                                           {% if department.can_receive_tickets %}checked{% endif %}
+                                                           onchange="this.form.submit()"
+                                                           style="cursor: pointer; width: 2.5rem; height: 1.25rem;">
+                                                    <label class="form-check-label" for="can_receive_tickets_{{ department.id }}" style="cursor: pointer; font-weight: 600; color: var(--text);">
+                                                        {% trans "قابلیت دریافت تیکت" %}
+                                                    </label>
+                                                </div>
+                                            </form>
+                                            {% if department.can_receive_tickets %}
+                                                <div style="font-size: 0.85rem; color: var(--success); margin-top: 0.5rem;">
+                                                    <i class="fas fa-check-circle"></i>
+                                                    {% trans "این بخش می‌تواند تیکت دریافت کند. انتخاب پاسخ‌دهنده توسط سرپرست بخش انجام می‌شود." %}
+                                                </div>
+                                            {% endif %}
+                                        {% else %}
+                                            <div style="font-size: 0.85rem; color: var(--warning);">
+                                                <i class="fas fa-exclamation-triangle"></i>
+                                                {% trans "برای فعال‌سازی دریافت تیکت، ابتدا باید یک شعبه به این بخش اختصاص دهید." %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% else %}
+                                <div style="font-size: 0.9rem; color: var(--danger);">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    {% trans "شعبه پیکربندی نشده" %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="dept-actions">
+                            <a href="{% url 'tickets:department_edit' department.id %}" class="btn-action btn-edit">
+                                                <i class="fas fa-edit"></i>
+                                {% trans "ویرایش" %}
+                                            </a>
+                            <a href="{% url 'tickets:department_delete' department.id %}" class="btn-action btn-delete">
+                                                <i class="fas fa-trash"></i>
+                                {% trans "حذف" %}
+                                            </a>
+                                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-user"></i>
+                    <h3>{% trans "هیچ بخش کارمندی یافت نشد" %}</h3>
+                    <p>{% trans "برای شروع، اولین بخش کارمندی خود را ایجاد کنید" %}</p>
+                    <a href="{% url 'tickets:department_create' %}" class="btn-create">
+                        <i class="fas fa-plus me-2"></i>
+                        {% trans "ایجاد بخش کارمندی" %}
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Technician Departments -->
+            <div id="technicianTab" class="tab-content" style="display: none;">
+                {% if technician_departments %}
+                <div class="dept-grid">
+                                {% for department in technician_departments %}
+                    <div class="dept-card technician" data-search="{{ department.name|lower }} {{ department.description|lower }}">
+                        <div class="dept-header-card">
+                            <div class="dept-info">
+                                <div class="dept-avatar technician">
+                                                {{ department.name|first }}
+                                            </div>
+                                <div class="dept-details">
+                                    <h3>{{ department.name }}</h3>
+                                                {% if department.description %}
+                                    <p title="{{ department.description }}">{{ department.description|truncatechars:15 }}</p>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                            <div class="dept-status">
+                                <span class="status-badge {% if department.is_active %}active{% else %}inactive{% endif %}">
+                                    {% if department.is_active %}{% trans "فعال" %}{% else %}{% trans "غیرفعال" %}{% endif %}
+                                </span>
+                                <span class="type-badge technician">{% trans "فنی" %}</span>
+                            </div>
+                        </div>
+
+                        <div class="dept-stats">
+                            <div class="stat-item">
+                                <div class="stat-item-value">{{ department.get_user_count }}</div>
+                                <div class="stat-item-label">{% trans "کاربران" %}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-item-value">{{ department.created_at|persian_date_only }}</div>
+                                <div class="stat-item-label">{% trans "تاریخ ایجاد" %}</div>
+                            </div>
+                        </div>
+
+                        <!-- Branch Information -->
+                        <div class="branch-info-section" style="margin-top: 1rem; margin-bottom: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 12px;">
+                            <div style="font-weight: 600; margin-bottom: 0.5rem; color: var(--text);">
+                                <i class="fas fa-map-marker-alt" style="margin-left: 0.5rem;"></i>
+                                {% trans "اطلاعات شعبه" %}
+                            </div>
+                            {% if department.branch %}
+                                <div style="font-size: 0.9rem; color: var(--text);">
+                                    <div style="margin-bottom: 0.25rem;">
+                                        <strong>{% trans "نام:" %}</strong> {{ department.branch.name }}
+                                    </div>
+                                    <div style="margin-bottom: 0.25rem;">
+                                        <strong>{% trans "کد شعبه:" %}</strong> {{ department.branch.branch_code }}
+                                    </div>
+                                    <div style="margin-bottom: 0.25rem;">
+                                        <strong>{% trans "وضعیت:" %}</strong>
+                                        <span class="badge {% if department.branch.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                            {% if department.branch.is_active %}{% trans "فعال" %}{% else %}{% trans "غیرفعال" %}{% endif %}
+                                        </span>
+                                    </div>
+                                    <div style="margin-bottom: 0.5rem;">
+                                        <strong>{% trans "نوع بخش:" %}</strong>
+                                        <span class="badge {% if department.department_type == 'employee' %}bg-info{% else %}bg-success{% endif %}">
+                                            {% if department.department_type == 'employee' %}{% trans "کارمندی" %}{% else %}{% trans "فنی" %}{% endif %}
+                                        </span>
+                                    </div>
+                                    <!-- Toggle for can_receive_tickets -->
+                                    <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #dee2e6;">
+                                        {% if department.branch %}
+                                            <form method="post" action="{% url 'tickets:department_toggle_tickets' department.id %}" style="display: inline;">
+                                                {% csrf_token %}
+                                                <div class="form-check form-switch" style="display: flex; align-items: center; gap: 0.5rem;">
+                                                    <input class="form-check-input" type="checkbox" 
+                                                           id="can_receive_tickets_{{ department.id }}" 
+                                                           {% if department.can_receive_tickets %}checked{% endif %}
+                                                           onchange="this.form.submit()"
+                                                           style="cursor: pointer; width: 2.5rem; height: 1.25rem;">
+                                                    <label class="form-check-label" for="can_receive_tickets_{{ department.id }}" style="cursor: pointer; font-weight: 600; color: var(--text);">
+                                                        {% trans "قابلیت دریافت تیکت" %}
+                                                    </label>
+                                                </div>
+                                            </form>
+                                            {% if department.can_receive_tickets %}
+                                                <div style="font-size: 0.85rem; color: var(--success); margin-top: 0.5rem;">
+                                                    <i class="fas fa-check-circle"></i>
+                                                    {% trans "این بخش می‌تواند تیکت دریافت کند. انتخاب پاسخ‌دهنده توسط سرپرست بخش انجام می‌شود." %}
+                                                </div>
+                                            {% endif %}
+                                        {% else %}
+                                            <div style="font-size: 0.85rem; color: var(--warning);">
+                                                <i class="fas fa-exclamation-triangle"></i>
+                                                {% trans "برای فعال‌سازی دریافت تیکت، ابتدا باید یک شعبه به این بخش اختصاص دهید." %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% else %}
+                                <div style="font-size: 0.9rem; color: var(--danger);">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    {% trans "شعبه پیکربندی نشده" %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="dept-actions">
+                            <a href="{% url 'tickets:department_edit' department.id %}" class="btn-action btn-edit">
+                                                <i class="fas fa-edit"></i>
+                                {% trans "ویرایش" %}
+                                            </a>
+                            <a href="{% url 'tickets:department_delete' department.id %}" class="btn-action btn-delete">
+                                                <i class="fas fa-trash"></i>
+                                {% trans "حذف" %}
+                                            </a>
+                                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-tools"></i>
+                    <h3>{% trans "هیچ بخش فنی یافت نشد" %}</h3>
+                    <p>{% trans "برای شروع، اولین بخش فنی خود را ایجاد کنید" %}</p>
+                    <a href="{% url 'tickets:department_create' %}" class="btn-create">
+                        <i class="fas fa-plus me-2"></i>
+                        {% trans "ایجاد بخش فنی" %}
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Tab functionality
+function showTab(tabName) {
+    // Hide all tab contents
+    const tabContents = document.querySelectorAll('.tab-content');
+    tabContents.forEach(content => {
+        content.style.display = 'none';
+    });
+
+    // Remove active class from all tab buttons
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    tabButtons.forEach(btn => {
+        btn.classList.remove('active');
+    });
+
+    // Show selected tab content
+    const selectedTab = document.getElementById(tabName + 'Tab');
+    if (selectedTab) {
+        selectedTab.style.display = 'block';
+    }
+
+    // Add active class to clicked button
+    const clickedButton = event.target.closest('.tab-btn');
+    if (clickedButton) {
+        clickedButton.classList.add('active');
+    }
+
+    // Reset search when switching tabs
+    document.getElementById('searchInput').value = '';
+    filterDepartments();
+}
+
+// Search functionality
+function filterDepartments() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const activeTab = document.querySelector('.tab-content[style*="block"]') || document.querySelector('.tab-content.active');
+    const departments = activeTab.querySelectorAll('.dept-card');
+
+    departments.forEach(dept => {
+        const searchData = dept.getAttribute('data-search');
+        if (searchData.includes(searchTerm)) {
+            dept.style.display = 'block';
+        } else {
+            dept.style.display = 'none';
+        }
+    });
+}
+
+// Utility functions
+function refreshPage() {
+    location.reload();
+}
+
+function exportDepartments() {
+    // Implementation for exporting departments data
+    alert('{% trans "این قابلیت در نسخه‌های آینده اضافه خواهد شد" %}');
+}
+
+// Add loading animation
+document.addEventListener('DOMContentLoaded', function() {
+    const cards = document.querySelectorAll('.stat-card, .dept-card');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+            card.style.transition = 'all 0.6s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 100);
+    });
+});
+
+// Auto-refresh every 10 minutes
+setInterval(function() {
+    if (!document.hidden) {
+        // refreshPage();
+    }
+}, 600000);
+</script>
+{% endblock %} 

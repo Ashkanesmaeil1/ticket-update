@@ -1,0 +1,276 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load crispy_forms_tags %}
+{% load persian_date %}
+
+{% block title %}{% trans "ویرایش کاربر" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Hero Header -->
+    <div class="hero-header mb-4">
+        <div class="hero-content d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-3">
+                <i class="fas fa-user-edit"></i>
+                <div>
+                    <h2 class="mb-1">
+                        {% if form_type == 'employee' %}
+                            {% trans "ویرایش کارمند" %}
+                        {% else %}
+                            {% trans "ویرایش کارشناسIT" %}
+                        {% endif %}
+                    </h2>
+                    <p class="mb-0">
+                        {% if form_type == 'employee' %}
+                            {% trans "ویرایش اطلاعات کارمند" %}: {{ edited_user.get_full_name }}
+                        {% else %}
+                            {% trans "ویرایش اطلاعات کارشناسIT" %}: {{ edited_user.get_full_name }}
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            <a href="{% url 'tickets:user_management' %}" class="btn-modern btn-secondary-modern">
+                <i class="fas fa-arrow-right"></i>
+                {% trans "بازگشت" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Edit Form + Info -->
+    <div class="row g-4">
+        <div class="col-12 col-lg-8">
+            <div class="section-card">
+                <div class="section-header">
+                    <i class="fas fa-edit"></i>
+                    <h5 class="mb-0">
+                        {% if form_type == 'employee' %}
+                            {% trans "اطلاعات کارمند" %}
+                        {% else %}
+                            {% trans "اطلاعات کارشناس IT" %}
+                        {% endif %}
+                    </h5>
+                </div>
+                <div class="section-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">{{ form.first_name|as_crispy_field }}</div>
+                            <div class="col-md-6 mb-3">{{ form.last_name|as_crispy_field }}</div>
+                        </div>
+
+                        <div class="mb-3">{{ form.email|as_crispy_field }}</div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">{{ form.national_id|as_crispy_field }}</div>
+                            <div class="col-md-6 mb-3">{{ form.employee_code|as_crispy_field }}</div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">{{ form.phone|as_crispy_field }}</div>
+                            {% if form.department %}
+                            <div class="col-md-6 mb-3">{{ form.department|as_crispy_field }}</div>
+                            {% else %}
+                            <div class="col-md-6 mb-3"></div>
+                            {% endif %}
+                        </div>
+
+                        {% if form_type == 'employee' and form.department_role %}
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "نقش در بخش" %}</label>
+                            <div class="d-flex flex-wrap gap-4">
+                                {% for choice in form.department_role %}
+                                <label class="form-check form-check-inline m-0 d-flex align-items-center gap-2">
+                                    {{ choice.tag }}
+                                    <span>{{ choice.choice_label }}</span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                            {% if form.department_role.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.department_role.errors %}{{ error }}{% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <div class="d-flex gap-2 justify-content-between" style="margin-top: 2rem; flex-direction: row-reverse;">
+                            <button type="submit" class="btn-modern">
+                                <i class="fas fa-save"></i>
+                                {% trans "ذخیره تغییرات" %}
+                            </button>
+                            <a href="{% url 'tickets:user_management' %}" class="btn-modern btn-secondary-modern">
+                                <i class="fas fa-times"></i>
+                                {% trans "انصراف" %}
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-4">
+            <div class="section-card">
+                <div class="section-header">
+                    <i class="fas fa-user"></i>
+                    <h6 class="mb-0">{% trans "اطلاعات کاربر" %}</h6>
+                </div>
+                <div class="section-body">
+                    <div class="info-row"><span>{% trans "نام کامل" %}:</span><strong>{{ edited_user.get_full_name }}</strong></div>
+                    <div class="info-row">
+                        <span>{% trans "نقش" %}:</span>
+                        <strong>{{ edited_user.get_role_display }}</strong>
+                    </div>
+                    <div class="info-row"><span>{% trans "تاریخ عضویت" %}:</span><strong>{{ edited_user.date_joined|persian_date }}</strong></div>
+                    <div class="info-row"><span>{% trans "کد ملی" %}:</span><strong>{{ edited_user.national_id }}</strong></div>
+                    <div class="info-row"><span>{% trans "کد کارمندی" %}:</span><strong>{{ edited_user.employee_code }}</strong></div>
+                    {% if edited_user.role != 'it_manager' %}
+                    <div class="info-row">
+                        <span>{% trans "نقش در بخش" %}:</span>
+                        <strong>{{ edited_user.get_department_role_display }}</strong>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --success: #10b981;
+        --text: #374151;
+        --muted: #6b7280;
+        --card-bg: #ffffff;
+        --border: #e5e7eb;
+    }
+
+    .hero-header {
+        /* background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%); */
+        background: rgba(102, 126, 234, 0.75) !important;
+        backdrop-filter: blur(25px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #fff;
+        border-radius: 16px;
+        padding: 1.25rem 1.5rem;
+        box-shadow: 0 10px 30px rgba(124, 58, 237, 0.2);
+    }
+    .hero-header .fa-user-edit { font-size: 1.75rem; }
+    .hero-header h2 { font-weight: 800; }
+    .hero-header p { color: rgba(255,255,255,0.9); }
+
+    .section-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: 0 6px 24px rgba(0,0,0,0.06);
+        overflow: hidden;
+    }
+    .section-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border);
+        background: #f9fafb;
+        color: var(--text);
+        font-weight: 700;
+    }
+    .section-header i { color: var(--primary); }
+    .section-body { padding: 1.25rem; }
+
+    .btn-modern {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.25rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.2);
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        color: #fff !important;
+        font-weight: 700;
+        transition: box-shadow .25s ease, transform .2s ease;
+        box-shadow: 0 6px 18px rgba(79,70,229,.25);
+    }
+    .btn-modern:hover { box-shadow: 0 10px 28px rgba(79,70,229,.35); transform: translateY(-1px); }
+    .btn-modern i { font-size: 1rem; }
+
+    .btn-secondary-modern {
+        text-decoration: none;
+        background: #fff;
+        color: var(--text) !important;
+        border: 1px solid var(--border);
+        box-shadow: 0 6px 18px rgba(0,0,0,.06);
+    }
+    .btn-secondary-modern:hover { box-shadow: 0 10px 24px rgba(0,0,0,.1); }
+
+    /* Crispy controls alignment */
+    .form-label { font-weight: 600; color: var(--text); }
+    .form-control, .form-select { border-radius: 10px; }
+    .form-check-input:checked { background-color: var(--primary); border-color: var(--primary); }
+
+    .info-row { display: flex; justify-content: space-between; padding: .5rem 0; border-bottom: 1px dashed var(--border); }
+    .info-row:last-child { border-bottom: 0; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Prevent non-numeric input for national_id and employee_code fields
+        function onlyAllowDigits(e) {
+            if (e.inputType && e.inputType.startsWith('delete')) return;
+            if (!/^[0-9]*$/.test(e.target.value)) {
+                e.target.value = e.target.value.replace(/[^0-9]/g, '');
+            }
+        }
+        
+        // Apply to national_id and employee_code inputs
+        const nationalIdInputs = document.querySelectorAll('input[name="national_id"]');
+        const employeeCodeInputs = document.querySelectorAll('input[name="employee_code"]');
+        
+        nationalIdInputs.forEach(input => {
+            input.addEventListener('input', onlyAllowDigits);
+        });
+        
+        employeeCodeInputs.forEach(input => {
+            input.addEventListener('input', onlyAllowDigits);
+        });
+        
+        // Confirm form submission
+        const form = document.querySelector('form');
+        form.addEventListener('submit', function(e) {
+            const submitButton = form.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>{% trans "در حال ذخیره..." %}';
+        });
+    });
+
+    // Disable department select when manager role is chosen (for employee edit forms)
+    function toggleEditDepartmentField() {
+        const roleInputs = document.querySelectorAll('input[name="department_role"]');
+        const deptSelect = document.getElementById('id_department');
+        if (!deptSelect || roleInputs.length === 0) return;
+        let selected = '';
+        roleInputs.forEach(r => { if (r.checked) selected = r.value; });
+        if (selected === 'manager') {
+            deptSelect.disabled = true;
+            deptSelect.value = '';
+            deptSelect.style.opacity = '0.5';
+        } else {
+            deptSelect.disabled = false;
+            deptSelect.style.opacity = '1';
+        }
+    }
+    document.addEventListener('change', function(e) {
+        if (e.target && e.target.name === 'department_role') {
+            toggleEditDepartmentField();
+        }
+    });
+    document.addEventListener('DOMContentLoaded', toggleEditDepartmentField);
+</script>
+{% endblock %} 

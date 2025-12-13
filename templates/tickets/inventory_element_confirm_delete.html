@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "حذف عنصر موجودی" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header bg-danger text-white">
+            <h3><i class="fas fa-exclamation-triangle"></i> {% trans "تأیید حذف" %}</h3>
+        </div>
+        <div class="card-body">
+            <p>{% trans "آیا از حذف عنصر موجودی زیر اطمینان دارید؟" %}</p>
+            <div class="alert alert-warning">
+                <strong>{% trans "عنصر:" %}</strong> {{ element.name }}<br>
+                <strong>{% trans "نوع:" %}</strong> {{ element.element_type }}<br>
+                <strong>{% trans "کاربر:" %}</strong> {{ element.assigned_to.get_full_name }}
+            </div>
+            {% if sub_elements_count > 0 %}
+            <div class="alert alert-danger">
+                <strong>{% trans "هشدار:" %}</strong> {% trans "این عنصر دارای" %} {{ sub_elements_count }} {% trans "زیرمجموعه است که با حذف این عنصر، همه آنها نیز حذف خواهند شد." %}
+            </div>
+            {% endif %}
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> {% trans "حذف" %}
+                </button>
+                <a href="{% url 'tickets:inventory_element_detail' element.id %}" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> {% trans "انصراف" %}
+                </a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

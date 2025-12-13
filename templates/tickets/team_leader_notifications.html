@@ -1,0 +1,930 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+{% load notifications_tags %}
+
+{% block title %}{% trans "اعلان‌های دسترسی شبکه" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #06b6d4;
+        --dark: #1f2937;
+        --light: #f8fafc;
+        --border: #e2e8f0;
+        --text: #374151;
+        --text-light: #6b7280;
+        --network-bg: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+    }
+
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .network-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 1400px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .network-header {
+        background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+        color: white;
+        padding: 3rem 2rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .network-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+    }
+
+    .network-header h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .network-header p {
+        font-size: 1.1rem;
+        opacity: 0.9;
+        margin-bottom: 2rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .header-stats {
+        display: flex;
+        justify-content: center;
+        gap: 2rem;
+        margin-bottom: 2rem;
+        position: relative;
+        z-index: 2;
+        flex-wrap: wrap;
+    }
+
+    .stat-card {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 16px;
+        padding: 1.5rem;
+        text-align: center;
+        backdrop-filter: blur(10px);
+        transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-4px);
+    }
+
+    .stat-number {
+        font-size: 2rem;
+        font-weight: 800;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+        font-size: 0.9rem;
+        opacity: 0.9;
+        font-weight: 600;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        position: relative;
+        z-index: 2;
+        flex-wrap: wrap;
+    }
+
+    .btn-modern {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    .btn-modern:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+        color: white;
+        text-decoration: none;
+    }
+
+    .network-content {
+        padding: 2rem;
+    }
+
+    .tabs-section {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        margin-bottom: 2rem;
+    }
+
+    .tabs-modern {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 2rem;
+        border-bottom: 2px solid var(--border);
+        padding-bottom: 1rem;
+    }
+
+    .tab-modern {
+        background: transparent;
+        border: 2px solid var(--border);
+        color: var(--text-light);
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        position: relative;
+    }
+
+    .tab-modern.active {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        border-color: var(--primary);
+        color: white;
+    }
+
+    .tab-modern:hover:not(.active) {
+        border-color: var(--primary);
+        color: var(--primary);
+        transform: translateY(-2px);
+    }
+
+    .tab-badge {
+        background: rgba(239, 68, 68, 0.9);
+        color: white;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        margin-right: 0.5rem;
+    }
+
+    .notifications-section {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+    }
+
+    .notification-card-modern {
+        background: white;
+        border-radius: 16px;
+        margin-bottom: 1.5rem;
+        border: 1px solid var(--border);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .notification-card-modern::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 4px;
+        height: 100%;
+        background: var(--network-bg);
+        opacity: 0.7;
+    }
+
+    .notification-card-modern:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15);
+        border-color: var(--primary);
+    }
+
+    .notification-header {
+        padding: 1.5rem 2rem 1rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .notification-title-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .notification-title {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .unread-indicator {
+        width: 12px;
+        height: 12px;
+        background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+    }
+
+    .notification-title-text {
+        font-weight: 700;
+        color: var(--text);
+        font-size: 1.1rem;
+    }
+
+    .notification-time {
+        color: var(--text-light);
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    .notification-actions {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .btn-sm-modern {
+        background: linear-gradient(135deg, var(--info) 0%, #0891b2 100%);
+        border: none;
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        text-decoration: none;
+        cursor: pointer;
+    }
+
+    .btn-sm-modern:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
+        color: white;
+        text-decoration: none;
+    }
+
+    .btn-danger-modern {
+        background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+    }
+
+    .btn-danger-modern:hover {
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    }
+
+    .notification-details {
+        padding: 1rem 2rem 2rem;
+    }
+
+    .network-access-display {
+        text-align: center;
+        margin-bottom: 2rem;
+        padding: 2rem;
+        background: var(--light);
+        border-radius: 16px;
+        border: 1px solid var(--border);
+    }
+
+    .network-icon {
+        font-size: 3rem;
+        color: var(--info);
+        margin-bottom: 1rem;
+    }
+
+    .network-title {
+        font-weight: 700;
+        color: var(--primary);
+        font-size: 1.3rem;
+        margin-bottom: 1rem;
+    }
+
+    .network-message {
+        color: var(--text);
+        line-height: 1.6;
+        margin-bottom: 1.5rem;
+    }
+
+    .network-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .btn-success-modern {
+        background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+        border: none;
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    .btn-success-modern:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3);
+        background: linear-gradient(135deg, #059669 0%, #047857 100%);
+        color: white;
+    }
+
+    .btn-warning-modern {
+        background: linear-gradient(135deg, var(--warning) 0%, #d97706 100%);
+        border: none;
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    .btn-warning-modern:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(245, 158, 11, 0.3);
+        background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+        color: white;
+    }
+
+    .status-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-right: 0.5rem;
+    }
+
+    .status-badge.approved {
+        background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+        color: white;
+    }
+
+    .status-badge.rejected {
+        background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+        color: white;
+    }
+
+    .requester-info {
+        margin-top: 1.5rem;
+        padding: 1rem;
+        background: var(--light);
+        border-radius: 12px;
+        border: 1px solid var(--border);
+    }
+
+    .requester-label {
+        font-size: 0.85rem;
+        color: var(--text-light);
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+
+    .requester-name {
+        color: var(--text);
+        font-weight: 600;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: var(--text-light);
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 1.5rem;
+        opacity: 0.5;
+    }
+
+    .empty-state p {
+        font-size: 1.1rem;
+        margin: 0;
+    }
+
+    @media (max-width: 768px) {
+        .network-container {
+            margin: 1rem;
+            border-radius: 16px;
+        }
+
+        .network-header {
+            padding: 2rem 1rem;
+        }
+
+        .network-header h1 {
+            font-size: 2rem;
+        }
+
+        .header-stats {
+            gap: 1rem;
+        }
+
+        .stat-card {
+            padding: 1rem;
+        }
+
+        .network-content {
+            padding: 1rem;
+        }
+
+        .tabs-section,
+        .notifications-section {
+            padding: 1.5rem;
+        }
+
+        .tabs-modern {
+            flex-direction: column;
+        }
+
+        .notification-header {
+            padding: 1rem;
+        }
+
+        .notification-details {
+            padding: 1rem;
+        }
+
+        .network-actions {
+            flex-direction: column;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="network-container">
+    {% csrf_token %}
+    <!-- Page Header -->
+    <div class="network-header">
+        <h1>
+            <i class="fas fa-network-wired"></i>
+            {% trans "اعلان‌های دسترسی شبکه" %}
+        </h1>
+        <p>{% trans "مدیریت درخواست‌های دسترسی شبکه و تایید/رد آنها" %}</p>
+        
+        <div class="header-stats">
+            <div class="stat-card">
+                <div class="stat-number">{{ total_unread }}</div>
+                <div class="stat-label">{% trans "اعلان‌های جدید" %}</div>
+            </div>
+        </div>
+        
+        <div class="header-actions">
+            <a href="?mark=all_read" class="btn-modern">
+                <i class="fas fa-check"></i>
+                {% trans "علامت‌گذاری همه به عنوان خوانده شده" %}
+            </a>
+            <button class="btn-modern" onclick="deleteAllTeamLeaderNotifications()">
+                <i class="fas fa-trash"></i>
+                {% trans "حذف همه اعلان‌ها" %}
+            </button>
+        </div>
+    </div>
+
+    <div class="network-content">
+        <!-- Category Tabs -->
+        <!-- <div class="tabs-section">
+            <div class="tabs-modern">
+                {% for category, name in category_names.items %}
+                <button class="tab-modern active" 
+                        id="tab-{{ category }}" 
+                        data-bs-toggle="tab" 
+                        data-bs-target="#content-{{ category }}" 
+                        type="button" 
+                        role="tab">
+                    {{ name }}
+                    {% for cat, count in unread_counts.items %}
+                        {% if cat == category and count > 0 %}
+                        <span class="tab-badge">{{ count }}</span>
+                        {% endif %}
+                    {% endfor %}
+                </button>
+                {% endfor %}
+            </div>
+        </div> -->
+
+        <!-- Tab Content -->
+        <div class="notifications-section">
+            <div class="tab-content" id="notificationTabContent">
+                {% for category, name in category_names.items %}
+                <div class="tab-pane fade show active" 
+                     id="content-{{ category }}" 
+                     role="tabpanel">
+                    
+                    {% for cat, has_notifications in category_has_notifications.items %}
+                        {% if cat == category %}
+                            {% if has_notifications %}
+                                {% for notification in notifications %}
+                                    {% if notification.category == category %}
+                                    <div class="notification-card-modern" id="notification-{{ notification.id }}">
+                                        <div class="notification-header">
+                                            <div class="notification-title-row">
+                                                <div class="notification-title">
+                                                    {% if not notification.is_read %}
+                                                    <div class="unread-indicator"></div>
+                                                    {% endif %}
+                                                    <div class="notification-title-text">{{ notification.title }}</div>
+                                                </div>
+                                                <div class="notification-time">{{ notification.created_at|persian_date }}</div>
+                                            </div>
+                                            <div class="notification-actions">
+                                                <button class="btn-sm-modern" type="button" data-bs-toggle="collapse" data-bs-target="#details-{{ notification.id }}">
+                                                    {% trans "نمایش بیشتر" %}
+                                                </button>
+                                                <button class="btn-sm-modern btn-danger-modern delete-notification-btn" data-delete-id="{{ notification.id }}" title="{% trans 'حذف این اعلان' %}">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <!-- Collapsible Details -->
+                                        <div class="collapse" id="details-{{ notification.id }}">
+                                            <div class="notification-details">
+                                                <!-- Network Access notification display -->
+                                                <div class="network-access-display">
+                                                    <div class="network-icon">
+                                                        <i class="fas fa-network-wired"></i>
+                                                    </div>
+                                                    <div class="network-title">{{ notification.title }}</div>
+                                                    <div class="network-message">{{ notification.message|linebreaks }}</div>
+                                                    
+                                                    {% if notification.ticket %}
+                                                    <div class="network-actions">
+                                                        {% if notification.ticket.access_approval_status == 'pending' %}
+                                                        <a href="{% url 'tickets:ticket_detail' notification.ticket.id %}" class="btn-sm-modern">
+                                                            <i class="fas fa-external-link-alt"></i>
+                                                            {% trans "مشاهده تیکت" %}
+                                                        </a>
+                                                        <button class="btn-success-modern approve-access-btn" data-ticket-id="{{ notification.ticket.id }}">
+                                                            <i class="fas fa-check"></i>
+                                                            {% trans "تایید دسترسی" %}
+                                                        </button>
+                                                        <button class="btn-warning-modern reject-access-btn" data-ticket-id="{{ notification.ticket.id }}">
+                                                            <i class="fas fa-times"></i>
+                                                            {% trans "رد درخواست" %}
+                                                        </button>
+                                                        {% else %}
+                                                        {% if notification.ticket.access_approval_status == 'approved' %}
+                                                        <a href="{% url 'tickets:ticket_detail' notification.ticket.id %}" class="btn-sm-modern">
+                                                            <i class="fas fa-external-link-alt"></i>
+                                                            {% trans "مشاهده تیکت" %}
+                                                        </a>
+                                                        {% endif %}
+                                                        <span class="status-badge {% if notification.ticket.access_approval_status == 'approved' %}approved{% else %}rejected{% endif %}">
+                                                            {% if notification.ticket.access_approval_status == 'approved' %}
+                                                                {% trans "تایید شده" %}
+                                                            {% else %}
+                                                                {% trans "رد شده" %}
+                                                            {% endif %}
+                                                        </span>
+                                                        {% endif %}
+                                                    </div>
+                                                    {% else %}
+                                                    <!-- Ticket was deleted (rejected) but notification remains -->
+                                                    <div class="network-actions">
+                                                        <span class="status-badge rejected">رد شده</span>
+                                                    </div>
+                                                    {% endif %}
+                                                    
+                                                    {% if notification.user_actor %}
+                                                    <div class="requester-info">
+                                                        <div class="requester-label">
+                                                            <i class="fas fa-user"></i>
+                                                            {% trans "درخواست کننده" %}
+                                                        </div>
+                                                        <div class="requester-name">{{ notification.user_actor.get_full_name }}</div>
+                                                    </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                            <div class="empty-state">
+                                <i class="fas fa-network-wired"></i>
+                                <p>{% trans "هیچ درخواست دسترسی شبکه جدیدی وجود ندارد" %}</p>
+                            </div>
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Auto-refresh notifications every 30 seconds
+  setTimeout(function() {
+    location.reload();
+  }, 30000);
+  
+  // Mark notification as read when expanded
+  document.querySelectorAll('[data-bs-toggle="collapse"]').forEach(function(button) {
+    button.addEventListener('click', function() {
+      const notificationId = this.getAttribute('data-bs-target').replace('#details-', '');
+      markNotificationAsRead(notificationId);
+    });
+  });
+  
+  function markNotificationAsRead(notificationId) {
+    fetch(`/notifications/${notificationId}/mark-read/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        'Content-Type': 'application/json',
+      },
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Update the notification display to show it as read
+        const notificationCard = document.querySelector(`#notification-${notificationId}`);
+        const unreadIndicator = notificationCard.querySelector('.unread-indicator');
+        if (unreadIndicator) {
+          unreadIndicator.remove();
+        }
+        
+        // Update the header stats
+        updateHeaderStats();
+      }
+    })
+    .catch(error => console.error('Error:', error));
+  }
+  
+  function updateHeaderStats() {
+    // Update the total unread count in header
+    const totalUnreadElement = document.querySelector('.stat-number');
+    if (totalUnreadElement) {
+      const currentCount = parseInt(totalUnreadElement.textContent);
+      if (currentCount > 0) {
+        totalUnreadElement.textContent = currentCount - 1;
+      }
+    }
+  }
+  
+  
+  // Handle approve access button clicks
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.approve-access-btn')) {
+      const button = e.target.closest('.approve-access-btn');
+      const ticketId = button.getAttribute('data-ticket-id');
+      
+      if (confirm('آیا از تایید این درخواست دسترسی شبکه اطمینان دارید؟')) {
+        approveAccess(ticketId, button);
+      }
+    }
+    
+    if (e.target.closest('.reject-access-btn')) {
+      const button = e.target.closest('.reject-access-btn');
+      const ticketId = button.getAttribute('data-ticket-id');
+      
+      if (confirm('آیا از رد این درخواست دسترسی شبکه اطمینان دارید؟ این عمل قابل بازگشت نیست.')) {
+        rejectAccess(ticketId, button);
+      }
+    }
+  });
+  
+  function approveAccess(ticketId, button) {
+    // Show loading state
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> در حال تایید...';
+    button.disabled = true;
+    
+    fetch(`/team-leader-notifications/${ticketId}/approve/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        'Content-Type': 'application/json',
+      },
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Show success message
+        showMessage(data.message, 'success');
+        
+        // Update the notification display
+        const notificationCard = button.closest('.notification-card-modern');
+        const networkActions = notificationCard.querySelector('.network-actions');
+        
+        // Replace the action buttons with approved status
+        networkActions.innerHTML = `
+          <a href="/tickets/${ticketId}/" class="btn-sm-modern">
+            <i class="fas fa-external-link-alt"></i>
+            مشاهده تیکت
+          </a>
+          <span class="status-badge approved">تایید شده</span>
+        `;
+        
+        // Mark notification as read
+        const notificationId = notificationCard.id.replace('notification-', '');
+        markNotificationAsRead(notificationId);
+        
+        // Update unread indicator
+        const unreadIndicator = notificationCard.querySelector('.unread-indicator');
+        if (unreadIndicator) {
+          unreadIndicator.remove();
+        }
+        
+        // Update header stats
+        updateHeaderStats();
+      } else {
+        showMessage(data.error || 'خطا در تایید درخواست', 'error');
+        // Restore button state
+        button.innerHTML = originalText;
+        button.disabled = false;
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      showMessage('خطا در ارتباط با سرور', 'error');
+      // Restore button state
+      button.innerHTML = originalText;
+      button.disabled = false;
+    });
+  }
+  
+  function rejectAccess(ticketId, button) {
+    // Show loading state
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> در حال رد...';
+    button.disabled = true;
+    
+    fetch(`/team-leader-notifications/${ticketId}/reject/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        'Content-Type': 'application/json',
+      },
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Show success message
+        showMessage(data.message, 'success');
+        
+        // Update the notification display to show rejection status
+        const notificationCard = button.closest('.notification-card-modern');
+        const networkActions = notificationCard.querySelector('.network-actions');
+        
+        // Replace the action buttons with rejected status
+        networkActions.innerHTML = `
+          <span class="status-badge rejected">رد شده</span>
+        `;
+        
+        // Mark notification as read
+        const notificationId = notificationCard.id.replace('notification-', '');
+        markNotificationAsRead(notificationId);
+        
+        // Update unread indicator
+        const unreadIndicator = notificationCard.querySelector('.unread-indicator');
+        if (unreadIndicator) {
+          unreadIndicator.remove();
+        }
+        
+        // Update header stats
+        updateHeaderStats();
+      } else {
+        showMessage(data.error || 'خطا در رد درخواست', 'error');
+        // Restore button state
+        button.innerHTML = originalText;
+        button.disabled = false;
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      showMessage('خطا در ارتباط با سرور', 'error');
+      // Restore button state
+      button.innerHTML = originalText;
+      button.disabled = false;
+    });
+  }
+
+  function deleteTeamLeaderNotification(notificationId) {
+    if (confirm('آیا از حذف این اعلان اطمینان دارید؟ این عمل قابل بازگشت نیست.')) {
+      fetch(`/team-leader-notifications/${notificationId}/delete/`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+          'Content-Type': 'application/json',
+        },
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          showMessage(data.message, 'success');
+          const notificationCard = document.getElementById(`notification-${notificationId}`);
+          if (notificationCard) {
+            notificationCard.remove();
+          }
+          updateHeaderStats();
+        } else {
+          showMessage(data.error || 'خطا در حذف اعلان', 'error');
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        showMessage('خطا در ارتباط با سرور', 'error');
+      });
+    }
+  }
+
+  // Delegate click for delete buttons to avoid inline JS and prevent lints
+  document.addEventListener('click', function(e) {
+    const target = e.target.closest('.delete-notification-btn');
+    if (target) {
+      const id = target.getAttribute('data-delete-id');
+      if (id) {
+        deleteTeamLeaderNotification(id);
+      }
+    }
+  });
+
+  function deleteAllTeamLeaderNotifications() {
+    if (confirm('آیا از حذف همه اعلان‌های دسترسی شبکه اطمینان دارید؟ این عمل قابل بازگشت نیست.')) {
+      fetch('/team-leader-notifications/delete-all/', {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+          'Content-Type': 'application/json',
+        },
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          showMessage(data.message, 'success');
+          // Reload the page to show updated notifications
+          location.reload();
+        } else {
+          showMessage(data.error || 'خطا در حذف اعلان‌ها', 'error');
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        showMessage('خطا در ارتباط با سرور', 'error');
+      });
+    }
+  }
+  
+  function showMessage(message, type) {
+    // Use global notification system
+    showNotification(message, type === 'success' ? 'success' : 'error');
+  }
+</script>
+{% endblock %} 

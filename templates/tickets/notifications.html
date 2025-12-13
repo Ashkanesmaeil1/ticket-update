@@ -1,0 +1,1290 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+{% load notifications_tags %}
+
+{% block title %}{% trans "اعلان‌ها" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #06b6d4;
+        --dark: #1f2937;
+        --light: #f8fafc;
+        --border: #e2e8f0;
+        --text: #374151;
+        --text-light: #6b7280;
+        --notification-bg: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    }
+
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .notification-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 1200px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .notification-header {
+        background: linear-gradient(135deg, var(--warning) 0%, #d97706 100%);
+        color: white;
+        padding: 3rem 2rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .notification-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+    }
+
+    .notification-header h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .notification-header p {
+        font-size: 1.1rem;
+        opacity: 0.9;
+        margin-bottom: 2rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        position: relative;
+        z-index: 2;
+        flex-wrap: wrap;
+    }
+
+    .btn-modern {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    .btn-modern:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+        color: white;
+    }
+
+    /* Disabled buttons appearance and interaction */
+    .btn-modern.disabled,
+    .btn-modern[disabled],
+    .btn-action.disabled,
+    .btn-action[disabled] {
+        opacity: 0.45 !important;
+        cursor: not-allowed !important;
+        pointer-events: none !important;
+        filter: grayscale(35%);
+    }
+
+    .notification-content {
+        padding: 2rem;
+    }
+
+    .stats-cards {
+        display: flex;
+        justify-content: center;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+        max-width: 100%;
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 20px;
+        /* padding: 2rem 4.5rem; */
+        width: 16rem;
+        height: 16rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+        text-align: center;
+    }
+
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: var(--notification-bg);
+    }
+
+    .stat-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15);
+    }
+
+    .stat-icon {
+        width: 80px;
+        height: 80px;
+        border-radius: 20px;
+        background: var(--notification-bg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        color: white;
+        margin: 0 auto 1rem;
+    }
+
+    .stat-value {
+        font-size: 3rem;
+        font-weight: 800;
+        color: var(--text);
+        line-height: 1;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+        font-size: 1.1rem;
+        color: var(--text-light);
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+
+    .tabs-modern {
+        background: white;
+        border-radius: 16px;
+        padding: 0.5rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 2rem;
+        width: 100%;
+    }
+
+    .tab-btn {
+        flex: 1;
+        min-width: 150px;
+        background: transparent;
+        border: none;
+        padding: 1rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        color: var(--text-light);
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        position: relative;
+        cursor: pointer;
+    }
+
+    .tab-btn.active {
+        background: var(--warning);
+        color: white;
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    }
+
+    .tab-btn:hover:not(.active) {
+        background: var(--light);
+        color: var(--text);
+    }
+
+    .tab-badge {
+        background: rgba(255, 255, 255, 0.2);
+        color: inherit;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        padding: 0.5rem 0.7rem 0.3rem;
+    }
+
+    .tab-btn.active .tab-badge {
+        background: rgba(255, 255, 255, 0.3);
+        color: #fff;
+    }
+
+    .notification-list {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        width: 100%;
+    }
+
+    .active-category {
+        display: block;
+    }
+
+    .hidden-category {
+        display: none;
+    }
+
+    .category-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid var(--border);
+    }
+
+    .category-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .category-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .btn-action {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        border: none;
+    }
+
+    .btn-mark-read {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--success);
+        border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .btn-mark-read:hover {
+        background: var(--success);
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .btn-delete-category {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger);
+        border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    .btn-delete-category:hover {
+        background: var(--danger);
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .notification-item {
+        background: var(--light);
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        border: 2px solid var(--border);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .notification-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+
+    .notification-item.unread {
+        border-color: var(--warning);
+        background: rgba(245, 158, 11, 0.05);
+    }
+
+    .notification-item.unread::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: var(--warning);
+    }
+
+    .notification-header-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+    }
+
+    .notification-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex: 1;
+    }
+
+    .notification-icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 12px;
+        background: var(--notification-bg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        color: white;
+        flex-shrink: 0;
+    }
+
+    .notification-details {
+        flex: 1;
+    }
+
+    .notification-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 0.25rem;
+    }
+
+    .notification-time {
+        font-size: 0.9rem;
+        color: var(--text-light);
+    }
+
+    .notification-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-shrink: 0;
+    }
+
+    .btn-show-more {
+        background: rgba(99, 102, 241, 0.1);
+        color: var(--primary);
+        border: 1px solid rgba(99, 102, 241, 0.2);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    .btn-show-more:hover {
+        background: var(--primary);
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .btn-delete-notification {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger);
+        border: 1px solid rgba(239, 68, 68, 0.2);
+        padding: 0.5rem;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    .btn-delete-notification:hover {
+        background: var(--danger);
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .notification-content-details {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-top: 1rem;
+        border: 1px solid var(--border);
+    }
+
+    .notification-message {
+        color: var(--text);
+        line-height: 1.6;
+        margin-bottom: 1rem;
+    }
+
+    .notification-links {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .btn-view-ticket {
+        background: rgba(99, 102, 241, 0.1);
+        color: var(--primary);
+        border: 1px solid rgba(99, 102, 241, 0.2);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-view-ticket:hover {
+        background: var(--primary);
+        color: white;
+        transform: translateY(-2px);
+        text-decoration: none;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        color: var(--text-light);
+        margin-bottom: 1rem;
+    }
+
+    .empty-state h3 {
+        color: var(--text);
+        margin-bottom: 0.5rem;
+    }
+
+    .empty-state p {
+        color: var(--text-light);
+        margin-bottom: 2rem;
+    }
+
+    .fs-icon {
+        font-size: 1.5rem !important;
+    }
+
+    /* (Reverted modal to previous default appearance) */
+
+    @media (max-width: 768px) {
+        .notification-container {
+            margin: 1rem;
+            border-radius: 16px;
+        }
+
+        .notification-header {
+            padding: 2rem 1rem;
+        }
+
+        .notification-header h1 {
+            font-size: 2rem;
+        }
+
+        .header-actions {
+            flex-direction: column;
+        }
+
+        .stats-cards {
+            gap: 1rem;
+        }
+
+        .tabs-modern {
+            flex-direction: column;
+        }
+
+        .tab-btn {
+            min-width: auto;
+        }
+
+        .category-header {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 1rem;
+        }
+
+        .notification-header-item {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 1rem;
+        }
+
+        .notification-actions {
+            justify-content: flex-end;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="notification-container">
+    <form style="display:none;">
+  {% csrf_token %}
+    </form>
+    <!-- Header -->
+    <div class="notification-header">
+        <h1>
+            <i class="fas fa-bell me-3"></i>
+            {% trans "اعلان‌ها" %}
+        </h1>
+        <p>{% trans "مدیریت و مشاهده تمام اعلان‌های سیستم" %}</p>
+        <div class="header-actions">
+            <button class="btn-modern" onclick="markAllAsRead()" id="btnMarkAllRead">
+                <i class="fas fa-check-double"></i>
+                {% trans "علامت‌گذاری همه به عنوان خوانده شده" %}
+            </button>
+            <button id="btnDeleteAll" class="btn-modern" onclick="deleteAllNotifications()">
+                <i class="fas fa-trash"></i>
+                {% trans "حذف همه اعلان‌ها" %}
+            </button>
+            <button class="btn-modern" onclick="refreshNotifications()">
+                <i class="fas fa-sync-alt"></i>
+                {% trans "بروزرسانی" %}
+        </button>
+    </div>
+  </div>
+
+    <div class="notification-content">
+        <!-- Statistics Cards (4 boxes horizontally) -->
+        <div class="stats-cards">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-bell fs-icon"></i>
+                </div>
+                <div class="stat-value" id="stat-total">{{ total_unread }}</div>
+                <div class="stat-label">{% trans "اعلان‌های جدید" %}</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-ticket-alt fs-icon"></i>
+                </div>
+                <div class="stat-value" id="stat-tickets">{{ unread_counts.tickets|default:0 }}</div>
+                <div class="stat-label">{% trans "اعلان‌های تیکت" %}</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-users fs-icon"></i>
+                </div>
+                <div class="stat-value" id="stat-users">{{ unread_counts.users|default:0 }}</div>
+                <div class="stat-label">{% trans "اعلان‌های کاربران" %}</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-network-wired fs-icon"></i>
+                </div>
+                <div class="stat-value" id="stat-access">{{ unread_counts.access|default:0 }}</div>
+                <div class="stat-label">{% trans "اعلان‌های دسترسی" %}</div>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="tabs-modern">
+        {% for category, name in category_names.items %}
+                <button class="tab-btn {% if forloop.first %}active{% endif %}" onclick="showCategory('{{ category }}')">
+                    <i class="fas fa-{% if category == 'tickets' %}ticket-alt{% elif category == 'users' %}users{% elif category == 'access' %}network-wired{% else %}cog{% endif %}"></i>
+            {{ name }}
+            {% for cat, count in unread_counts.items %}
+              {% if cat == category and count > 0 %}
+                            <span class="tab-badge">{{ count }}</span>
+              {% endif %}
+            {% endfor %}
+          </button>
+        {% endfor %}
+  </div>
+
+        <!-- Category Content -->
+    {% for category, name in category_names.items %}
+            <div id="category-{{ category }}" class="notification-list {% if forloop.first %}active-category{% else %}hidden-category{% endif %}">
+                <div class="category-header">
+                    <div class="category-title">
+                        <i class="fas fa-{% if category == 'tickets' %}ticket-alt{% elif category == 'users' %}users{% elif category == 'access' %}network-wired{% else %}cog{% endif %}"></i>
+                        {{ name }}
+                    </div>
+                    <div class="category-actions">
+          {% for cat, count in unread_counts.items %}
+            {% if cat == category and count > 0 %}
+                                <button class="btn-action btn-mark-read" onclick="markCategoryAsRead('{{ category }}')">
+                                    <i class="fas fa-check-double"></i>
+                                    {% trans "علامت‌گذاری همه به عنوان خوانده شده" %}
+            </button>
+            {% endif %}
+          {% endfor %}
+                        <button class="btn-action btn-delete-category" onclick="deleteCategoryNotifications('{{ category }}')">
+                            <i class="fas fa-trash"></i>
+                            {% trans "حذف همه" %}
+          </button>
+        </div>
+      </div>
+      
+        {% for cat, has_notifications in category_has_notifications.items %}
+          {% if cat == category %}
+            {% if has_notifications %}
+              {% for notification in notifications %}
+                {% if notification.category == category %}
+                                    <div class="notification-item {% if not notification.is_read %}unread{% endif %}" id="notification-{{ notification.id }}">
+                                        <div class="notification-header-item">
+                                            <div class="notification-info">
+                                                <div class="notification-icon">
+                                                    <i class="fas fa-{% if notification.notification_type == 'login' %}sign-in-alt{% elif notification.notification_type == 'ticket_created' %}ticket-alt{% elif notification.notification_type == 'access_approved' %}check-circle{% elif notification.notification_type == 'access_rejected' %}times-circle{% else %}bell{% endif %}"></i>
+                                                </div>
+                                                <div class="notification-details">
+                                                    <div class="notification-title">{{ notification.title }}</div>
+                                                    <div class="notification-time">{{ notification.created_at|persian_date }}</div>
+                        </div>
+                      </div>
+                                            <div class="notification-actions">
+                                                <button class="btn-show-more" type="button" data-bs-toggle="collapse" data-bs-target="#details-{{ notification.id }}">
+                                                    <i class="fas fa-eye"></i>
+                          {% trans "نمایش بیشتر" %}
+                        </button>
+                                                <button class="btn-delete-notification" onclick="deleteNotification({{ notification.id }})">
+                          <i class="fas fa-trash"></i>
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <!-- Collapsible Details -->
+                                        <div class="collapse" id="details-{{ notification.id }}">
+                                            <div class="notification-content-details">
+                        {% if notification.notification_type == 'login' %}
+                          <!-- Special display for login notifications -->
+                                                    <div class="text-center mb-3">
+                            <i class="fas fa-sign-in-alt fa-2x text-primary mb-2 fs-icon"></i>
+                            <div class="fw-bold">{{ notification.title }}</div>
+                          </div>
+                          {% endif %}
+                                                
+                                                <div class="notification-message">{{ notification.message|linebreaks }}</div>
+                                                
+                                                <div class="notification-links">
+                                                    {% if notification.ticket %}
+                                                        <a href="{% url 'tickets:ticket_detail' notification.ticket.id %}" class="btn-view-ticket">
+                                                            <i class="fas fa-external-link-alt"></i>
+                                                            {% trans "مشاهده تیکت" %}
+                                                        </a>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {% endif %}
+              {% endfor %}
+            {% else %}
+                            <div class="empty-state">
+                                <i class="fas fa-bell-slash"></i>
+                                <h3>{% trans "اعلانی در این دسته وجود ندارد" %}</h3>
+                                <p>{% trans "هیچ اعلانی در این دسته‌بندی یافت نشد" %}</p>
+              </div>
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteConfirmModalLabel">{% trans "تایید حذف" %}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="deleteConfirmModalBody">
+        <!-- Modal content will be filled dynamically -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "انصراف" %}</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">{% trans "حذف" %}</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// CSRF helper
+function getCsrfToken() {
+    const input = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (input && input.value) return input.value;
+    const match = document.cookie.match(/csrftoken=([^;]+)/);
+    return match ? match[1] : '';
+}
+
+// Reusable delete modal opener
+function openDeleteModal({ title = '{% trans "تایید حذف" %}', bodyHtml = '', onConfirm }) {
+    const titleEl = document.getElementById('deleteConfirmModalLabel');
+    const bodyEl = document.getElementById('deleteConfirmModalBody');
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    if (titleEl) titleEl.textContent = title;
+    if (bodyEl) bodyEl.innerHTML = bodyHtml;
+    if (confirmBtn) {
+        // Remove previous listeners by cloning
+        const newBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+        newBtn.onclick = onConfirm;
+    }
+    // Keep a reference so we can close programmatically after success
+    window._deleteConfirmModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+    window._deleteConfirmModal.show();
+}
+// Category switching
+function showCategory(category) {
+    // Hide all category content
+    document.querySelectorAll('.notification-list').forEach(content => {
+        content.classList.remove('active-category');
+        content.classList.add('hidden-category');
+    });
+
+    // Remove active class from all tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+
+    // Show selected category content
+    const selectedCategory = document.getElementById('category-' + category);
+    if (selectedCategory) {
+        selectedCategory.classList.remove('hidden-category');
+        selectedCategory.classList.add('active-category');
+    }
+
+    // Add active class to clicked button
+    event.target.closest('.tab-btn').classList.add('active');
+}
+  
+  // Mark notification as read when expanded (only if it was unread)
+  document.querySelectorAll('[data-bs-toggle="collapse"]').forEach(function(button) {
+    button.addEventListener('click', function() {
+      const notificationId = this.getAttribute('data-bs-target').replace('#details-', '');
+      const notificationElement = document.querySelector(`#notification-${notificationId}`);
+      const wasUnread = notificationElement ? notificationElement.classList.contains('unread') : false;
+      // Only attempt to change counts if it was previously unread
+      markNotificationAsRead(notificationId, wasUnread);
+    });
+  });
+  
+  function markNotificationAsRead(notificationId, wasUnread) {
+    fetch(`/notifications/${notificationId}/mark-read/`, {
+      method: 'POST',
+      headers: {
+            'X-CSRFToken': getCsrfToken(),
+        'Content-Type': 'application/json',
+      },
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Update the notification display to show it as read
+        const notificationElement = document.querySelector(`#notification-${notificationId}`);
+            if (notificationElement) {
+                notificationElement.classList.remove('unread');
+                // Only decrement counters if it was previously unread
+                if (wasUnread) {
+                    // Determine category from closest container id="category-<name>"
+                    const parentList = notificationElement.closest('.notification-list');
+                    if (parentList && parentList.id && parentList.id.startsWith('category-')) {
+                        const category = parentList.id.replace('category-', '');
+                        // Update the category tab badge count and total
+                        updateCategoryBadgeCount(category);
+                        updateTotalUnreadCount();
+                        updateCategoryMarkAllButton(category);
+                        updateGlobalMarkAllButton();
+                    }
+                }
+        }
+      }
+    })
+    .catch(error => console.error('Error:', error));
+  }
+  
+  function updateCategoryBadgeCount(category) {
+    // Find the tab for this category
+    const categoryTab = document.querySelector(`[onclick="showCategory('${category}')"]`);
+    if (!categoryTab) return;
+    const badge = categoryTab.querySelector('.tab-badge');
+    if (!badge) return; // nothing to update
+    const current = parseInt(badge.textContent || '0');
+    if (isNaN(current)) return;
+    const next = Math.max(0, current - 1);
+    if (next === 0) {
+      badge.remove();
+    } else {
+      badge.textContent = String(next);
+    }
+    // Also update the corresponding stat card value
+    const statMap = { tickets: 'stat-tickets', users: 'stat-users', access: 'stat-access' };
+    const statId = statMap[category];
+    if (statId) {
+      const statEl = document.getElementById(statId);
+      if (statEl) {
+        const val = parseInt(statEl.textContent || '0');
+        if (!isNaN(val) && val > 0) statEl.textContent = String(val - 1);
+      }
+    }
+    updateNavbarBadgeVisibility();
+  }
+  
+  function updateTotalUnreadCount() {
+    const totalUnreadElement = document.getElementById('stat-total');
+    if (totalUnreadElement) {
+      const currentCount = parseInt(totalUnreadElement.textContent);
+      if (currentCount > 0) {
+            totalUnreadElement.textContent = (currentCount - 1);
+        }
+    }
+    updateNavbarBadgeVisibility();
+    updateGlobalMarkAllButton(); // Update global button
+  }
+
+  // Hide navbar notification dot when total becomes zero
+  function updateNavbarBadgeVisibility() {
+    const totalEl = document.getElementById('stat-total');
+    const navBadge = document.querySelector('.notification-badge');
+    if (!totalEl || !navBadge) return;
+    const num = parseInt(totalEl.textContent || '0');
+    if (!isNaN(num) && num <= 0) {
+        navBadge.style.display = 'none';
+    } else {
+        navBadge.style.display = '';
+    }
+    updateGlobalMarkAllButton();
+  }
+
+  // Toggle global mark-all-read button based on total unread
+  function updateGlobalMarkAllButton() {
+    const total = parseInt((document.getElementById('stat-total')?.textContent || '0'));
+    const btn = document.getElementById('btnMarkAllRead');
+    if (!btn || isNaN(total)) return;
+    if (total <= 0) {
+      btn.classList.add('disabled');
+      btn.setAttribute('disabled', 'disabled');
+      btn.setAttribute('aria-disabled', 'true');
+    } else {
+      btn.classList.remove('disabled');
+      btn.removeAttribute('disabled');
+      btn.removeAttribute('aria-disabled');
+    }
+  }
+
+  // Toggle per-category mark-all-read button based on unread items left
+  function updateCategoryMarkAllButton(category) {
+    const container = document.getElementById(`category-${category}`);
+    if (!container) return;
+    const unreadLeft = container.querySelectorAll('.notification-item.unread').length;
+    const btn = container.querySelector('.btn-mark-read');
+    if (!btn) return;
+    if (unreadLeft <= 0) {
+      btn.style.display = 'none';
+    } else {
+      btn.style.display = '';
+    }
+  }
+
+function markCategoryAsRead(category) {
+    fetch(`/notifications/category/${category}/mark-read/`, {
+      method: 'POST',
+      headers: {
+            'X-CSRFToken': getCsrfToken(),
+        'Content-Type': 'application/json',
+      },
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Mark all notifications in this category as read visually
+            const categoryContent = document.querySelector(`#category-${category}`);
+            const unreadNotifications = categoryContent.querySelectorAll('.notification-item.unread');
+            unreadNotifications.forEach(notification => {
+                notification.classList.remove('unread');
+            });
+        
+        // Update the category tab badge
+            const categoryTab = document.querySelector(`[onclick="showCategory('${category}')"]`);
+            const tabBadge = categoryTab.querySelector('.tab-badge');
+        if (tabBadge) {
+          tabBadge.remove();
+        }
+        
+        // Update the total unread count
+        updateTotalUnreadCount();
+        
+        // Hide the mark all read button
+            const markAllButton = categoryContent.querySelector('.btn-mark-read');
+        if (markAllButton) {
+          markAllButton.style.display = 'none';
+        }
+        updateGlobalMarkAllButton();
+      }
+    })
+    .catch(error => console.error('Error:', error));
+  }
+  
+  function updateTotalUnreadCount() {
+    const totalUnreadElement = document.getElementById('stat-total');
+    if (totalUnreadElement) {
+      const currentCount = parseInt(totalUnreadElement.textContent);
+      if (currentCount > 0) {
+            totalUnreadElement.textContent = (currentCount - 1);
+        }
+    }
+}
+
+function markAllAsRead() {
+    const confirm = window.confirm('{% trans "آیا از علامت‌گذاری همه اعلان‌ها به عنوان خوانده شده اطمینان دارید؟" %}');
+    if (confirm) {
+        window.location.href = '?mark=all_read';
+    }
+}
+
+  function deleteNotification(notificationId) {
+    const notificationElement = document.querySelector(`#notification-${notificationId}`);
+    const wasUnread = notificationElement ? notificationElement.classList.contains('unread') : false;
+    // Capture parent list/category before removal so we can update counts reliably
+    const parentListBefore = notificationElement ? notificationElement.closest('.notification-list') : null;
+    const categoryBefore = parentListBefore && parentListBefore.id && parentListBefore.id.startsWith('category-')
+        ? parentListBefore.id.replace('category-', '')
+        : null;
+    const notificationTitle = notificationElement.querySelector('.notification-title').textContent;
+    const notificationTime = notificationElement.querySelector('.notification-time').textContent;
+    openDeleteModal({
+        title: '{% trans "حذف اعلان" %}',
+        bodyHtml: `
+      <p><strong>{% trans "عنوان:" %}</strong> ${notificationTitle}</p>
+            <p><strong>{% trans "تاریخ:" %}</strong> ${notificationTime}</p>
+        `,
+        onConfirm: () => {
+      fetch(`/notifications/${notificationId}/delete/`, {
+        method: 'POST',
+        headers: {
+                'X-CSRFToken': getCsrfToken(),
+          'Content-Type': 'application/json',
+        },
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Close the modal immediately on success
+          if (window._deleteConfirmModal) {
+            window._deleteConfirmModal.hide();
+          } else {
+            const m = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
+            if (m) m.hide();
+          }
+          // Update counters first (only if it was unread)
+          if (categoryBefore && wasUnread) {
+            updateCategoryBadgeCount(categoryBefore);
+            updateTotalUnreadCount();
+            updateCategoryMarkAllButton(categoryBefore);
+            updateGlobalMarkAllButton();
+          }
+          // Then remove the element
+          notificationElement.remove();
+                
+                // Check if category is now empty
+                const categoryContent = notificationElement.closest('.notification-list');
+                const remainingNotifications = categoryContent.querySelectorAll('.notification-item');
+                if (remainingNotifications.length === 0) {
+                    categoryContent.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-bell-slash"></i>
+                            <h3>{% trans "اعلانی در این دسته وجود ندارد" %}</h3>
+                            <p>{% trans "هیچ اعلانی در این دسته‌بندی یافت نشد" %}</p>
+                        </div>
+                    `;
+                }
+                
+          // Optional toast/notification if available
+          if (typeof showNotification === 'function') {
+            showNotification('{% trans "اعلان با موفقیت حذف شد." %}', 'success');
+          }
+        } else {
+          if (typeof showNotification === 'function') {
+            showNotification('{% trans "خطا در حذف اعلان." %}', 'error');
+          }
+        }
+      })
+      .catch(error => console.error('Error:', error));
+        }
+    });
+  }
+
+  function deleteAllNotifications() {
+    const allItems = Array.from(document.querySelectorAll('.notification-item'));
+    const count = allItems.length;
+    if (count === 0) return;
+    const unreadTotal = document.querySelectorAll('.notification-item.unread').length;
+    const bodyHtml = `
+        <p style="margin-bottom:0.5rem;"><strong>{% trans "تعداد اعلان‌ها:" %}</strong> ${count}</p>
+    `;
+    openDeleteModal({
+        title: '{% trans "حذف همه اعلان‌ها" %}',
+        bodyHtml,
+        onConfirm: () => {
+      fetch('/notifications/delete-all/', {
+        method: 'POST',
+        headers: {
+                    'X-CSRFToken': getCsrfToken(),
+          'Content-Type': 'application/json',
+        },
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Close modal
+          if (window._deleteConfirmModal) window._deleteConfirmModal.hide();
+          // Decrement total unread by number of unread items
+          const totalEl = document.getElementById('stat-total');
+          if (totalEl) {
+            const current = parseInt(totalEl.textContent || '0');
+            totalEl.textContent = String(Math.max(0, current - unreadTotal));
+          }
+          // Zero-out category stats
+          ['tickets','users','access'].forEach(cat => {
+            const id = {tickets:'stat-tickets',users:'stat-users',access:'stat-access'}[cat];
+            const el = document.getElementById(id);
+            if (el) el.textContent = '0';
+            const tab = document.querySelector(`[onclick="showCategory('${cat}')"]`);
+            if (tab) {
+              const b = tab.querySelector('.tab-badge');
+              if (b) b.remove();
+            }
+          });
+          // Also remove system tab badge if present
+          const systemTab = document.querySelector(`[onclick="showCategory('system')"]`);
+          if (systemTab) {
+            const sb = systemTab.querySelector('.tab-badge');
+            if (sb) sb.remove();
+          }
+          // Clear all lists and show empty state
+          document.querySelectorAll('.notification-list').forEach(list => {
+            list.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-bell-slash"></i>
+                    <h3>{% trans "اعلانی در این دسته وجود ندارد" %}</h3>
+                    <p>{% trans "هیچ اعلانی در این دسته‌بندی یافت نشد" %}</p>
+                </div>
+            `;
+          });
+          updateNavbarBadgeVisibility();
+          updateGlobalMarkAllButton(); // Update global button
+          updateDeleteAllButton();
+          if (typeof showNotification === 'function') {
+            showNotification('{% trans "همه اعلان‌ها با موفقیت حذف شدند." %}', 'success');
+          }
+        } else {
+          if (typeof showNotification === 'function') {
+            showNotification('{% trans "خطا در حذف اعلان‌ها." %}', 'error');
+          }
+        }
+      })
+      .catch(error => console.error('Error:', error));
+    }
+    });
+  }
+
+  function deleteCategoryNotifications(category) {
+    const container = document.getElementById(`category-${category}`);
+    const items = Array.from(container.querySelectorAll('.notification-item'));
+    const count = items.length;
+    if (count === 0) return;
+    const categoryTitle = document.querySelector(`[id='category-${category}']`)?.previousElementSibling?.querySelector('.category-title')?.textContent?.trim() || category;
+    const unreadCount = container.querySelectorAll('.notification-item.unread').length;
+    const bodyHtml = `
+        <p style=\"margin-bottom:0.5rem;\"><strong>{% trans "دسته:" %}</strong> ${categoryTitle}</p>
+        <p style=\"margin-bottom:0.5rem;\"><strong>{% trans "تعداد اعلان‌های این دسته:" %}</strong> ${count}</p>
+    `;
+    openDeleteModal({
+        title: '{% trans "حذف اعلان‌های این دسته" %}',
+        bodyHtml,
+        onConfirm: () => {
+      fetch(`/notifications/category/${category}/delete/`, {
+        method: 'POST',
+        headers: {
+                    'X-CSRFToken': getCsrfToken(),
+          'Content-Type': 'application/json',
+        },
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Close modal
+          if (window._deleteConfirmModal) window._deleteConfirmModal.hide();
+          // Decrement total by unread in this category
+          const totalEl = document.getElementById('stat-total');
+          if (totalEl) {
+            const current = parseInt(totalEl.textContent || '0');
+            totalEl.textContent = String(Math.max(0, current - unreadCount));
+          }
+          updateCategoryMarkAllButton(category);
+          // Zero-out this category stat and remove its badge
+          const id = {tickets:'stat-tickets',users:'stat-users',access:'stat-access'}[category];
+          const el = id ? document.getElementById(id) : null;
+          if (el) el.textContent = '0';
+          const tab = document.querySelector(`[onclick="showCategory('${category}')"]`);
+          if (tab) {
+            const b = tab.querySelector('.tab-badge');
+            if (b) b.remove();
+          }
+          // Clear list and show empty state
+          container.innerHTML = `
+                <div class=\"empty-state\">\n                    <i class=\"fas fa-bell-slash\"></i>\n                    <h3>{% trans "اعلانی در این دسته وجود ندارد" %}</h3>\n                    <p>{% trans "هیچ اعلانی در این دسته‌بندی یافت نشد" %}</p>\n                </div>
+          `;
+          updateNavbarBadgeVisibility();
+          updateDeleteAllButton();
+          if (typeof showNotification === 'function') {
+            showNotification('{% trans "همه اعلان‌های این دسته با موفقیت حذف شدند." %}', 'success');
+          }
+        } else {
+          if (typeof showNotification === 'function') {
+            showNotification('{% trans "خطا در حذف اعلان‌های این دسته." %}', 'error');
+          }
+        }
+      })
+      .catch(error => console.error('Error:', error));
+    }
+    });
+}
+
+function refreshNotifications() {
+    window.location.reload();
+}
+
+// Add loading animation
+document.addEventListener('DOMContentLoaded', function() {
+    const cards = document.querySelectorAll('.stat-card, .notification-list');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+            card.style.transition = 'all 0.6s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 200);
+    });
+});
+
+// Disable delete buttons if empty
+document.addEventListener('DOMContentLoaded', function() {
+    // Global delete-all
+    const totalItems = document.querySelectorAll('.notification-item').length;
+    const deleteAllBtn = document.getElementById('btnDeleteAll');
+    if (deleteAllBtn) {
+        if (totalItems === 0) {
+            deleteAllBtn.classList.add('disabled');
+            deleteAllBtn.setAttribute('disabled', 'disabled');
+            deleteAllBtn.setAttribute('aria-disabled', 'true');
+        } else {
+            deleteAllBtn.classList.remove('disabled');
+            deleteAllBtn.removeAttribute('disabled');
+            deleteAllBtn.removeAttribute('aria-disabled');
+        }
+    }
+
+    // Per-category delete (button lives inside each category's header)
+    document.querySelectorAll('.notification-list').forEach(list => {
+        const count = list.querySelectorAll('.notification-item').length;
+        const delBtn = list.querySelector('.category-actions .btn-delete-category');
+        if (delBtn) {
+            if (count === 0) {
+                delBtn.classList.add('disabled');
+                delBtn.setAttribute('disabled', 'disabled');
+                delBtn.setAttribute('aria-disabled', 'true');
+                // Optionally hide when empty
+                delBtn.classList.add('d-none');
+            } else {
+                delBtn.classList.remove('disabled', 'd-none');
+                delBtn.removeAttribute('disabled');
+                delBtn.removeAttribute('aria-disabled');
+            }
+        }
+    });
+});
+
+// Auto-refresh notifications every 30 seconds
+setTimeout(function() {
+    location.reload();
+}, 30000);
+
+// Ensure global "mark all as read" button reflects initial state
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof updateGlobalMarkAllButton === 'function') {
+    updateGlobalMarkAllButton();
+  }
+  if (typeof updateDeleteAllButton === 'function') {
+    updateDeleteAllButton();
+  }
+});
+
+// Toggle global Delete All button based on remaining notifications
+function updateDeleteAllButton() {
+    const btn = document.getElementById('btnDeleteAll');
+    if (!btn) return;
+    const totalItems = document.querySelectorAll('.notification-item').length;
+    if (totalItems === 0) {
+      btn.classList.add('disabled');
+      btn.setAttribute('disabled', 'disabled');
+      btn.setAttribute('aria-disabled', 'true');
+    } else {
+      btn.classList.remove('disabled');
+      btn.removeAttribute('disabled');
+      btn.removeAttribute('aria-disabled');
+    }
+  }
+</script>
+{% endblock %}

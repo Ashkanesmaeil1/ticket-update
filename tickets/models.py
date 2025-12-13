@@ -1,0 +1,579 @@
+from django.db import models
+from django.contrib.auth.models import AbstractUser
+from django.core.validators import MinLengthValidator, RegexValidator
+from django.utils.translation import gettext_lazy as _
+from django.db.models.signals import pre_save
+from django.dispatch import receiver
+from django.core.exceptions import ValidationError
+from .validators import validate_iranian_national_id, validate_iranian_mobile_number
+
+def validate_employee_code(value):
+    """Validate that employee code is exactly 4 digits"""
+    if len(value) != 4:
+        raise ValidationError(_('کد کارمندی باید دقیقاً ۴ رقم باشد.'))
+    if not value.isdigit():
+        raise ValidationError(_('کد کارمندی باید فقط شامل اعداد باشد.'))
+
+class Branch(models.Model):
+    """Branch (position/location) model - branch_code must be globally unique. A branch can have multiple departments."""
+    name = models.CharField(_('نام شعبه'), max_length=100)
+    branch_code = models.CharField(_('کد شعبه'), max_length=50, unique=True, help_text=_('کد یکتا برای شعبه (باید در تمام سیستم یکتا باشد)'))
+    description = models.TextField(_('توضیحات'), blank=True, null=True)
+    is_active = models.BooleanField(_('فعال'), default=True)
+    created_at = models.DateTimeField(_('تاریخ ایجاد'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('تاریخ بروزرسانی'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _("شعبه")
+        verbose_name_plural = _("شعبه‌ها")
+        ordering = ['name']
+    
+    def __str__(self):
+        return self.name
+    
+    def clean(self):
+        """Validate that branch_code is globally unique"""
+        if self.branch_code:
+            existing = Branch.objects.filter(branch_code=self.branch_code)
+            if self.pk:
+                existing = existing.exclude(pk=self.pk)
+            if existing.exists():
+                raise ValidationError({
+                    'branch_code': _('کد شعبه باید در تمام سیستم یکتا باشد.')
+                })
+
+class Department(models.Model):
+    """Department model for organizational units"""
+    DEPARTMENT_TYPE_CHOICES = [
+        ('employee', _('بخش کارمندی')),
+        ('technician', _('بخش فنی')),
+    ]
+    
+    name = models.CharField(_('نام بخش'), max_length=100, unique=True, 
+                           error_messages={'unique': 'بخشی با این نام قبلاً وجود دارد.'})
+    department_type = models.CharField(_('نوع بخش'), max_length=20, choices=DEPARTMENT_TYPE_CHOICES, default='employee')
+    description = models.TextField(_('توضیحات'), blank=True, null=True)
+    is_active = models.BooleanField(_('فعال'), default=True)
+    can_receive_tickets = models.BooleanField(_('می‌تواند تیکت دریافت کند'), default=False, 
+                                             help_text=_('اگر فعال باشد، این بخش می‌تواند تیکت‌ها را مستقیماً از کاربران دریافت کند'))
+    supervisor = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name='departments_as_supervisor', verbose_name=_('سرپرست'),
+                                  help_text=_('کاربری که سرپرست این بخش است (فقط یک سرپرست برای هر بخش)'),
+                                  limit_choices_to={'department_role': 'senior', 'role': 'employee'})
+    ticket_responder = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name='departments_as_responder', verbose_name=_('پاسخ‌دهنده تیکت'),
+                                        help_text=_('کارمندی که می‌تواند به تیکت‌های دریافتی این بخش پاسخ دهد و وضعیت آن‌ها را تغییر دهد'))
+    branch = models.ForeignKey('Branch', on_delete=models.SET_NULL, null=True, blank=True, 
+                              related_name='departments', verbose_name=_('شعبه'),
+                              help_text=_('شعبه این بخش (الزامی)'))
+    created_at = models.DateTimeField(_('تاریخ ایجاد'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('تاریخ بروزرسانی'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _("بخش")
+        verbose_name_plural = _("بخش‌ها")
+        ordering = ['name']
+    
+    def __str__(self):
+        return self.name
+    
+    def get_user_count(self):
+        """Get the number of users in this department"""
+        return self.users.count()
+
+class User(AbstractUser):
+    """Custom User model with role-based access control"""
+    ROLE_CHOICES = [
+        ('employee', _('کارمند')),
+        ('technician', _('کارشناس فنی')),
+        ('it_manager', _('مدیر IT')),
+    ]
+    DEPARTMENT_ROLE_CHOICES = [
+        ('employee', _('کارمند')),
+        ('senior', _('سرپرست')),
+        ('manager', _('مدیر')),
+    ]
+    
+    # Override username field to be non-unique since we use national_id for authentication
+    username = models.CharField(_('نام کاربری'), max_length=150, unique=False, blank=True, null=True)
+    
+    national_id = models.CharField(_('کد ملی'), max_length=20, unique=True, validators=[validate_iranian_national_id], 
+                                  error_messages={'unique': 'کاربر با این کد ملی وجود دارد.'})
+    employee_code = models.CharField(_('کد کارمندی'), max_length=10, unique=True, validators=[validate_employee_code],
+                                    error_messages={'unique': 'کاربر با این کد کارمندی وجود دارد.'})
+    role = models.CharField(_('نقش'), max_length=20, choices=ROLE_CHOICES, default='employee')
+    phone = models.CharField(_('تلفن'), max_length=15, blank=True, null=True, validators=[validate_iranian_mobile_number])
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='users', verbose_name=_('بخش اصلی'))
+    department_role = models.CharField(_('نقش در بخش'), max_length=10, choices=DEPARTMENT_ROLE_CHOICES, default='employee')
+    
+    # For supervisors - can supervise multiple departments
+    supervised_departments = models.ManyToManyField(Department, related_name='supervisors', blank=True, 
+                                                   verbose_name=_('بخش‌های تحت سرپرستی'),
+                                                   help_text=_('بخش‌هایی که این کاربر سرپرست آن‌ها است'))
+    
+    # For technicians - assigned by IT Manager
+    assigned_by = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_technicians', verbose_name=_('تخصیص داده شده توسط'))
+    
+    # Set USERNAME_FIELD to national_id for authentication
+    USERNAME_FIELD = 'national_id'
+    REQUIRED_FIELDS = ['employee_code', 'first_name', 'last_name']
+    
+    def get_full_name(self):
+        """Override to return Administrator for admin superuser"""
+        try:
+            from .admin_security import is_admin_superuser
+            if is_admin_superuser(self):
+                return "Administrator"
+        except (ImportError, AttributeError):
+            # Fallback if admin_security is not available (e.g., during migrations)
+            pass
+        return super().get_full_name() or f"{self.first_name} {self.last_name}".strip() or self.username
+    
+    def __str__(self):
+        # Check if this is the admin superuser
+        try:
+            from .admin_security import is_admin_superuser
+            if is_admin_superuser(self):
+                return "Administrator"
+        except (ImportError, AttributeError):
+            # Fallback if admin_security is not available (e.g., during migrations)
+            pass
+        return f"{self.get_full_name()} ({self.get_role_display()})"
+    
+    def get_department_display(self):
+        """Get department name for display"""
+        if self.department:
+            return self.department.name
+        return "بدون بخش"
+    
+    def is_supervisor_of(self, department):
+        """Check if this user is a supervisor of the given department"""
+        if not department or self.department_role != 'senior':
+            return False
+        try:
+            # Check if user is supervisor via ManyToMany or direct ForeignKey
+            if hasattr(self, 'supervised_departments'):
+                if department in self.supervised_departments.all():
+                    return True
+            # Check ForeignKey
+            if hasattr(department, 'supervisor') and department.supervisor == self:
+                return True
+            return False
+        except (AttributeError, Exception):
+            # Return False if there's any error (e.g., during migration or if relationship doesn't exist yet)
+            return False
+    
+    def get_supervised_departments(self):
+        """Get all departments this user supervises"""
+        # Only check for seniors
+        if self.department_role != 'senior':
+            return []
+        
+        try:
+            supervised = []
+            # Get departments from ManyToMany relationship (if it exists)
+            if hasattr(self, 'supervised_departments'):
+                try:
+                    supervised = list(self.supervised_departments.filter(is_active=True))
+                except (AttributeError, ValueError):
+                    supervised = []
+            # Also check if any department has this user as supervisor via ForeignKey
+            try:
+                supervised.extend(Department.objects.filter(supervisor=self, is_active=True))
+            except (AttributeError, ValueError):
+                pass
+            # Remove duplicates
+            return list(set(supervised))
+        except Exception as e:
+            # Return empty list if there's any error (e.g., during migration or if relationship doesn't exist yet)
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Error getting supervised departments for user {self.id}: {e}")
+            return []
+    
+    def get_department_and_role_display(self):
+        """Get department and role for display"""
+        try:
+            if self.department_role == 'manager':
+                return "مدیر کل"
+            elif self.department_role == 'senior':
+                supervised = self.get_supervised_departments()
+                if supervised:
+                    dept_names = ', '.join([d.name for d in supervised[:3]])
+                    if len(supervised) > 3:
+                        dept_names += f' و {len(supervised) - 3} بخش دیگر'
+                    return f"سرپرست • {dept_names}"
+                elif self.department:
+                    return f"سرپرست • {self.department.name}"
+                else:
+                    return "سرپرست"
+            else:
+                if self.department:
+                    return f"{self.get_role_display()} • {self.department.name}"
+                else:
+                    return self.get_role_display()
+        except Exception:
+            # Fallback to simple display if there's any error
+            if self.department:
+                return f"{self.get_role_display()} • {self.department.name}"
+            else:
+                return self.get_role_display()
+    
+    class Meta:
+        verbose_name = _("کاربر")
+        verbose_name_plural = _("کاربران")
+
+class Ticket(models.Model):
+    """Ticket model for support requests"""
+    PRIORITY_CHOICES = [
+        ('low', _('کم')),
+        ('medium', _('متوسط')),
+        ('high', _('زیاد')),
+        ('urgent', _('فوری')),
+    ]
+    
+    STATUS_CHOICES = [
+        ('open', _('باز')),
+        ('in_progress', _('در حال انجام')),
+        ('waiting_for_user', _('در انتظار کاربر')),
+        ('resolved', _('انجام شده')),
+        ('closed', _('بسته')),
+    ]
+    
+    CATEGORY_CHOICES = [
+        ('hardware', _('سخت‌افزار')),
+        ('software', _('نرم‌افزار')),
+        ('network', _('شبکه')),
+        ('access', _('دسترسی شبکه')),
+        ('other', _('سایر')),
+    ]
+    # Approval flow for access tickets
+    ACCESS_APPROVAL_CHOICES = [
+        ('not_required', _('بدون نیاز به تایید')),
+        ('pending', _('در انتظار تایید سرپرست')),
+        ('approved', _('تایید شده')),
+        ('rejected', _('رد شده')),
+    ]
+    
+    title = models.CharField(_('عنوان'), max_length=200)
+    description = models.TextField(_('توضیحات'))
+    category = models.CharField(_('دسته‌بندی'), max_length=20, choices=CATEGORY_CHOICES, default='other')
+    priority = models.CharField(_('اولویت'), max_length=20, choices=PRIORITY_CHOICES, default='medium')
+    status = models.CharField(_('وضعیت'), max_length=20, choices=STATUS_CHOICES, default='open')
+    access_approval_status = models.CharField(
+        _('وضعیت تایید دسترسی شبکه'), max_length=20, choices=ACCESS_APPROVAL_CHOICES, default='not_required'
+    )
+    
+    # Relationships
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_tickets', verbose_name=_('ایجاد شده توسط'))
+    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_tickets', verbose_name=_('تخصیص داده شده به'))
+    
+    # Branch and target department for multi-department ticket system
+    branch = models.ForeignKey('Branch', on_delete=models.SET_NULL, null=True, blank=True, 
+                              related_name='tickets', verbose_name=_('شعبه'))
+    target_department = models.ForeignKey('Department', on_delete=models.SET_NULL, null=True, blank=True,
+                                         related_name='received_tickets', verbose_name=_('بخش هدف'),
+                                         help_text=_('بخشی که تیکت برای آن ارسال شده است'))
+    
+    # Timestamps
+    created_at = models.DateTimeField(_('تاریخ ایجاد'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('تاریخ بروزرسانی'), auto_now=True)
+    resolved_at = models.DateTimeField(_('تاریخ انجام'), null=True, blank=True)
+    
+    # File attachments
+    attachment = models.FileField(_('فایل پیوست'), upload_to='ticket_attachments/', blank=True, null=True)
+    
+    def __str__(self):
+        return f"#{self.id} - {self.title} ({self.get_status_display()})"
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = _("تیکت")
+        verbose_name_plural = _("تیکت‌ها")
+
+class Reply(models.Model):
+    """Reply model for ticket conversations"""
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='replies', verbose_name=_('تیکت'))
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='replies', verbose_name=_('نویسنده'))
+    content = models.TextField(_('محتوا'))
+    created_at = models.DateTimeField(_('تاریخ ایجاد'), auto_now_add=True)
+    
+    # Private reply functionality
+    is_private = models.BooleanField(_('پاسخ محرمانه'), default=False, help_text=_('این پاسخ فقط برای کارمند دریافت‌کننده قابل مشاهده است'))
+    
+    # File attachments for replies
+    attachment = models.FileField(_('فایل پیوست'), upload_to='reply_attachments/', blank=True, null=True)
+    
+    def __str__(self):
+        return f"پاسخ {self.author} در {self.ticket}"
+    
+    class Meta:
+        ordering = ['created_at']
+        verbose_name = _("پاسخ")
+        verbose_name_plural = _("پاسخ‌ها")
+
+class TicketTask(models.Model):
+    """Ticket Task model for IT manager to assign tasks to employees"""
+    PRIORITY_CHOICES = [
+        ('low', _('کم')),
+        ('medium', _('متوسط')),
+        ('high', _('زیاد')),
+        ('urgent', _('فوری')),
+    ]
+    
+    STATUS_CHOICES = [
+        ('open', _('باز')),
+        ('in_progress', _('در حال انجام')),
+        ('waiting_for_user', _('در انتظار کاربر')),
+        ('resolved', _('انجام شده')),
+        ('closed', _('بسته')),
+    ]
+    
+    title = models.CharField(_('عنوان'), max_length=200)
+    description = models.TextField(_('توضیحات'))
+    priority = models.CharField(_('اولویت'), max_length=20, choices=PRIORITY_CHOICES, default='medium')
+    status = models.CharField(_('وضعیت'), max_length=20, choices=STATUS_CHOICES, default='open')
+    
+    # Relationships
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_tasks', verbose_name=_('ایجاد شده توسط'))
+    assigned_to = models.ForeignKey(User, on_delete=models.CASCADE, related_name='assigned_tasks', verbose_name=_('تخصیص داده شده به'))
+    department = models.ForeignKey('Department', on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks', verbose_name=_('بخش'))
+    
+    # Timestamps
+    created_at = models.DateTimeField(_('تاریخ ایجاد'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('تاریخ بروزرسانی'), auto_now=True)
+    resolved_at = models.DateTimeField(_('تاریخ انجام'), null=True, blank=True)
+    
+    def __str__(self):
+        return f"Task #{self.id} - {self.title} ({self.get_status_display()})"
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = _("تسک تیکت")
+        verbose_name_plural = _("تسک‌های تیکت")
+
+class TaskReply(models.Model):
+    """Reply model for ticket task conversations"""
+    task = models.ForeignKey(TicketTask, on_delete=models.CASCADE, related_name='replies', verbose_name=_('تسک'))
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='task_replies', verbose_name=_('نویسنده'))
+    content = models.TextField(_('محتوا'))
+    created_at = models.DateTimeField(_('تاریخ ایجاد'), auto_now_add=True)
+    
+    # File attachments for replies
+    attachment = models.FileField(_('فایل پیوست'), upload_to='task_reply_attachments/', blank=True, null=True)
+    
+    def __str__(self):
+        return f"پاسخ {self.author} در {self.task}"
+    
+    class Meta:
+        ordering = ['created_at']
+        verbose_name = _("پاسخ تسک")
+        verbose_name_plural = _("پاسخ‌های تسک")
+
+
+class Notification(models.Model):
+    """Notification model for user alerts (initially for IT manager)."""
+    TYPE_CHOICES = [
+        ('ticket_urgent', _('تیکت فوری')),
+        ('ticket_created', _('تیکت جدید')),
+        ('access_approved', _('تایید دسترسی شبکه')),
+        ('access_pending_approval', _('در انتظار تایید دسترسی شبکه')),
+        ('access_rejected', _('رد دسترسی شبکه')),
+        ('user_created', _('ایجاد کاربر')),
+        ('login', _('ورود')),
+        ('status_done', _('انجام شد')),
+    ]
+    
+    CATEGORY_CHOICES = [
+        ('tickets', _('تیکت‌ها')),
+        ('users', _('کاربران')),
+        ('system', _('سیستم')),
+        ('access', _('دسترسی شبکه')),
+        ('team_leader_access', _('درخواست‌های دسترسی شبکه')),
+    ]
+
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications', verbose_name=_('دریافت‌کننده'))
+    title = models.CharField(_('عنوان'), max_length=255)
+    message = models.TextField(_('پیام'), blank=True)
+    notification_type = models.CharField(_('نوع'), max_length=50, choices=TYPE_CHOICES)
+    category = models.CharField(_('دسته‌بندی'), max_length=20, choices=CATEGORY_CHOICES, default='system')
+    ticket = models.ForeignKey('Ticket', on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications', verbose_name=_('تیکت'))
+    user_actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='sent_notifications', verbose_name=_('کاربر ایجاد کننده'))
+    is_read = models.BooleanField(_('خوانده شده'), default=False)
+    created_at = models.DateTimeField(_('تاریخ ایجاد'), auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = _('اعلان')
+        verbose_name_plural = _('اعلان‌ها')
+
+    def __str__(self) -> str:
+        return f"{self.title} - {self.recipient.get_full_name()}"
+
+# SMTP/Email configuration managed in-app by IT Manager
+class EmailConfig(models.Model):
+    """Holds SMTP configuration for sending system emails, editable by IT Manager."""
+    host = models.CharField(_('هاست SMTP'), max_length=255, default='')
+    port = models.PositiveIntegerField(_('پورت'), default=587)
+    use_tls = models.BooleanField(_('استفاده از TLS'), default=True)
+    use_ssl = models.BooleanField(_('استفاده از SSL'), default=False)
+    username = models.EmailField(_('ایمیل فرستنده'), blank=True, null=True)
+    password = models.CharField(_('رمز عبور ایمیل'), max_length=255, blank=True, null=True)
+    from_name = models.CharField(_('نام نمایشی فرستنده'), max_length=255, blank=True, null=True)
+    updated_at = models.DateTimeField(_('آخرین بروزرسانی'), auto_now=True)
+
+    class Meta:
+        verbose_name = _('تنظیمات ایمیل')
+        verbose_name_plural = _('تنظیمات ایمیل')
+
+    def __str__(self) -> str:
+        return self.username or 'Email Config'
+
+    @classmethod
+    def get_active(cls):
+        """Return the single active config or a default unsaved instance."""
+        cfg = cls.objects.first()
+        if cfg:
+            return cfg
+        return cls(host='', port=587, use_tls=True, use_ssl=False)
+
+# Signal to automatically change ticket status when assigned to technician
+@receiver(pre_save, sender=Ticket)
+def auto_change_status_on_technician_assignment(sender, instance, **kwargs):
+    """Automatically change ticket status from 'open' to 'in_progress' when assigned to technician"""
+    if instance.pk:  # Only for existing tickets
+        try:
+            old_instance = Ticket.objects.get(pk=instance.pk)
+            
+            # Check if ticket was just assigned to a technician and status is 'open'
+            if (instance.assigned_to and 
+                instance.assigned_to.role == 'technician' and 
+                instance.status == 'open' and
+                (old_instance.assigned_to != instance.assigned_to or old_instance.status != 'open')):
+                
+                # Auto-change status to 'in_progress'
+                instance.status = 'in_progress'
+        except Ticket.DoesNotExist:
+            pass
+
+class InventoryElement(models.Model):
+    """
+    Modular inventory system element model.
+    Elements can have specifications and sub-elements (hierarchical structure).
+    Example: A computer case (element) with IP/MAC (specifications) and mouse/keyboard (sub-elements).
+    """
+    name = models.CharField(_('نام'), max_length=200, help_text=_('نام عنصر موجودی (مثال: کیس کامپیوتر)'))
+    description = models.TextField(_('توضیحات'), blank=True, null=True, help_text=_('توضیحات اضافی درباره این عنصر'))
+    element_type = models.CharField(
+        _('نوع عنصر'),
+        max_length=100,
+        help_text=_('نوع عنصر (مثال: کامپیوتر، مانیتور، ماوس، کیبورد)')
+    )
+    
+    # User association
+    assigned_to = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='inventory_elements',
+        verbose_name=_('اختصاص داده شده به'),
+        help_text=_('کاربری که این عنصر به او اختصاص داده شده است')
+    )
+    
+    # Hierarchical structure: elements can have parent elements (sub-elements)
+    parent_element = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        related_name='sub_elements',
+        null=True,
+        blank=True,
+        verbose_name=_('عنصر والد'),
+        help_text=_('اگر این عنصر زیرمجموعه عنصر دیگری است، آن را انتخاب کنید')
+    )
+    
+    # Status and metadata
+    is_active = models.BooleanField(_('فعال'), default=True)
+    created_at = models.DateTimeField(_('تاریخ ایجاد'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('تاریخ بروزرسانی'), auto_now=True)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_inventory_elements',
+        verbose_name=_('ایجاد شده توسط')
+    )
+    
+    class Meta:
+        verbose_name = _("عنصر موجودی")
+        verbose_name_plural = _("عناصر موجودی")
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['assigned_to', 'is_active']),
+            models.Index(fields=['parent_element']),
+        ]
+    
+    def __str__(self):
+        if self.parent_element:
+            return f"{self.name} ({self.parent_element.name})"
+        return f"{self.name} - {self.assigned_to.get_full_name()}"
+    
+    def get_full_path(self):
+        """Get full hierarchical path of the element"""
+        path = [self.name]
+        parent = self.parent_element
+        while parent:
+            path.insert(0, parent.name)
+            parent = parent.parent_element
+        return " > ".join(path)
+    
+    def get_all_sub_elements(self):
+        """Get all sub-elements recursively"""
+        sub_elements = list(self.sub_elements.filter(is_active=True))
+        for sub in sub_elements:
+            sub_elements.extend(sub.get_all_sub_elements())
+        return sub_elements
+    
+    def clean(self):
+        """Validate that element is not its own parent"""
+        if self.parent_element and self.parent_element.pk == self.pk:
+            raise ValidationError(_('عنصر نمی‌تواند والد خودش باشد.'))
+
+class ElementSpecification(models.Model):
+    """
+    Specifications/attributes for inventory elements.
+    Flexible key-value pairs for storing various properties (IP, MAC, serial number, etc.)
+    """
+    element = models.ForeignKey(
+        InventoryElement,
+        on_delete=models.CASCADE,
+        related_name='specifications',
+        verbose_name=_('عنصر'),
+        help_text=_('عنصر موجودی که این مشخصه به آن تعلق دارد')
+    )
+    key = models.CharField(
+        _('کلید'),
+        max_length=100,
+        help_text=_('نام مشخصه (مثال: IP، MAC، شماره سریال)')
+    )
+    value = models.TextField(
+        _('مقدار'),
+        help_text=_('مقدار مشخصه')
+    )
+    description = models.TextField(
+        _('توضیحات'),
+        blank=True,
+        null=True,
+        help_text=_('توضیحات اضافی درباره این مشخصه')
+    )
+    
+    created_at = models.DateTimeField(_('تاریخ ایجاد'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('تاریخ بروزرسانی'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _("مشخصه عنصر")
+        verbose_name_plural = _("مشخصات عناصر")
+        ordering = ['key']
+        unique_together = [['element', 'key']]  # Each element can only have one specification per key
+    
+    def __str__(self):
+        return f"{self.element.name} - {self.key}: {self.value}" 

@@ -1,0 +1,727 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ title }} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #06b6d4;
+        --dark: #1f2937;
+        --light: #f8fafc;
+        --border: #e2e8f0;
+        --text: #374151;
+        --text-light: #6b7280;
+        --employee-bg: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+        --technician-bg: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    }
+
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .form-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 800px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .form-header {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        color: white;
+        padding: 3rem 2rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .form-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+    }
+
+    .form-header h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .form-header p {
+        font-size: 1.1rem;
+        opacity: 0.9;
+        margin-bottom: 2rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        position: relative;
+        z-index: 2;
+    }
+
+    .btn-modern {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-modern:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+        color: white;
+    }
+
+    .form-content {
+        padding: 2rem;
+    }
+
+    .form-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+    }
+
+    .form-section {
+        margin-bottom: 2rem;
+    }
+
+    .form-section-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .form-section-title i {
+        color: var(--primary);
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-label {
+        display: block;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+    }
+
+    .form-control-modern {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        background: white;
+    }
+
+    .form-control-modern:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+
+    .form-select-modern {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        background: white;
+        cursor: pointer;
+    }
+
+    .form-select-modern:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+
+    .form-textarea-modern {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        background: white;
+        resize: vertical;
+        min-height: 120px;
+        font-family: inherit;
+    }
+
+    .form-textarea-modern:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+
+    .checkbox-modern {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem;
+        background: var(--light);
+        border-radius: 12px;
+        border: 2px solid var(--border);
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    .checkbox-modern:hover {
+        border-color: var(--primary);
+        background: rgba(99, 102, 241, 0.05);
+    }
+
+    .checkbox-modern input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+        border: 2px solid var(--border);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .checkbox-modern input[type="checkbox"]:checked {
+        background: var(--primary);
+        border-color: var(--primary);
+    }
+
+    .checkbox-label {
+        font-weight: 600;
+        color: var(--text);
+        cursor: pointer;
+        flex: 1;
+    }
+
+    .help-text {
+        font-size: 0.85rem;
+        color: var(--text-light);
+        margin-top: 0.5rem;
+        line-height: 1.4;
+    }
+
+    .error-message {
+        color: var(--danger);
+        font-size: 0.85rem;
+        margin-top: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .form-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 2rem;
+        border-top: 2px solid var(--border);
+        gap: 1rem;
+    }
+
+    .btn-cancel {
+        background: rgba(107, 114, 128, 0.1);
+        color: var(--text);
+        border: 2px solid var(--border);
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-cancel:hover {
+        background: var(--text);
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .btn-submit {
+        background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    .btn-submit:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4);
+    }
+
+    .help-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+    }
+
+    .help-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .help-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+    }
+
+    .help-section {
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 2px solid var(--border);
+    }
+
+    .help-section.employee {
+        border-color: var(--info);
+        background: rgba(6, 182, 212, 0.05);
+    }
+
+    .help-section.technician {
+        border-color: var(--success);
+        background: rgba(16, 185, 129, 0.05);
+    }
+
+    .help-section-title {
+        font-weight: 700;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .help-section.employee .help-section-title {
+        color: var(--info);
+    }
+
+    .help-section.technician .help-section-title {
+        color: var(--success);
+    }
+
+    .help-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .help-list li {
+        padding: 0.5rem 0;
+        color: var(--text-light);
+        font-size: 0.9rem;
+        position: relative;
+        padding-left: 1.5rem;
+    }
+
+    .help-list li::before {
+        content: '•';
+        position: absolute;
+        left: 0;
+        color: var(--primary);
+        font-weight: bold;
+    }
+
+    @media (max-width: 768px) {
+        .form-container {
+            margin: 1rem;
+            border-radius: 16px;
+        }
+
+        .form-header {
+            padding: 2rem 1rem;
+        }
+
+        .form-header h1 {
+            font-size: 2rem;
+        }
+
+        .header-actions {
+            flex-direction: column;
+        }
+
+        .form-row {
+            grid-template-columns: 1fr;
+        }
+
+        .form-actions {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .help-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <!-- Header -->
+    <div class="form-header">
+        <h1>
+            <i class="fas fa-building me-3"></i>
+            {{ title }}
+        </h1>
+        <p>
+            {% if action == 'create' %}
+            {% trans "ایجاد بخش جدید برای سیستم" %}
+            {% else %}
+            {% trans "ویرایش اطلاعات بخش" %}
+            {% endif %}
+        </p>
+        <div class="header-actions">
+            <a href="{% url 'tickets:department_management' %}" class="btn-modern">
+                <i class="fas fa-arrow-left"></i>
+                {% trans "بازگشت به مدیریت بخش‌ها" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="form-content">
+        <!-- Form Card -->
+        <div class="form-card">
+            <form method="post" novalidate>
+                {% csrf_token %}
+                
+                <!-- Basic Information Section -->
+                <div class="form-section">
+                    <div class="form-section-title">
+                        <i class="fas fa-info-circle"></i>
+                        {% trans "اطلاعات پایه" %}
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="{{ form.name.id_for_label }}">
+                                <i class="fas fa-tag me-1"></i>
+                                {{ form.name.label }}
+                            </label>
+                            <input type="text" 
+                                   name="{{ form.name.name }}" 
+                                   id="{{ form.name.id_for_label }}"
+                                   class="form-control-modern {% if form.name.errors %}error{% endif %}"
+                                   value="{{ form.name.value|default:'' }}"
+                                   placeholder="{% trans 'نام بخش را وارد کنید' %}">
+                            {% if form.name.help_text %}
+                            <div class="help-text">{{ form.name.help_text }}</div>
+                            {% endif %}
+                            {% if form.name.errors %}
+                            <div class="error-message">
+                                <i class="fas fa-exclamation-circle"></i>
+                                {% for error in form.name.errors %}
+                                {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label" for="{{ form.department_type.id_for_label }}">
+                                <i class="fas fa-layer-group me-1"></i>
+                                {{ form.department_type.label }}
+                            </label>
+                            <select name="{{ form.department_type.name }}" 
+                                    id="{{ form.department_type.id_for_label }}"
+                                    class="form-select-modern {% if form.department_type.errors %}error{% endif %}">
+                                {% for value, label in form.department_type.field.choices %}
+                                <option value="{{ value }}" {% if form.department_type.value == value %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            {% if form.department_type.help_text %}
+                            <div class="help-text">{{ form.department_type.help_text }}</div>
+                            {% endif %}
+                            {% if form.department_type.errors %}
+                            <div class="error-message">
+                                <i class="fas fa-exclamation-circle"></i>
+                                {% for error in form.department_type.errors %}
+                                {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="{{ form.description.id_for_label }}">
+                            <i class="fas fa-align-left me-1"></i>
+                            {{ form.description.label }}
+                        </label>
+                        <textarea name="{{ form.description.name }}" 
+                                  id="{{ form.description.id_for_label }}"
+                                  class="form-textarea-modern {% if form.description.errors %}error{% endif %}"
+                                  placeholder="{% trans 'توضیحات بخش (اختیاری)' %}">{{ form.description.value|default:'' }}</textarea>
+                        {% if form.description.help_text %}
+                        <div class="help-text">{{ form.description.help_text }}</div>
+                        {% endif %}
+                        {% if form.description.errors %}
+                        <div class="error-message">
+                            <i class="fas fa-exclamation-circle"></i>
+                            {% for error in form.description.errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Branch Selection -->
+                    <div class="form-group">
+                        <label class="form-label" for="{{ form.branch.id_for_label }}">
+                            <i class="fas fa-map-marker-alt me-1"></i>
+                            {{ form.branch.label }}
+                            {% if form.branch.required %}<span class="text-danger">*</span>{% endif %}
+                        </label>
+                        <select name="{{ form.branch.name }}" 
+                                id="{{ form.branch.id_for_label }}"
+                                class="form-select-modern {% if form.branch.errors %}error{% endif %}"
+                                {% if form.branch.required %}required{% endif %}>
+                            <option value="">{% trans "شعبه را انتخاب کنید" %}</option>
+                            {% for branch in form.branch.field.queryset %}
+                                <option value="{{ branch.id }}" {% if form.branch.value == branch.id %}selected{% endif %}>{{ branch.name }}</option>
+                            {% endfor %}
+                        </select>
+                        {% if form.branch.help_text %}
+                        <div class="help-text">{{ form.branch.help_text }}</div>
+                        {% endif %}
+                        {% if form.branch.errors %}
+                        <div class="error-message">
+                            <i class="fas fa-exclamation-circle"></i>
+                            {% for error in form.branch.errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Ticket Receiving Section -->
+                <div class="form-section">
+                    <div class="form-section-title">
+                        <i class="fas fa-ticket-alt"></i>
+                        {% trans "قابلیت دریافت تیکت" %}
+                    </div>
+                    
+                    <div class="checkbox-modern">
+                        <input type="checkbox" 
+                               name="{{ form.can_receive_tickets.name }}" 
+                               id="{{ form.can_receive_tickets.id_for_label }}"
+                               {% if form.can_receive_tickets.value %}checked{% endif %}
+                               onchange="toggleTicketResponderField()">
+                        <label class="checkbox-label" for="{{ form.can_receive_tickets.id_for_label }}">
+                            {{ form.can_receive_tickets.label }}
+                        </label>
+                    </div>
+                    {% if form.can_receive_tickets.help_text %}
+                    <div class="help-text">{{ form.can_receive_tickets.help_text }}</div>
+                    {% endif %}
+                    {% if form.can_receive_tickets.errors %}
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i>
+                        {% for error in form.can_receive_tickets.errors %}
+                        {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <div class="help-text" style="margin-top: 0.5rem;">
+                        <i class="fas fa-info-circle"></i>
+                        {% trans "توجه: انتخاب پاسخ‌دهنده تیکت توسط سرپرست بخش انجام می‌شود." %}
+                    </div>
+                </div>
+                
+                <!-- Status Section -->
+                <div class="form-section">
+                    <div class="form-section-title">
+                        <i class="fas fa-toggle-on"></i>
+                        {% trans "وضعیت بخش" %}
+                    </div>
+                    
+                    <div class="checkbox-modern">
+                        <input type="checkbox" 
+                               name="{{ form.is_active.name }}" 
+                               id="{{ form.is_active.id_for_label }}"
+                               {% if form.is_active.value %}checked{% endif %}>
+                        <label class="checkbox-label" for="{{ form.is_active.id_for_label }}">
+                            {{ form.is_active.label }}
+                        </label>
+                    </div>
+                    {% if form.is_active.help_text %}
+                    <div class="help-text">{{ form.is_active.help_text }}</div>
+                    {% endif %}
+                    {% if form.is_active.errors %}
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i>
+                        {% for error in form.is_active.errors %}
+                        {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Form Actions -->
+                <div class="form-actions">
+                    <a href="{% url 'tickets:department_management' %}" class="btn-cancel">
+                        <i class="fas fa-times"></i>
+                        {% trans "انصراف" %}
+                    </a>
+                    <button type="submit" class="btn-submit">
+                        <i class="fas fa-save"></i>
+                        {% if action == 'create' %}
+                        {% trans "ایجاد بخش" %}
+                        {% else %}
+                        {% trans "ذخیره تغییرات" %}
+                        {% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Help Information -->
+        <!-- <div class="help-card">
+            <div class="help-title">
+                <i class="fas fa-lightbulb"></i>
+                {% trans "راهنمایی" %}
+            </div>
+            <div class="help-grid">
+                <div class="help-section employee">
+                    <div class="help-section-title">
+                        <i class="fas fa-user"></i>
+                        {% trans "بخش‌های کارمندی" %}
+                    </div>
+                    <ul class="help-list">
+                        <li>{% trans "برای کارمندان عادی و سرپرست‌ها استفاده می‌شود" %}</li>
+                        <li>{% trans "در فرم‌های ثبت‌نام کارمندان نمایش داده می‌شود" %}</li>
+                        <li>{% trans "مثال: اداری، منابع انسانی، تدارکات" %}</li>
+                    </ul>
+                </div>
+                <div class="help-section technician">
+                    <div class="help-section-title">
+                        <i class="fas fa-tools"></i>
+                        {% trans "بخش‌های فنی" %}
+                    </div>
+                    <ul class="help-list">
+                        <li>{% trans "برای کارشناسان فنی استفاده می‌شود" %}</li>
+                        <li>{% trans "در فرم‌های ثبت‌نام تکنسین‌ها نمایش داده می‌شود" %}</li>
+                        <li>{% trans "مثال: پشتیبانی فنی، امنیت اطلاعات، توسعه نرم‌افزار" %}</li>
+                    </ul>
+                </div>
+            </div>
+        </div> -->
+        <!-- this section for information and i should uncomment it later -->
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-resize textarea
+document.addEventListener('DOMContentLoaded', function() {
+    const textarea = document.querySelector('textarea[name="description"]');
+    if (textarea) {
+        // Set initial height
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+        
+        // Auto-resize on input
+        textarea.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = this.scrollHeight + 'px';
+        });
+    }
+    
+    // Add loading animation
+    const cards = document.querySelectorAll('.form-card, .help-card');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+            card.style.transition = 'all 0.6s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 200);
+    });
+});
+
+// Form validation enhancement
+document.querySelector('form').addEventListener('submit', function(e) {
+    const submitBtn = this.querySelector('.btn-submit');
+    const originalText = submitBtn.innerHTML;
+    
+    // Show loading state
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> در حال ذخیره...';
+    submitBtn.disabled = true;
+    
+    // Re-enable after 3 seconds if form doesn't submit
+    setTimeout(() => {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    }, 3000);
+});
+</script>
+{% endblock %} 

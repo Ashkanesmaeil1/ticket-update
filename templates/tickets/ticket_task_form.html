@@ -1,0 +1,224 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{{ title }} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 900px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .form-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .form-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+    }
+
+    .form-header-content {
+        position: relative;
+        z-index: 2;
+    }
+
+    .form-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin-bottom: 0;
+    }
+
+    .form-content {
+        padding: 2rem;
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.5rem;
+    }
+
+    .form-control, .form-select {
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        padding: 0.75rem;
+        transition: all 0.2s ease;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.25);
+        outline: none;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 8px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-secondary {
+        background: #e2e8f0;
+        color: #374151;
+        border: none;
+        border-radius: 8px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .btn-secondary:hover {
+        background: #cbd5e1;
+        transform: translateY(-2px);
+    }
+
+    .text-danger {
+        color: #ef4444;
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+
+    .form-text {
+        color: #6b7280;
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="form-container">
+        <!-- Header -->
+        <div class="form-header">
+            <div class="form-header-content">
+                <h1 class="form-title">
+                    <i class="fas fa-tasks me-2"></i>
+                    {{ title }}
+                </h1>
+            </div>
+        </div>
+
+        <!-- Form Content -->
+        <div class="form-content">
+            <form method="post">
+                {% csrf_token %}
+                
+                <div class="mb-4">
+                    <label for="{{ form.title.id_for_label }}" class="form-label">{{ form.title.label }}</label>
+                    {{ form.title }}
+                    {% if form.title.errors %}
+                    <div class="text-danger">{{ form.title.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-4">
+                    <label for="{{ form.description.id_for_label }}" class="form-label">{{ form.description.label }}</label>
+                    {{ form.description }}
+                    {% if form.description.errors %}
+                    <div class="text-danger">{{ form.description.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-4">
+                        <label for="{{ form.priority.id_for_label }}" class="form-label">{{ form.priority.label }}</label>
+                        {{ form.priority }}
+                        {% if form.priority.errors %}
+                        <div class="text-danger">{{ form.priority.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="col-md-6 mb-4">
+                        <label for="{{ form.department.id_for_label }}" class="form-label">{{ form.department.label }}</label>
+                        {{ form.department }}
+                        {% if form.department.errors %}
+                        <div class="text-danger">{{ form.department.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label for="{{ form.assigned_to.id_for_label }}" class="form-label">{{ form.assigned_to.label }}</label>
+                    {{ form.assigned_to }}
+                    {% if form.assigned_to.errors %}
+                    <div class="text-danger">{{ form.assigned_to.errors }}</div>
+                    {% endif %}
+                    <small class="form-text">{% trans "ابتدا بخش را انتخاب کنید" %}</small>
+                </div>
+
+                <div class="d-flex justify-content-between mt-4">
+                    <a href="{% url 'tickets:ticket_task_list' %}" class="btn btn-secondary">
+                        <i class="fas fa-times me-2"></i>
+                        {% trans "انصراف" %}
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>
+                        {% trans "ذخیره" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const departmentSelect = document.getElementById('{{ form.department.id_for_label }}');
+    const assignedToSelect = document.getElementById('{{ form.assigned_to.id_for_label }}');
+    
+    departmentSelect.addEventListener('change', function() {
+        const departmentId = this.value;
+        assignedToSelect.innerHTML = '<option value="">{% trans "در حال بارگذاری..." %}</option>';
+        
+        if (departmentId) {
+            fetch(`/api/departments/${departmentId}/employees/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        assignedToSelect.innerHTML = '<option value="">{% trans "انتخاب کنید" %}</option>';
+                        data.employees.forEach(employee => {
+                            const option = document.createElement('option');
+                            option.value = employee.id;
+                            option.textContent = employee.name + (employee.is_senior ? ' (سرپرست)' : '');
+                            assignedToSelect.appendChild(option);
+                        });
+                    } else {
+                        assignedToSelect.innerHTML = '<option value="">{% trans "خطا در بارگذاری" %}</option>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    assignedToSelect.innerHTML = '<option value="">{% trans "خطا در بارگذاری" %}</option>';
+                });
+        } else {
+            assignedToSelect.innerHTML = '<option value="">{% trans "ابتدا بخش را انتخاب کنید" %}</option>';
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,259 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load crispy_forms_tags %}
+
+{% block title %}{% trans "اختصاص سرپرست به بخش‌ها" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+    .container-custom {
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(16px);
+        border-radius: 20px;
+        margin: 2rem auto;
+        max-width: 1200px;
+        box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25);
+        overflow: hidden;
+    }
+    .header-section {
+        background: linear-gradient(135deg, #6366f1 0%, #10b981 100%);
+        color: white;
+        padding: 1.75rem 2rem;
+        text-align: center;
+    }
+    .header-section h1 {
+        font-weight: 800;
+        letter-spacing: -0.5px;
+    }
+    .content-section {
+        padding: 2rem;
+    }
+    .card-modern {
+        background: #fff;
+        border-radius: 16px;
+        padding: 1.75rem;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 12px 30px -12px rgba(15, 23, 42, 0.25);
+        border: 1px solid rgba(226, 232, 240, 0.9);
+    }
+    .section-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        color: #0f172a;
+    }
+    .section-title i {
+        color: #6366f1;
+    }
+    .pill-group {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 0.6rem;
+    }
+    .pill-option {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.75rem 0.9rem;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        transition: all 0.2s ease;
+    }
+    .pill-option.is-disabled {
+        opacity: 0.6;
+        background: #e2e8f0;
+        border-color: #cbd5e1;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+    .pill-option:hover {
+        border-color: #6366f1;
+        background: #eef2ff;
+    }
+    .badge-dept {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: #eef2ff;
+        color: #4338ca;
+        padding: 0.3rem 0.7rem;
+        border-radius: 999px;
+        font-size: 0.85rem;
+    }
+    .badge-empty {
+        color: #64748b;
+    }
+    .btn-remove {
+        background: #fee2e2;
+        color: #b91c1c;
+        border: 1px solid #fecdd3;
+        padding: 0.3rem 0.65rem;
+        border-radius: 8px;
+        font-size: 0.8rem;
+    }
+    .btn-remove:hover {
+        background: #fecdd3;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 2.5rem 1.5rem;
+        color: #6b7280;
+    }
+    .empty-state i {
+        color: #cbd5e1;
+    }
+    .helper {
+        font-size: 0.9rem;
+        color: #64748b;
+        margin-bottom: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-custom">
+    <div class="header-section">
+        <h1><i class="fas fa-user-tie"></i> {% trans "اختصاص سرپرست به بخش‌ها" %}</h1>
+        <p>{% trans "می‌توانید یک سرپرست را به چندین بخش اختصاص دهید. هر بخش فقط می‌تواند یک سرپرست داشته باشد." %}</p>
+    </div>
+    
+    <div class="content-section">
+        <div class="row g-3">
+            <div class="col-lg-6">
+                <div class="card-modern">
+                    <div class="section-title">
+                        <i class="fas fa-user-tie"></i>
+                        <span>{% trans "اختصاص سرپرست جدید" %}</span>
+                    </div>
+                    <p class="helper">{% trans "هر بخش فقط یک سرپرست دارد؛ فقط بخش‌های بدون سرپرست نمایش داده می‌شوند." %}</p>
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="{{ form.supervisor.id_for_label }}" class="form-label fw-semibold">
+                                {{ form.supervisor.label }}
+                            </label>
+                            {{ form.supervisor }}
+                            {% if form.supervisor.errors %}
+                            <div class="text-danger small mt-1">{{ form.supervisor.errors }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="mb-3">
+                            <label for="{{ form.departments.id_for_label }}" class="form-label fw-semibold">
+                                {{ form.departments.label }}
+                            </label>
+                            {% if departments_without_supervisor %}
+                            <div class="pill-group" id="dept-group">
+                                {% for checkbox in form.departments %}
+                                <label class="pill-option">
+                                    {{ checkbox.tag }}
+                                    <span>{{ checkbox.choice_label }}</span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p class="badge-empty">{% trans "همه بخش‌ها سرپرست دارند." %}</p>
+                            {% endif %}
+                            {% if form.departments.errors %}
+                            <div class="text-danger small mt-1">{{ form.departments.errors }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save ms-1"></i> {% trans "ذخیره" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                {% if departments_without_supervisor %}
+                <div class="card-modern">
+                    <div class="section-title">
+                        <i class="fas fa-sitemap"></i>
+                        <span>{% trans "بخش‌های بدون سرپرست" %}</span>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for dept in departments_without_supervisor %}
+                        <span class="badge-dept"><i class="fas fa-building"></i> {{ dept.name }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="col-lg-6">
+                <div class="card-modern">
+                    <div class="section-title">
+                        <i class="fas fa-users-cog"></i>
+                        <span>{% trans "سرپرستان فعلی" %}</span>
+                    </div>
+                    {% if supervisors %}
+                        {% for supervisor in supervisors %}
+                        <div class="mb-3 pb-3 border-bottom">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="mb-1">{{ supervisor.get_full_name }}</h5>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        {% for dept in supervisor.supervised_departments.all %}
+                                        <span class="badge-dept">
+                                            <i class="fas fa-building"></i> {{ dept.name }}
+                                            <a href="{% url 'tickets:remove_supervisor_from_department' dept.id %}"
+                                               class="btn-remove btn-sm"
+                                               onclick="return confirm('{% trans 'آیا مطمئن هستید که می‌خواهید این سرپرست را از بخش حذف کنید؟' %}')">
+                                                <i class="fas fa-times"></i>
+                                            </a>
+                                        </span>
+                                        {% empty %}
+                                        <span class="badge-empty">{% trans "هیچ بخشی اختصاص داده نشده" %}</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="fas fa-user-tie fa-3x mb-3"></i>
+                            <p>{% trans "هیچ سرپرستی تعیین نشده است." %}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function() {
+        const supervisorSelect = document.getElementById("{{ form.supervisor.id_for_label }}");
+        // Target all department checkboxes by name (works with CheckboxSelectMultiple)
+        const deptCheckboxes = document.querySelectorAll('input[name="departments"]');
+        const pillOptions = document.querySelectorAll('.pill-option');
+
+        function updateDeptState() {
+            const hasSupervisor = supervisorSelect && supervisorSelect.value;
+            deptCheckboxes.forEach(cb => {
+                cb.disabled = !hasSupervisor;
+            });
+            pillOptions.forEach(pill => {
+                pill.classList.toggle('is-disabled', !hasSupervisor);
+            });
+        }
+
+        updateDeptState();
+        if (supervisorSelect) {
+            supervisorSelect.addEventListener('change', updateDeptState);
+        }
+    })();
+</script>
+{% endblock %}
+

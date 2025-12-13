@@ -1,0 +1,1111 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+{% load crispy_forms_tags %}
+
+{% block title %}{% trans "جزئیات تیکت" %} - {{ ticket.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #06b6d4;
+        --dark: #1f2937;
+        --light: #f8fafc;
+        --border: #e2e8f0;
+        --text: #374151;
+        --text-light: #6b7280;
+        --ticket-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .ticket-detail-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 1400px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .ticket-detail-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 3rem 2rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .ticket-detail-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+    }
+
+    .ticket-detail-header-content {
+        position: relative;
+        z-index: 2;
+    }
+
+    .ticket-detail-title {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .ticket-detail-title i {
+        font-size: 2.2rem;
+        opacity: 0.9;
+    }
+
+    .ticket-badges {
+        display: flex;
+        gap: 1.5rem;
+        justify-content: center;
+        margin-bottom: 3rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    
+    .status-badge-modern {
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        height: 48px;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    .status-badge-modern:hover {
+        background: rgba(255, 255, 255, 0.25);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    /* .status-badge-modern.status-open {
+        border-color: rgba(245, 158, 11, 0.4);
+        box-shadow: 0 0 20px rgba(245, 158, 11, 0.2);
+    }
+
+    .status-badge-modern.status-in_progress {
+        border-color: rgba(6, 182, 212, 0.4);
+        box-shadow: 0 0 20px rgba(6, 182, 212, 0.2);
+    }
+
+    .status-badge-modern.status-resolved {
+        border-color: rgba(16, 185, 129, 0.4);
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+    }
+
+    .status-badge-modern.status-closed {
+        border-color: rgba(239, 68, 68, 0.4);
+        box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);
+    }
+
+    .status-badge-modern.status-waiting_for_user {
+        border-color: rgba(139, 92, 246, 0.4);
+        box-shadow: 0 0 20px rgba(139, 92, 246, 0.2);
+    } */
+
+    .priority-badge-modern {
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        height: 48px;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    .priority-badge-modern:hover {
+        background: rgba(255, 255, 255, 0.25);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    /* .priority-badge-modern.priority-low {
+        border-color: rgba(16, 185, 129, 0.4);
+        box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+    }
+
+    .priority-badge-modern.priority-medium {
+        border-color: rgba(245, 158, 11, 0.4);
+        box-shadow: 0 0 15px rgba(245, 158, 11, 0.2);
+    }
+
+    .priority-badge-modern.priority-high {
+        border-color: rgba(239, 68, 68, 0.4);
+        box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
+    }
+
+    .priority-badge-modern.priority-urgent {
+        border-color: rgba(31, 41, 55, 0.4);
+        box-shadow: 0 0 15px rgba(31, 41, 55, 0.2);
+    } */
+
+    .category-badge-modern {
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        height: 48px;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    .category-badge-modern:hover {
+        background: rgba(255, 255, 255, 0.25);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .btn-modern {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        width: 240px;
+        justify-content: center;
+    }
+
+    .btn-modern:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+        color: white;
+        text-decoration: none;
+    }
+
+    .ticket-detail-content {
+        padding: 2rem;
+    }
+
+    .info-cards-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .info-card-modern {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 2px solid var(--border);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .info-card-modern::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 4px;
+        height: 100%;
+        background: var(--ticket-bg);
+        opacity: 0.7;
+    }
+
+    .info-card-modern:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15);
+        border-color: var(--primary);
+    }
+
+    .info-label-modern {
+        font-weight: 600;
+        color: var(--text-light);
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .info-value-modern {
+        color: var(--text);
+        font-weight: 500;
+        font-size: 1.1rem;
+    }
+
+    .section-card {
+        background: white;
+        border-radius: 20px;
+        margin-bottom: 2.5rem;
+        border: 1px solid var(--border);
+        overflow: hidden;
+        transition: all 0.3s ease;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+
+    .section-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15);
+    }
+
+    .section-header {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        color: white;
+        padding: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .section-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+    }
+
+    .section-header h5 {
+        position: relative;
+        z-index: 2;
+        margin: 0;
+        font-weight: 600;
+        font-size: 1.3rem;
+    }
+
+    .section-header i {
+        position: relative;
+        z-index: 2;
+        font-size: 1.2rem;
+    }
+
+    .section-body {
+        padding: 2rem;
+    }
+
+    .description-content {
+        line-height: 1.8;
+        color: var(--text);
+        font-size: 1.1rem;
+    }
+
+    .attachment-link-modern {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: linear-gradient(135deg, var(--info) 0%, #0891b2 100%);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        margin-top: 1rem;
+    }
+    
+    .attachment-link-modern:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(6, 182, 212, 0.3);
+        color: white;
+        text-decoration: none;
+    }
+
+    .reply-card-modern {
+        background: white;
+        border-radius: 20px;
+        margin-bottom: 2rem;
+        border: 3px solid var(--border);
+        transition: all 0.2s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .reply-card-modern::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 4px;
+        height: 100%;
+        background: linear-gradient(135deg, var(--info) 0%, #0891b2 100%);
+        opacity: 0.7;
+    }
+
+    .reply-card-modern:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15);
+    }
+
+    .reply-header {
+        padding: 1.5rem 2rem 1rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .reply-author-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .reply-author-avatar {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .reply-author-name {
+        font-weight: 600;
+        color: var(--text);
+        font-size: 1.1rem;
+    }
+
+    .reply-badges {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .role-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .role-badge.role-it_manager {
+        background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+        color: white;
+    }
+
+    .role-badge.role-technician {
+        background: linear-gradient(135deg, var(--warning) 0%, #d97706 100%);
+        color: white;
+    }
+
+    .role-badge.role-manager {
+        background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+        color: white;
+    }
+
+    .role-badge.role-senior {
+        background: linear-gradient(135deg, var(--info) 0%, #0891b2 100%);
+        color: white;
+    }
+
+    .role-badge.role-employee {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        color: white;
+    }
+
+    .private-badge {
+        background: linear-gradient(135deg, var(--dark) 0%, #111827 100%);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+    
+    .reply-time {
+        color: var(--text-light);
+        font-size: 0.9rem;
+        margin-top: 0.5rem;
+    }
+
+    .reply-content {
+        padding: 1rem 2rem 2rem;
+        line-height: 1.8;
+        color: var(--text);
+    }
+
+    .form-modern {
+        background: white;
+        border-radius: 20px;
+        padding: 2.5rem;
+        border: 1px solid var(--border);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+
+    .form-control-modern {
+        background: white;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        padding: 1rem 1rem 1rem 8rem;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .form-control-modern:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        background: white;
+    }
+
+    .form-select-modern {
+        background: white;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .form-select-modern:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        background: white;
+    }
+
+    .btn-primary-modern {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        border: none;
+        color: white;
+        padding: 0.75rem 2rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-primary-modern:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(99, 102, 241, 0.3);
+        background: linear-gradient(135deg, var(--primary-dark) 0%, #3730a3 100%);
+        color: white;
+    }
+
+    .btn-success-modern {
+        background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+        border: none;
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-success-modern:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3);
+        background: linear-gradient(135deg, #059669 0%, #047857 100%);
+        color: white;
+    }
+
+    .btn-danger-modern {
+        background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+        border: none;
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-danger-modern:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(239, 68, 68, 0.3);
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+        color: white;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem 2rem;
+        color: var(--text-light);
+    }
+
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    .approval-controls {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: var(--text);
+        font-size: 0.95rem;
+    }
+
+    .form-check-label {
+        font-weight: 600;
+        color: var(--text);
+        font-size: 0.95rem;
+    }
+
+    .form-check-input {
+        background: white;
+        border: 2px solid var(--border);
+        border-radius: 6px;
+        width: 1rem;
+        height: 1rem;
+    }
+
+    .form-check-input:checked {
+        background: var(--primary);
+        border-color: var(--primary);
+    }
+
+    .name-role-container {
+        display: flex;
+        flex-direction: column-reverse;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .style-form-label {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 1rem;
+        gap: 0.2rem;
+    }
+    
+    @media (max-width: 768px) {
+        .ticket-detail-container {
+            margin: 1rem;
+            border-radius: 16px;
+        }
+
+        .ticket-detail-header {
+            padding: 2rem 1rem;
+        }
+
+        .ticket-detail-title {
+            font-size: 2rem;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .ticket-badges {
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header-actions {
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .ticket-detail-content {
+            padding: 1rem;
+        }
+        
+        .info-cards-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .section-body {
+            padding: 1rem;
+        }
+
+        .reply-header {
+            padding: 1rem;
+        }
+
+        .reply-content {
+            padding: 1rem;
+        }
+
+        .form-modern {
+            padding: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ticket-detail-container">
+    <!-- Ticket Header -->
+    <div class="ticket-detail-header">
+        <div class="ticket-detail-header-content">
+            <h1 class="ticket-detail-title">
+                <i class="fas fa-ticket-alt"></i>
+                <span dir="auto">{{ ticket.title }}</span>
+            </h1>
+            
+            <div class="ticket-badges">
+                <span class="status-badge-modern status-{{ ticket.status }}">
+                    {% if ticket.status == 'open' %}
+                        <i class="fas fa-clock"></i>
+                    {% elif ticket.status == 'in_progress' %}
+                        <i class="fas fa-cog fa-spin"></i>
+                    {% elif ticket.status == 'resolved' %}
+                        <i class="fas fa-check-circle"></i>
+                    {% elif ticket.status == 'closed' %}
+                        <i class="fas fa-times-circle"></i>
+                    {% elif ticket.status == 'waiting_for_user' %}
+                        <i class="fas fa-user-clock" style="position: relative; left: 3px;"></i>
+                        {% endif %}
+                        {{ ticket.get_status_display }}
+                    </span>
+                
+                <span class="priority-badge-modern priority-{{ ticket.priority }}">
+                    {% if ticket.priority == 'low' %}
+                        <i class="fas fa-arrow-down"></i>
+                    {% elif ticket.priority == 'medium' %}
+                        <i class="fas fa-minus"></i>
+                    {% elif ticket.priority == 'high' %}
+                        <i class="fas fa-arrow-up"></i>
+                    {% elif ticket.priority == 'urgent' %}
+                        <i class="fas fa-exclamation-triangle"></i>
+                        {% endif %}
+                        {{ ticket.get_priority_display }}
+                    </span>
+                
+                <span class="category-badge-modern">
+                    <i class="fas fa-tag"></i>
+                    {{ ticket.get_category_display }}
+                </span>
+                </div>
+            
+            <div class="header-actions">
+                    {% if user.role == 'it_manager' or user.role == 'technician' %}
+                    <a href="{% url 'tickets:ticket_update' ticket.id %}" class="btn-modern">
+                        <i class="fas fa-edit"></i>
+                        {% trans "ویرایش وضعیت تیکت" %}
+                        </a>
+                    {% endif %}
+                    {% if user.role == 'employee' and ticket.created_by == user and ticket.status == 'open' %}
+                    <a href="{% url 'tickets:ticket_update' ticket.id %}" class="btn-modern">
+                        <i class="fas fa-edit"></i>
+                        {% trans "ویرایش تیکت" %}
+                        </a>
+                    {% endif %}
+                <a href="{% url 'tickets:ticket_list' %}{% if came_from_department %}?department=1{% endif %}{% if came_from_all_tickets %}?all_tickets=1{% endif %}" class="btn-modern">
+                    <i class="fas fa-arrow-left"></i>
+                    {% trans "بازگشت به لیست تیکت ها" %}
+                    </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="ticket-detail-content">
+        <!-- Ticket Information Cards -->
+        <div class="info-cards-grid">
+            <div class="info-card-modern">
+                <div class="info-label-modern">{% trans "ایجاد شده توسط" %}</div>
+                <div class="info-value-modern">
+                    {% if ticket.created_by %}
+                        {{ ticket.created_by.get_full_name|default:ticket.created_by.username }}
+                    {% else %}
+                        {% trans "نامشخص" %}
+                    {% endif %}
+                </div>
+        </div>
+        
+        {% if ticket.category == 'access' %}
+            <div class="info-card-modern">
+                <div class="info-label-modern">{% trans "وضعیت تایید دسترسی شبکه" %}</div>
+                <div class="info-value-modern">
+                        {% if ticket.access_approval_status == 'pending' %}{% trans "در انتظار تایید سرپرست" %}{% endif %}
+                    {% if ticket.access_approval_status == 'approved' %}{% trans "تایید شده" %}{% endif %}
+                    {% if ticket.access_approval_status == 'rejected' %}{% trans "رد شده" %}{% endif %}
+                    {% if ticket.access_approval_status == 'not_required' %}{% trans "بدون نیاز" %}{% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if ticket.assigned_to %}
+            <div class="info-card-modern">
+                <div class="info-label-modern">{% trans "اختصاص داده شده به" %}</div>
+                <div class="info-value-modern">{{ ticket.assigned_to.get_full_name|default:ticket.assigned_to.username }}</div>
+        </div>
+        {% endif %}
+        
+            <div class="info-card-modern">
+                <div class="info-label-modern">{% trans "تاریخ ایجاد" %}</div>
+                <div class="info-value-modern">{{ ticket.created_at|persian_date }}</div>
+        </div>
+        
+            <div class="info-card-modern">
+                <div class="info-label-modern">{% trans "آخرین بروزرسانی" %}</div>
+                <div class="info-value-modern">{{ ticket.updated_at|persian_date }}</div>
+        </div>
+    </div>
+
+    <!-- Ticket Description -->
+        <div class="section-card">
+            <div class="section-header">
+                <i class="fas fa-file-alt"></i>
+                <h5>{% trans "توضیح" %}</h5>
+        </div>
+            <div class="section-body">
+                <div class="description-content" dir="auto">{{ ticket.description|linebreaks }}</div>
+            {% if ticket.attachment %}
+                <a href="{{ ticket.attachment.url }}" class="attachment-link-modern" target="_blank">
+                    <i class="fas fa-paperclip"></i>
+                    {{ ticket.attachment.name|slice:"7:" }}
+                </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Senior Approval Controls -->
+    {% if can_approve_access and requires_access_approval %}
+        <div class="section-card">
+            <div class="section-header">
+                <i class="fas fa-check-circle"></i>
+                <h5>{% trans "تایید دسترسی شبکه" %}</h5>
+        </div>
+            <div class="section-body">
+                <div class="approval-controls">
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="access_approval_action" value="approve" />
+                        <button type="submit" class="btn-success-modern">
+                            <i class="fas fa-check"></i>
+                            {% trans "تایید" %}
+                </button>
+            </form>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="access_approval_action" value="reject" />
+                        <button type="submit" class="btn-danger-modern">
+                            <i class="fas fa-times"></i>
+                            {% trans "رد" %}
+                </button>
+            </form>
+                </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Status Update Form (IT Manager/Technician/Senior for received tickets) -->
+    {% if not requires_access_approval and status_form and can_change_status %}
+        <div class="section-card">
+            <div class="section-header">
+                <i class="fas fa-cog"></i>
+                <h5>{% trans "بروزرسانی وضعیت" %}</h5>
+        </div>
+            <div class="section-body">
+                <form method="post" action="{% url 'tickets:ticket_detail' ticket.id %}" class="form-modern">
+                {% csrf_token %}
+                <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ status_form.status.id_for_label }}" class="form-label">{% trans "وضعیت" %}</label>
+                            <select name="{{ status_form.status.name }}" id="{{ status_form.status.id_for_label }}" class="form-select-modern">
+                                {% for value, label in status_form.status.field.choices %}
+                                    <option value="{{ value }}" {% if value == status_form.status.value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                    </div>
+                        {% if user.role == 'it_manager' or user.role == 'technician' %}
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ status_form.assigned_to.id_for_label }}" class="form-label">{% trans "اختصاص به" %}</label>
+                            <select name="{{ status_form.assigned_to.name }}" id="{{ status_form.assigned_to.id_for_label }}" class="form-select-modern">
+                                {% for value, label in status_form.assigned_to.field.choices %}
+                                    <option value="{{ value }}" {% if value == status_form.assigned_to.value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                    </div>
+                        {% endif %}
+                </div>
+                    <button type="submit" class="btn-primary-modern">
+                        <i class="fas fa-save"></i>
+                        {% trans "بروزرسانی وضعیت" %}
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Replies Section -->
+        <div class="section-card">
+            <div class="section-header d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fas fa-comments"></i>
+                    <h5>{% trans "پاسخ ها" %} ({{ ticket.replies.count }})</h5>
+                </div>
+                <button class="btn-modern" type="button" data-bs-toggle="collapse" data-bs-target="#replyForm">
+                    <i class="fas fa-plus"></i>
+                    {% trans "ثبت پاسخ" %}
+            </button>
+        </div>
+            <div class="section-body">
+            <!-- Reply Form -->
+            <div class="collapse mb-4" id="replyForm">
+                    <div class="form-modern">
+                        <!-- <h6>{% trans "ثبت پاسخ" %}</h6> -->
+                    <form method="post" action="{% url 'tickets:ticket_detail' ticket.id %}" enctype="multipart/form-data" id="replySubmitForm">
+                        {% csrf_token %}
+                            <div class="mb-3 style-form-label">
+                                <label for="{{ reply_form.content.id_for_label }}" class="form-label">{% trans "متن پاسخ" %}</label>
+                                <textarea name="{{ reply_form.content.name }}" id="{{ reply_form.content.id_for_label }}" class="form-control-modern" rows="4" placeholder="{% trans 'متن پاسخ خود را وارد کنید...' %}">{{ reply_form.content.value|default:'' }}</textarea>
+                            </div>
+                            <div class="mb-3 style-form-label">
+                                <label for="{{ reply_form.attachment.id_for_label }}" class="form-label">{% trans "پیوست" %}</label>
+                                <input type="file" name="{{ reply_form.attachment.name }}" id="{{ reply_form.attachment.id_for_label }}" class="form-control-modern" accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png">
+                                <div class="help-text">
+                                    <i class="fas fa-info-circle"></i>
+                                    {% trans "فرمت های ساپورت شده: PDF, DOC, DOCX, TXT, JPG, PNG (حداکثر 5MB)" %}
+                                </div>
+                            </div>
+                            {% if user.role == 'it_manager' %}
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input type="checkbox" name="{{ reply_form.is_private.name }}" id="{{ reply_form.is_private.id_for_label }}" class="form-check-input" {% if reply_form.is_private.value %}checked{% endif %}>
+                                    <label for="{{ reply_form.is_private.id_for_label }}" class="form-check-label">
+                                        {% trans "پاسخ محرمانه" %}
+                                    </label>
+                                </div>
+                            </div>
+                            {% endif %}
+                            <button type="submit" class="btn-primary-modern" id="replySubmitBtn">
+                                <i class="fas fa-paper-plane"></i>
+                                <span class="btn-text">{% trans "ارسال پاسخ" %}</span>
+                                <div class="loading-spinner" style="display: none;"></div>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Replies List -->
+            {% if ticket.replies.all %}
+                {% for reply in ticket.replies.all %}
+                    <div class="reply-card-modern">
+                        <div class="reply-header">
+                            <div class="reply-author-info">
+                                <!-- <div class="reply-author-avatar">
+                                    {{ reply.author.get_full_name|default:reply.author.username|first|upper }}
+                                </div> -->
+                            <div class="name-role-container">
+                                    <div class="reply-author-name">{{ reply.author.get_full_name|default:reply.author.username }}</div>
+                                    <div class="reply-badges">
+                                {% if reply.author.role == 'it_manager' %}
+                                            <span class="role-badge role-it_manager">{% trans "مدیرIT" %}</span>
+                                {% elif reply.author.role == 'technician' %}
+                                            <span class="role-badge role-technician">{% trans "کارشناس فنی" %}</span>
+                                {% elif reply.author.role == 'employee' and reply.author.department_role == 'manager' %}
+                                            <span class="role-badge role-manager">{% trans "مدیر" %}</span>
+                                {% elif reply.author.role == 'employee' and reply.author.department_role == 'senior' %}
+                                            <span class="role-badge role-senior">{% trans "سرپرست" %} {% if reply.author.department %}{{ reply.author.department.name }}{% else %}{% trans "نامشخص" %}{% endif %}</span>
+                                {% else %}
+                                            <span class="role-badge role-employee">{% trans "کارمند" %}</span>
+                                {% endif %}
+                                {% if reply.is_private %}
+                                            <span class="private-badge">
+                                                <i class="fas fa-eye-slash"></i>
+                                                {% trans "محرمانه" %}
+                                            </span>
+                                {% endif %}
+                            </div>
+                                </div>
+                            </div>
+                            <div class="reply-time">{{ reply.created_at|persian_date }}</div>
+                        </div>
+                        <div class="reply-content" dir="auto">
+                            {% if reply.is_private %}
+                                {% if user.role == 'it_manager' or user.department_role == 'manager' or reply.ticket.created_by == user %}
+                                    <!-- Full content for authorized users -->
+                                    {{ reply.content|linebreaks }}
+                                {% else %}
+                                    <!-- Hidden content for unauthorized users -->
+                                    <div class="alert alert-info" role="alert">
+                                        <i class="fas fa-eye-slash"></i> <strong>{% trans "محتوای این پیام برای شما مخفی شده" %}</strong>
+                                    </div>
+                                {% endif %}
+                            {% else %}
+                                <!-- Public reply content -->
+                                {{ reply.content|linebreaks }}
+                            {% endif %}
+                        </div>
+                        {% if reply.attachment %}
+                            {% if not reply.is_private or user.role == 'it_manager' or user.department_role == 'manager' or reply.ticket.created_by == user %}
+                                <div class="section-body">
+                                    <a href="{{ reply.attachment.url }}" class="attachment-link-modern" target="_blank">
+                                        <i class="fas fa-paperclip"></i>
+                                        {{ reply.attachment.name|slice:"7:" }}
+                                    </a>
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                    <div class="empty-state">
+                        <i class="fas fa-comments"></i>
+                        <p>{% trans "هیچ پاسخی ثبت نشده" %}</p>
+                </div>
+            {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-expand reply form if there are validation errors
+    /*{% if reply_form.errors %}*/
+    document.getElementById('replyForm') && document.getElementById('replyForm').classList.add('show');
+    /*{% endif %}*/
+    
+    // Auto-expand status form if there are validation errors (guarded if exists)
+    /*{% if status_form and status_form.errors %}*/
+    (function(){var statusEl=document.getElementById('statusForm'); if(statusEl){statusEl.classList.add('show');}})();
+    /*{% endif %}*/
+    
+    // Add smooth animations to cards
+    const cards = document.querySelectorAll('.info-card-modern, .section-card, .reply-card-modern');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+            card.style.transition = 'all 0.6s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 100);
+    });
+    
+    // Lock reply submit button on submit
+    const replyForm = document.getElementById('replySubmitForm');
+    const replyBtn = document.getElementById('replySubmitBtn');
+    if (replyForm && replyBtn) {
+        function isAllowedExtension(fileName) {
+            const allowed = ['.pdf', '.doc', '.docx', '.txt', '.jpg', '.jpeg', '.png'];
+            const dot = fileName.lastIndexOf('.');
+            if (dot === -1) return false;
+            const ext = fileName.substring(dot).toLowerCase();
+            return allowed.includes(ext);
+        }
+        function validateReplyFile() {
+            const inputEl = document.getElementById('{{ reply_form.attachment.id_for_label }}');
+            if (!inputEl || !inputEl.files || !inputEl.files[0]) return { valid: true };
+            const file = inputEl.files[0];
+            const maxBytes = 5 * 1024 * 1024;
+            if (!isAllowedExtension(file.name)) {
+                return { valid: false, message: '{% trans "فرمت فایل مجاز نیست. فرمت‌های مجاز: PDF, DOC, DOCX, TXT, JPG, PNG" %}' };
+            }
+            if (file.size > maxBytes) {
+                return { valid: false, message: '{% trans "حجم فایل نباید بیشتر از ۵ مگابایت باشد." %}' };
+            }
+            return { valid: true };
+        }
+        // Validate on change
+        const replyFileInput = document.getElementById('{{ reply_form.attachment.id_for_label }}');
+        if (replyFileInput) {
+            replyFileInput.addEventListener('change', function(){
+                const result = validateReplyFile();
+                if (!result.valid) {
+                    if (typeof showNotification === 'function') {
+                        showNotification(result.message, 'error');
+                    } else { alert(result.message); }
+                    this.value = '';
+                    this.style.borderColor = '#dc3545';
+                    this.style.boxShadow = '0 0 0 3px rgba(220, 53, 69, 0.1)';
+                } else {
+                    this.style.borderColor = '';
+                    this.style.boxShadow = '';
+                }
+            });
+        }
+        const replyBtnText = replyBtn.querySelector('.btn-text');
+        const replyLoading = replyBtn.querySelector('.loading-spinner');
+        replyForm.addEventListener('submit', function(e) {
+            // Validate before locking UI
+            const result = validateReplyFile();
+            if (!result.valid) {
+                e.preventDefault();
+                if (typeof showNotification === 'function') {
+                    showNotification(result.message, 'error');
+                } else { alert(result.message); }
+                return false;
+            }
+            replyBtn.disabled = true;
+            if (replyBtnText) replyBtnText.style.display = 'none';
+            if (replyLoading) replyLoading.style.display = 'inline-block';
+            replyBtn.classList.add('loading');
+        });
+    }
+});
+</script>
+{% endblock %} 

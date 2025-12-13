@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  # Django Application (Development with Hot Reload)
+  web:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+      - /app/venv  # Exclude virtual environment from volume mount
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+      - DJANGO_SETTINGS_MODULE=ticket_system.settings
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+volumes:
+  static_volume:
+  media_volume: 

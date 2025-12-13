@@ -1,0 +1,1461 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+{% load admin_security_tags %}
+
+{% block title %}{% trans "داشبورد" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #06b6d4;
+        --dark: #1f2937;
+        --light: #f8fafc;
+        --border: #e2e8f0;
+        --text: #374151;
+        --text-light: #6b7280;
+        --dashboard-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .dashboard-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 1400px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .dashboard-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 5rem 2rem 2rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .dashboard-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+    }
+
+    .welcome-section {
+        position: relative;
+        z-index: 2;
+    }
+
+    .welcome-avatar {
+        width: 80px;
+        height: 80px;
+        background: rgba(255, 255, 255, 0.2);
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0 auto 1.5rem;
+        backdrop-filter: blur(10px);
+    }
+
+    .welcome-title {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+    }
+
+    .welcome-subtitle {
+        font-size: 1.1rem;
+        opacity: 0.9;
+        margin-bottom: 2rem;
+    }
+
+    .dashboard-content {
+        padding: 2rem;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 2px solid var(--border);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+        cursor: pointer;
+        text-decoration: none;
+        color: inherit;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15);
+        border-color: var(--primary);
+    }
+
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 4px;
+        height: 100%;
+        background: var(--dashboard-bg);
+        opacity: 0.7;
+    }
+
+    .stat-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+    }
+
+    .stat-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        color: white;
+        flex-shrink: 0;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .stat-card.total .stat-icon {
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    }
+
+    .stat-card.open .stat-icon {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    }
+
+    .stat-card.resolved .stat-icon {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    }
+
+    .stat-card.in-progress .stat-icon {
+        background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+    }
+
+    .stat-card.department .stat-icon {
+        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    }
+
+    .stat-card.company .stat-icon {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    }
+
+    .stat-card.received .stat-icon {
+        background: linear-gradient(135deg, #5f5f6b 0%, #000000 100%);
+    }
+
+    .stat-info {
+        flex: 1;
+        margin-right: 1rem;
+    }
+
+    .stat-label {
+        font-size: 0.9rem;
+        color: var(--text-light);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: 800;
+        color: var(--text);
+        line-height: 1;
+    }
+
+    .content-sections {
+        display: grid;
+        gap: 2rem;
+    }
+
+    .section-card {
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 2px solid var(--border);
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .section-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.15);
+    }
+
+    .section-header {
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+        padding: 1.5rem 2rem;
+        border-bottom: 2px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .section-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .section-action {
+        background: var(--dashboard-bg);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .section-action:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.4);
+        color: white;
+    }
+
+    .section-body {
+        padding: 2rem;
+    }
+
+    .ticket-grid {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .ticket-item {
+        background: rgba(248, 250, 252, 0.8);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.25rem;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .ticket-item:hover {
+        background: white;
+        transform: translateX(4px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        border-color: var(--primary);
+    }
+
+    .ticket-id {
+        background: var(--dashboard-bg);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        flex-shrink: 0;
+    }
+
+    .ticket-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .ticket-title {
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 0.5rem;
+        line-height: 1.4;
+    }
+
+    .ticket-meta {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .ticket-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .badge-category {
+        background: rgba(107, 114, 128, 0.1);
+        color: var(--text-light);
+    }
+
+    .badge-priority-urgent {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger);
+    }
+
+    .badge-priority-high {
+        background: rgba(245, 158, 11, 0.1);
+        color: var(--warning);
+    }
+
+    .badge-priority-medium {
+        background: rgba(6, 182, 212, 0.1);
+        color: var(--info);
+    }
+
+    .badge-priority-low {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--success);
+    }
+
+    .badge-status-open {
+        background: rgba(245, 158, 11, 0.1);
+        color: var(--warning);
+    }
+
+    .badge-status-in-progress {
+        background: rgba(99, 102, 241, 0.1);
+        color: var(--primary);
+    }
+
+    /* Support underscore variant emitted by ticket.status */
+    .badge-status-in_progress {
+        background: rgba(99, 102, 241, 0.1);
+        color: var(--primary);
+    }
+
+    .badge-status-resolved {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--success);
+    }
+
+    .badge-status-closed {
+        background: rgba(107, 114, 128, 0.1);
+        color: var(--text-light);
+    }
+
+    /* Missing status styling */
+    .badge-status-waiting_for_user {
+        background: rgba(6, 182, 212, 0.1);
+        color: var(--info);
+    }
+
+    .ticket-date {
+        font-size: 0.85rem;
+        color: var(--text-light);
+        font-weight: 500;
+    }
+
+    .ticket-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-shrink: 0;
+    }
+
+    .btn-view {
+        background: rgba(99, 102, 241, 0.1);
+        color: var(--primary);
+        border: 1px solid rgba(99, 102, 241, 0.2);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .btn-view:hover {
+        background: var(--primary);
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .activity-timeline {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .activity-item {
+        background: rgba(248, 250, 252, 0.8);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.25rem;
+        transition: all 0.3s ease;
+    }
+
+    .activity-item:hover {
+        background: white;
+        transform: translateX(4px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        border-color: var(--info);
+    }
+
+    .activity-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+    }
+
+    .activity-author {
+        font-weight: 600;
+        color: var(--text);
+    }
+
+    .activity-time {
+        font-size: 0.85rem;
+        color: var(--text-light);
+        font-weight: 500;
+    }
+
+    .activity-content {
+        color: var(--text-light);
+        line-height: 1.5;
+        margin-bottom: 0.5rem;
+    }
+
+    .activity-ticket {
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .activity-ticket:hover {
+        text-decoration: underline;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem 2rem;
+        color: var(--text-light);
+    }
+
+    .empty-state i {
+        font-size: 1.5rem;
+        opacity: 0.5;
+    }
+
+    .empty-state h6 {
+        font-size: 1.2rem;
+        margin: 0.5rem 0;
+        color: var(--text);
+    }
+
+    .empty-state p {
+        margin-bottom: 1.5rem;
+    }
+
+    .btn-create {
+        background: var(--dashboard-bg);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-create:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.4);
+        color: white;
+    }
+
+    .font-size-3rem {
+        font-size: 3rem !important;
+    }
+
+    .font-size-2rem {
+        font-size: 2.85rem !important;
+    }
+
+    @media (max-width: 768px) {
+        .dashboard-container {
+            margin: 1rem;
+            border-radius: 16px;
+        }
+
+        .dashboard-header {
+            padding: 2rem 1rem;
+        }
+
+        .welcome-title {
+            font-size: 2rem;
+        }
+
+        .stats-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .stat-card {
+            padding: 1.5rem;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+        }
+
+        .section-header {
+            padding: 1rem 1.5rem;
+            flex-direction: column;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+
+        .section-body {
+            padding: 1.5rem;
+        }
+
+        .ticket-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+
+        .ticket-meta {
+            justify-content: flex-start;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <!-- Header -->
+    <div class="dashboard-header">
+        <div class="welcome-section">
+            <!-- <div class="welcome-avatar">
+                            {{ user.first_name|first }}{{ user.last_name|first }}
+                        </div> -->
+            <h1 class="welcome-title">{{ user.get_full_name }}، {% trans "خوش آمدید" %}!</h1>
+            <p class="welcome-subtitle">
+                            {% if user|is_admin_superuser_filter %}
+                    {% trans "مدیر سیستم" %}
+                            {% elif user.role == 'it_manager' %}
+                    {% trans "مدیرIT" %}
+                            {% else %}
+                    {{ user.get_department_and_role_display }}
+                            {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <div class="dashboard-content">
+    <!-- Statistics Cards -->
+        <div class="stats-grid">
+        {% if user.role == 'employee' %}
+            {% if is_manager %}
+                <!-- Manager Statistics -->
+                    <a href="{% url 'tickets:ticket_list' %}?my_tickets=1" class="stat-card total">
+                        <div class="stat-header">
+                            <div class="stat-info">
+                                <div class="stat-label">{% trans "تیکت‌های من" %}</div>
+                                <div class="stat-value">{{ my_total_tickets }}</div>
+                                </div>
+                            <div class="stat-icon">
+                                <i class="fas fa-user"></i>
+                                </div>
+                            </div>
+                    </a>
+                    <a href="{% url 'tickets:ticket_list' %}?my_tickets=1&status=open" class="stat-card open">
+                        <div class="stat-header">
+                            <div class="stat-info">
+                                <div class="stat-label">{% trans "تیکت‌های باز" %}</div>
+                                <div class="stat-value">{{ my_open_tickets }}</div>
+                        </div>
+                            <div class="stat-icon">
+                                <i class="fas fa-clock"></i>
+                    </div>
+                </div>
+                    </a>
+                    <a href="{% url 'tickets:ticket_list' %}?my_tickets=1&status=resolved" class="stat-card resolved">
+                        <div class="stat-header">
+                            <div class="stat-info">
+                                <div class="stat-label">{% trans "تیکت های انجام شده" %}</div>
+                                <div class="stat-value">{{ my_resolved_tickets }}</div>
+                                </div>
+                            <div class="stat-icon">
+                                <i class="fas fa-check-circle"></i>
+                                </div>
+                            </div>
+                    </a>
+                    <a href="{% url 'tickets:ticket_list' %}?all_tickets=1" class="stat-card company">
+                        <div class="stat-header">
+                            <div class="stat-info">
+                                <div class="stat-label">{% trans "تمام تیکت های شرکت" %}</div>
+                                <div class="stat-value">{{ all_total_tickets }}</div>
+                        </div>
+                            <div class="stat-icon">
+                                <i class="fas fa-globe"></i>
+                    </div>
+                </div>
+                    </a>
+            {% elif is_senior %}
+                <!-- Senior Statistics -->
+                    <a href="{% url 'tickets:ticket_list' %}?my_tickets=1" class="stat-card total">
+                        <div class="stat-header">
+                            <div class="stat-info">
+                                <div class="stat-label">{% trans "تیکت‌های من" %}</div>
+                                <div class="stat-value">{{ my_total_tickets }}</div>
+                                </div>
+                            <div class="stat-icon">
+                                <i class="fas fa-user"></i>
+                                </div>
+                            </div>
+                    </a>
+                    <a href="{% url 'tickets:ticket_list' %}?my_tickets=1&status=open" class="stat-card open">
+                        <div class="stat-header">
+                            <div class="stat-info">
+                                <div class="stat-label">{% trans "تیکت‌های باز" %}</div>
+                                <div class="stat-value">{{ my_open_tickets }}</div>
+                        </div>
+                            <div class="stat-icon">
+                                <i class="fas fa-clock"></i>
+                    </div>
+                </div>
+                    </a>
+                    <a href="{% url 'tickets:ticket_list' %}?my_tickets=1&status=resolved" class="stat-card resolved">
+                        <div class="stat-header">
+                            <div class="stat-info">
+                                <div class="stat-label">{% trans "تیکت های انجام شده" %}</div>
+                                <div class="stat-value">{{ my_resolved_tickets }}</div>
+                                </div>
+                            <div class="stat-icon">
+                                <i class="fas fa-check-circle"></i>
+                                </div>
+                            </div>
+                    </a>
+                    <a href="{% url 'tickets:ticket_list' %}?department=1" class="stat-card department">
+                        <div class="stat-header">
+                            <div class="stat-info">
+                                <div class="stat-label">{% trans "تیکت‌های بخش" %}</div>
+                                <div class="stat-value">{{ department_total_tickets }}</div>
+                        </div>
+                            <div class="stat-icon">
+                                <i class="fas fa-building"></i>
+                    </div>
+                </div>
+                    </a>
+                    {% if can_receive_tickets %}
+                    <a href="{% url 'tickets:received_tickets_list' %}" class="stat-card received">
+                        <div class="stat-header">
+                            <div class="stat-info">
+                                <div class="stat-label">{% trans "تیکت‌های دریافتی" %}</div>
+                                <div class="stat-value">{{ received_total_tickets|default:0 }}</div>
+                        </div>
+                            <div class="stat-icon">
+                                <i class="fas fa-inbox"></i>
+                    </div>
+                </div>
+                        <div class="stat-footer">
+                            <span class="stat-badge">{{ received_open_tickets|default:0 }} {% trans "باز" %} | {{ received_resolved_tickets|default:0 }} {% trans "انجام شده" %}</span>
+                        </div>
+                    </a>
+                    {% endif %}
+            {% else %}
+                <!-- Regular Employee Statistics -->
+                    {% if is_ticket_responder and can_receive_tickets %}
+                    <a href="{% url 'tickets:received_tickets_list' %}" class="stat-card received">
+                        <div class="stat-header">
+                            <div class="stat-info">
+                                <div class="stat-label">{% trans "تیکت‌های دریافتی" %}</div>
+                                <div class="stat-value">{{ received_total_tickets|default:0 }}</div>
+                            </div>
+                            <div class="stat-icon">
+                                <i class="fas fa-inbox"></i>
+                            </div>
+                        </div>
+                        <div class="stat-footer">
+                            <span class="stat-badge">{{ received_open_tickets|default:0 }} {% trans "باز" %} | {{ received_resolved_tickets|default:0 }} {% trans "انجام شده" %}</span>
+                        </div>
+                    </a>
+                    {% endif %}
+                    <a href="{% url 'tickets:ticket_list' %}" class="stat-card total">
+                        <div class="stat-header">
+                            <div class="stat-info">
+                                <div class="stat-label">{% trans "کل تیکت‌ها" %}</div>
+                                <div class="stat-value">{{ total_tickets }}</div>
+                                </div>
+                            <div class="stat-icon">
+                                <i class="fas fa-ticket-alt"></i>
+                                </div>
+                            </div>
+                    </a>
+                    <a href="{% url 'tickets:ticket_list' %}?status=open" class="stat-card open">
+                        <div class="stat-header">
+                            <div class="stat-info">
+                                <div class="stat-label">{% trans "تیکت‌های باز" %}</div>
+                                <div class="stat-value">{{ open_tickets }}</div>
+                        </div>
+                            <div class="stat-icon">
+                                <i class="fas fa-clock"></i>
+                    </div>
+                </div>
+                    </a>
+                    <a href="{% url 'tickets:ticket_list' %}?status=resolved" class="stat-card resolved">
+                        <div class="stat-header">
+                            <div class="stat-info">
+                                <div class="stat-label">{% trans "تیکت های انجام شده" %}</div>
+                                <div class="stat-value">{{ resolved_tickets }}</div>
+                                </div>
+                            <div class="stat-icon">
+                                <i class="fas fa-check-circle"></i>
+                                </div>
+                            </div>
+                    </a>
+            {% endif %}
+        {% elif is_administrator %}
+            <!-- Administrator Statistics -->
+                <a href="{% url 'tickets:ticket_list' %}" class="stat-card total">
+                    <div class="stat-header">
+                        <div class="stat-info">
+                            <div class="stat-label">{% trans "کل تیکت‌ها" %}</div>
+                            <div class="stat-value">{{ total_tickets }}</div>
+                        </div>
+                        <div class="stat-icon">
+                            <i class="fas fa-ticket-alt"></i>
+                        </div>
+                    </div>
+                </a>
+                <a href="{% url 'tickets:ticket_list' %}?status=open" class="stat-card open">
+                    <div class="stat-header">
+                        <div class="stat-info">
+                            <div class="stat-label">{% trans "تیکت‌های باز" %}</div>
+                            <div class="stat-value">{{ open_tickets }}</div>
+                        </div>
+                        <div class="stat-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                    </div>
+                </a>
+                <a href="{% url 'tickets:ticket_list' %}?status=in_progress" class="stat-card in-progress">
+                    <div class="stat-header">
+                        <div class="stat-info">
+                            <div class="stat-label">{% trans "در حال انجام" %}</div>
+                            <div class="stat-value">{{ in_progress_tickets }}</div>
+                        </div>
+                        <div class="stat-icon">
+                            <i class="fas fa-tools"></i>
+                        </div>
+                    </div>
+                </a>
+                <a href="{% url 'tickets:ticket_list' %}?status=resolved" class="stat-card resolved">
+                    <div class="stat-header">
+                        <div class="stat-info">
+                            <div class="stat-label">{% trans "تیکت های انجام شده" %}</div>
+                            <div class="stat-value">{{ resolved_tickets }}</div>
+                        </div>
+                        <div class="stat-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                    </div>
+                </a>
+        {% else %}
+            <!-- Technician/IT Manager Statistics -->
+                <a href="{% url 'tickets:ticket_list' %}?all_tickets=1" class="stat-card total">
+                    <div class="stat-header">
+                        <div class="stat-info">
+                            <div class="stat-label">{% trans "کل تیکت‌ها" %}</div>
+                            <div class="stat-value">{{ total_tickets }}</div>
+                                </div>
+                        <div class="stat-icon">
+                            <i class="fas fa-ticket-alt"></i>
+                        </div>
+                    </div>
+                </a>
+                <a href="{% url 'tickets:ticket_list' %}?status=open" class="stat-card open">
+                    <div class="stat-header">
+                        <div class="stat-info">
+                            <div class="stat-label">{% trans "تیکت‌های باز" %}</div>
+                            <div class="stat-value">{{ open_tickets }}</div>
+            </div>
+                        <div class="stat-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                    </div>
+                </a>
+                <a href="{% url 'tickets:ticket_list' %}?status=in_progress" class="stat-card in-progress">
+                    <div class="stat-header">
+                        <div class="stat-info">
+                            <div class="stat-label">{% trans "در حال انجام" %}</div>
+                            <div class="stat-value">{{ in_progress_tickets }}</div>
+            </div>
+                        <div class="stat-icon">
+                            <i class="fas fa-tools"></i>
+                        </div>
+                    </div>
+                </a>
+                <a href="{% url 'tickets:ticket_list' %}?status=resolved" class="stat-card resolved">
+                    <div class="stat-header">
+                        <div class="stat-info">
+                            <div class="stat-label">{% trans "تیکت های انجام شده" %}</div>
+                            <div class="stat-value">{{ resolved_tickets }}</div>
+            </div>
+                        <div class="stat-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                    </div>
+                </a>
+        {% endif %}
+    </div>
+
+        <!-- Content Sections -->
+        <div class="content-sections">
+        
+    <!-- Ticket Tasks Section - Priority -->
+            {% if user.role == 'employee' %}
+            <div class="section-card" id="ticket-tasks" style="border: 2px solid #6366f1; background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(99, 102, 241, 0.02) 100%);">
+                <div class="section-header">
+                    <div class="section-title">
+                        <i class="fas fa-tasks" style="color: #6366f1;"></i>
+                        {% trans "تسک" %}
+                        <span style="font-size: 0.9rem; color: #6b7280; margin-right: 0.5rem;">
+                            ({{ my_open_tasks_count|default:0 }} {% trans "باز" %} | {{ my_resolved_tasks_count|default:0 }} {% trans "انجام شده" %})
+                        </span>
+                    </div>
+                    <a href="{% url 'tickets:my_ticket_tasks' %}" class="section-action">
+                        <i class="fas fa-eye"></i>
+                        {% trans "مشاهده همه" %}
+                    </a>
+                </div>
+                <div class="section-body">
+                    {% if my_tasks %}
+                    <div class="ticket-grid">
+                        {% for task in my_tasks %}
+                        <div class="ticket-item" style="border-left: 4px solid #6366f1;">
+                            <div class="ticket-id" style="background: #6366f1; color: white;">Task #{{ task.id }}</div>
+                            <div class="ticket-content">
+                                <div class="ticket-title">{{ task.title|truncatechars:50 }}</div>
+                                <div class="ticket-meta">
+                                    <span class="ticket-badge badge-priority-{{ task.priority }}">{{ task.get_priority_display }}</span>
+                                    <span class="ticket-badge badge-status-{{ task.status }}">{{ task.get_status_display }}</span>
+                                    <span class="ticket-date">{{ task.created_at|persian_date_only }}</span>
+                                </div>
+                            </div>
+                            <div class="ticket-actions">
+                                <a href="{% url 'tickets:ticket_task_detail' task.id %}" class="btn-view">
+                                    <i class="fas fa-eye"></i>
+                                    {% trans "مشاهده" %}
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <i class="fas fa-tasks font-size-3rem"></i>
+                        <h6>{% trans "تسکی پیدا نشد" %}</h6>
+                        <p>{% trans "هیچ تسکی به شما اختصاص داده نشده است." %}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        
+        {% if user.role == 'it_manager' %}
+            <!-- IT Manager - Ticket Sections -->
+            {% if tickets %}
+            <div class="section-card">
+                <div class="section-header">
+                    <div class="section-title">
+                        <i class="fas fa-list"></i>
+                        {% trans "تیکت‌های بخش IT" %}
+                    </div>
+                    <a href="{% url 'tickets:ticket_list' %}" class="section-action">
+                        <i class="fas fa-eye"></i>
+                        {% trans "مشاهده همه" %}
+                    </a>
+                </div>
+                <div class="section-body">
+                    <div class="ticket-grid">
+                        {% for ticket in tickets %}
+                        <div class="ticket-item">
+                            <div class="ticket-id">#{{ ticket.id }}</div>
+                            <div class="ticket-content">
+                                <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
+                                <div class="ticket-meta">
+                                    <span class="ticket-badge badge-category">{{ ticket.created_by.get_full_name }}</span>
+                                    <span class="ticket-badge badge-category">{{ ticket.created_by.get_department_and_role_display }}</span>
+                                    <span class="ticket-badge badge-category">{{ ticket.get_category_display }}</span>
+                                    <span class="ticket-badge badge-priority-{{ ticket.priority }}">{{ ticket.get_priority_display }}</span>
+                                    <span class="ticket-badge badge-status-{{ ticket.status }}">{{ ticket.get_status_display }}</span>
+                                    <span class="ticket-date">{{ ticket.created_at|persian_date_only }}</span>
+                                </div>
+                            </div>
+                            <div class="ticket-actions">
+                                <a href="{% url 'tickets:ticket_detail' ticket.id %}" class="btn-view">
+                                    <i class="fas fa-eye"></i>
+                                    {% trans "مشاهده" %}
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if my_tickets %}
+            <div class="section-card">
+                <div class="section-header">
+                    <div class="section-title">
+                        <i class="fas fa-user"></i>
+                        {% trans "تیکت‌های من" %}
+                    </div>
+                    <a href="{% url 'tickets:ticket_list' %}?my_tickets=1" class="section-action">
+                        <i class="fas fa-eye"></i>
+                        {% trans "مشاهده همه" %}
+                    </a>
+                </div>
+                <div class="section-body">
+                    <div class="ticket-grid">
+                        {% for ticket in my_tickets %}
+                        <div class="ticket-item">
+                            <div class="ticket-id">#{{ ticket.id }}</div>
+                            <div class="ticket-content">
+                                <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
+                                <div class="ticket-meta">
+                                    <span class="ticket-badge badge-category">{{ ticket.get_category_display }}</span>
+                                    <span class="ticket-badge badge-priority-{{ ticket.priority }}">{{ ticket.get_priority_display }}</span>
+                                    <span class="ticket-badge badge-status-{{ ticket.status }}">{{ ticket.get_status_display }}</span>
+                                    <span class="ticket-date">{{ ticket.created_at|persian_date_only }}</span>
+                                </div>
+                            </div>
+                            <div class="ticket-actions">
+                                <a href="{% url 'tickets:ticket_detail' ticket.id %}" class="btn-view">
+                                    <i class="fas fa-eye"></i>
+                                    {% trans "مشاهده" %}
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        {% elif user.role == 'employee' and is_manager %}
+                <!-- Manager Dashboard - Two Sections -->
+                <div class="section-card">
+                    <div class="section-header">
+                        <div class="section-title">
+                            <i class="fas fa-user"></i>
+                            {% trans "تیکت‌های من" %}
+                        </div>
+                        <a href="{% url 'tickets:ticket_list' %}?my_tickets=1" class="section-action">
+                            <i class="fas fa-eye"></i>
+                            {% trans "مشاهده همه" %}
+                        </a>
+                    </div>
+                    <div class="section-body">
+                        {% if my_tickets %}
+                            <div class="ticket-grid">
+                                        {% for ticket in my_tickets %}
+                                <div class="ticket-item">
+                                    <div class="ticket-id">#{{ ticket.id }}</div>
+                                    <div class="ticket-content">
+                                        <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
+                                        <div class="ticket-meta">
+                                            <span class="ticket-badge badge-category">{{ ticket.get_category_display }}</span>
+                                            <span class="ticket-badge badge-priority-{{ ticket.priority }}">{{ ticket.get_priority_display }}</span>
+                                            <span class="ticket-badge badge-status-{{ ticket.status }}">{{ ticket.get_status_display }}</span>
+                                            <span class="ticket-date">{{ ticket.created_at|persian_date_only }}</span>
+                                                </div>
+                                    </div>
+                                    <div class="ticket-actions">
+                                        <a href="{% url 'tickets:ticket_detail' ticket.id %}" class="btn-view">
+                                                    <i class="fas fa-eye"></i>
+                                            {% trans "مشاهده" %}
+                                                </a>
+                                    </div>
+                                </div>
+                                        {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="empty-state">
+                                <i class="fas fa-inbox font-size-3rem"></i>
+                                <h6>{% trans "تیکتی پیدا نشد" %}</h6>
+                                <p>{% trans "شما تاکنون تیکتی ایجاد نکرده‌اید." %}</p>
+                                <a href="{% url 'tickets:ticket_create' %}" class="btn-create">
+                                    <i class="fas fa-plus"></i>
+                                    {% trans "ایجاد تیکت" %}
+                                </a>
+                            </div>
+                        {% endif %}
+                </div>
+            </div>
+
+                <div class="section-card">
+                    <div class="section-header">
+                        <div class="section-title">
+                            <i class="fas fa-globe"></i>
+                            {% trans "تمام تیکت‌های شرکت" %}
+                        </div>
+                        <a href="{% url 'tickets:ticket_list' %}?all_tickets=1" class="section-action">
+                            <i class="fas fa-eye"></i>
+                            {% trans "مشاهده همه" %}
+                        </a>
+                    </div>
+                    <div class="section-body">
+                        {% if all_tickets %}
+                            <div class="ticket-grid">
+                                        {% for ticket in all_tickets %}
+                                <div class="ticket-item">
+                                    <div class="ticket-id">#{{ ticket.id }}</div>
+                                    <div class="ticket-content">
+                                        <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
+                                        <div class="ticket-meta">
+                                            <span class="ticket-badge badge-category">{{ ticket.created_by.get_full_name }}</span>
+                                            <span class="ticket-badge badge-category">{{ ticket.created_by.get_department_and_role_display }}</span>
+                                            <span class="ticket-badge badge-category">{{ ticket.get_category_display }}</span>
+                                            <span class="ticket-badge badge-priority-{{ ticket.priority }}">{{ ticket.get_priority_display }}</span>
+                                            <span class="ticket-badge badge-status-{{ ticket.status }}">{{ ticket.get_status_display }}</span>
+                                            <span class="ticket-date">{{ ticket.created_at|persian_date_only }}</span>
+                                                </div>
+                                                    </div>
+                                    <div class="ticket-actions">
+                                        <a href="{% url 'tickets:ticket_detail' ticket.id %}" class="btn-view">
+                                                    <i class="fas fa-eye"></i>
+                                            {% trans "مشاهده" %}
+                                                </a>
+                                    </div>
+                                </div>
+                                        {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="empty-state">
+                                <i class="fas fa-globe"></i>
+                                <h6>{% trans "تیکتی پیدا نشد" %}</h6>
+                                <p>{% trans "هیچ تیکتی در شرکت ایجاد نشده است." %}</p>
+                            </div>
+                        {% endif %}
+                </div>
+            </div>
+        {% elif user.role == 'employee' and is_senior %}
+                <!-- Senior Dashboard - Two Sections -->
+                <div class="section-card">
+                    <div class="section-header">
+                        <div class="section-title">
+                            <i class="fas fa-user"></i>
+                            {% trans "تیکت‌های من" %}
+                        </div>
+                        <a href="{% url 'tickets:ticket_list' %}?my_tickets=1" class="section-action">
+                            <i class="fas fa-eye"></i>
+                            {% trans "مشاهده همه" %}
+                        </a>
+                    </div>
+                    <div class="section-body">
+                        {% if my_tickets %}
+                            <div class="ticket-grid">
+                                        {% for ticket in my_tickets %}
+                                <div class="ticket-item">
+                                    <div class="ticket-id">#{{ ticket.id }}</div>
+                                    <div class="ticket-content">
+                                        <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
+                                        <div class="ticket-meta">
+                                            <span class="ticket-badge badge-category">{{ ticket.get_category_display }}</span>
+                                            <span class="ticket-badge badge-priority-{{ ticket.priority }}">{{ ticket.get_priority_display }}</span>
+                                            <span class="ticket-badge badge-status-{{ ticket.status }}">{{ ticket.get_status_display }}</span>
+                                            <span class="ticket-date">{{ ticket.created_at|persian_date_only }}</span>
+                                                </div>
+                                    </div>
+                                    <div class="ticket-actions">
+                                        <a href="{% url 'tickets:ticket_detail' ticket.id %}" class="btn-view">
+                                                    <i class="fas fa-eye"></i>
+                                            {% trans "مشاهده" %}
+                                                </a>
+                                    </div>
+                                </div>
+                                        {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="empty-state">
+                                <i class="fas fa-inbox font-size-3rem"></i>
+                                <h6>{% trans "تیکتی پیدا نشد" %}</h6>
+                                <p>{% trans "شما تاکنون تیکتی ایجاد نکرده‌اید." %}</p>
+                                <a href="{% url 'tickets:ticket_create' %}" class="btn-create">
+                                    <i class="fas fa-plus"></i>
+                                    {% trans "ایجاد تیکت" %}
+                                </a>
+                            </div>
+                        {% endif %}
+                </div>
+            </div>
+
+                <div class="section-card">
+                    <div class="section-header">
+                        <div class="section-title">
+                            <i class="fas fa-building"></i>
+                            {% trans "تیکت‌های بخش" %}
+                        </div>
+                        <a href="{% url 'tickets:ticket_list' %}?department=1" class="section-action">
+                            <i class="fas fa-eye"></i>
+                            {% trans "مشاهده همه" %}
+                        </a>
+                    </div>
+                    <div class="section-body">
+                        {% if department_tickets %}
+                            <div class="ticket-grid">
+                                        {% for ticket in department_tickets %}
+                                <div class="ticket-item">
+                                    <div class="ticket-id">#{{ ticket.id }}</div>
+                                    <div class="ticket-content">
+                                        <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
+                                        <div class="ticket-meta">
+                                            <span class="ticket-badge badge-category">{{ ticket.created_by.get_full_name }}</span>
+                                            <span class="ticket-badge badge-category">{{ ticket.get_category_display }}</span>
+                                            <span class="ticket-badge badge-priority-{{ ticket.priority }}">{{ ticket.get_priority_display }}</span>
+                                            <span class="ticket-badge badge-status-{{ ticket.status }}">{{ ticket.get_status_display }}</span>
+                                            <span class="ticket-date">{{ ticket.created_at|persian_date_only }}</span>
+                                                </div>
+                                                    </div>
+                                    <div class="ticket-actions">
+                                        <a href="{% url 'tickets:ticket_detail' ticket.id %}" class="btn-view">
+                                                    <i class="fas fa-eye"></i>
+                                            {% trans "مشاهده" %}
+                                                </a>
+                                    </div>
+                                </div>
+                                        {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="empty-state">
+                                <i class="fas fa-building"></i>
+                                <h6>{% trans "تیکتی پیدا نشد" %}</h6>
+                                <p>{% trans "هیچ تیکتی در بخش شما ایجاد نشده است." %}</p>
+                            </div>
+                        {% endif %}
+                </div>
+            </div>
+
+                <!-- Received Tickets Section for Senior (only if department can receive tickets) -->
+                {% if can_receive_tickets %}
+                <div class="section-card">
+                    <div class="section-header">
+                        <div class="section-title">
+                            <i class="fas fa-inbox"></i>
+                            {% trans "تیکت‌های دریافتی" %}
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <a href="{% url 'tickets:supervisor_ticket_responder_management' %}" class="section-action" style="background: rgba(245, 158, 11, 0.1); color: var(--warning); border: 1px solid var(--warning);">
+                                <i class="fas fa-user-check"></i>
+                                {% trans "مدیریت پاسخ‌دهنده" %}
+                            </a>
+                            <a href="{% url 'tickets:received_tickets_list' %}" class="section-action">
+                                <i class="fas fa-eye"></i>
+                                {% trans "مشاهده همه" %}
+                            </a>
+                        </div>
+                    </div>
+                    <div class="section-body">
+                        {% if received_tickets %}
+                            <div class="ticket-grid">
+                                        {% for ticket in received_tickets %}
+                                <div class="ticket-item">
+                                    <div class="ticket-id">#{{ ticket.id }}</div>
+                                    <div class="ticket-content">
+                                        <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
+                                        <div class="ticket-meta">
+                                            <span class="ticket-badge badge-category">{{ ticket.created_by.get_full_name }}</span>
+                                            <span class="ticket-badge badge-category">{{ ticket.created_by.get_department_and_role_display }}</span>
+                                            <span class="ticket-badge badge-category">{{ ticket.get_category_display }}</span>
+                                            <span class="ticket-badge badge-priority-{{ ticket.priority }}">{{ ticket.get_priority_display }}</span>
+                                            <span class="ticket-badge badge-status-{{ ticket.status }}">{{ ticket.get_status_display }}</span>
+                                            <span class="ticket-date">{{ ticket.created_at|persian_date_only }}</span>
+                                                </div>
+                                                    </div>
+                                    <div class="ticket-actions">
+                                        <a href="{% url 'tickets:ticket_detail' ticket.id %}" class="btn-view">
+                                                    <i class="fas fa-eye"></i>
+                                            {% trans "مشاهده" %}
+                                                </a>
+                                    </div>
+                                </div>
+                                        {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="empty-state">
+                                <i class="fas fa-inbox"></i>
+                                <h6>{% trans "تیکتی پیدا نشد" %}</h6>
+                                <p>{% trans "هیچ تیکتی برای بخش شما ارسال نشده است." %}</p>
+                            </div>
+                        {% endif %}
+                </div>
+            </div>
+                {% endif %}
+        {% else %}
+            <!-- Received Tickets Section for Ticket Responder (regular employee) -->
+            {% if is_ticket_responder and can_receive_tickets %}
+            <div class="section-card">
+                <div class="section-header">
+                    <div class="section-title">
+                        <i class="fas fa-inbox"></i>
+                        {% trans "تیکت‌های دریافتی" %}
+                    </div>
+                    <a href="{% url 'tickets:received_tickets_list' %}" class="section-action">
+                        <i class="fas fa-eye"></i>
+                        {% trans "مشاهده همه" %}
+                    </a>
+                </div>
+                <div class="section-body">
+                    {% if received_tickets %}
+                        <div class="ticket-grid">
+                            {% for ticket in received_tickets %}
+                            <div class="ticket-item">
+                                <div class="ticket-id">#{{ ticket.id }}</div>
+                                <div class="ticket-content">
+                                    <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
+                                    <div class="ticket-meta">
+                                        <span class="ticket-badge badge-category">{{ ticket.created_by.get_full_name }}</span>
+                                        <span class="ticket-badge badge-category">{{ ticket.created_by.get_department_and_role_display }}</span>
+                                        <span class="ticket-badge badge-category">{{ ticket.get_category_display }}</span>
+                                        <span class="ticket-badge badge-priority-{{ ticket.priority }}">{{ ticket.get_priority_display }}</span>
+                                        <span class="ticket-badge badge-status-{{ ticket.status }}">{{ ticket.get_status_display }}</span>
+                                        <span class="ticket-date">{{ ticket.created_at|persian_date_only }}</span>
+                                    </div>
+                                </div>
+                                <div class="ticket-actions">
+                                    <a href="{% url 'tickets:ticket_detail' ticket.id %}" class="btn-view">
+                                        <i class="fas fa-eye"></i>
+                                        {% trans "مشاهده" %}
+                                    </a>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="fas fa-inbox"></i>
+                            <h6>{% trans "تیکتی پیدا نشد" %}</h6>
+                            <p>{% trans "هیچ تیکتی برای بخش شما ارسال نشده است." %}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            {% endif %}
+            
+            <!-- Regular Employee - My Tickets Section -->
+            {% if user.role == 'employee' %}
+                {% if not is_manager and not is_senior %}
+            <div class="section-card">
+                <div class="section-header">
+                    <div class="section-title">
+                        <i class="fas fa-user"></i>
+                        {% trans "تیکت‌های من" %}
+                    </div>
+                    <a href="{% url 'tickets:ticket_list' %}?my_tickets=1" class="section-action">
+                        <i class="fas fa-eye"></i>
+                        {% trans "مشاهده همه" %}
+                    </a>
+                </div>
+                <div class="section-body">
+                    {% if my_tickets %}
+                        <div class="ticket-grid">
+                            {% for ticket in my_tickets %}
+                            <div class="ticket-item">
+                                <div class="ticket-id">#{{ ticket.id }}</div>
+                                <div class="ticket-content">
+                                    <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
+                                    <div class="ticket-meta">
+                                        <span class="ticket-badge badge-category">{{ ticket.get_category_display }}</span>
+                                        <span class="ticket-badge badge-priority-{{ ticket.priority }}">{{ ticket.get_priority_display }}</span>
+                                        <span class="ticket-badge badge-status-{{ ticket.status }}">{{ ticket.get_status_display }}</span>
+                                        <span class="ticket-date">{{ ticket.created_at|persian_date_only }}</span>
+                                    </div>
+                                </div>
+                                <div class="ticket-actions">
+                                    <a href="{% url 'tickets:ticket_detail' ticket.id %}" class="btn-view">
+                                        <i class="fas fa-eye"></i>
+                                        {% trans "مشاهده" %}
+                                    </a>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="fas fa-inbox font-size-3rem"></i>
+                            <h6>{% trans "تیکتی پیدا نشد" %}</h6>
+                            <p>{% trans "شما تاکنون تیکتی ایجاد نکرده‌اید." %}</p>
+                            <a href="{% url 'tickets:ticket_create' %}" class="btn-create">
+                                <i class="fas fa-plus"></i>
+                                {% trans "ایجاد تیکت" %}
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+                {% endif %}
+            {% endif %}
+            
+            {% if is_administrator %}
+            <!-- Administrator - All Tickets Section -->
+                <div class="section-card">
+                    <div class="section-header">
+                        <div class="section-title">
+                            <i class="fas fa-list"></i>
+                            {% trans "همه تیکت‌ها" %}
+                        </div>
+                        <a href="{% url 'tickets:ticket_list' %}" class="section-action">
+                            <i class="fas fa-eye"></i>
+                            {% trans "مشاهده همه" %}
+                        </a>
+                    </div>
+                    <div class="section-body">
+                        {% if tickets %}
+                            <div class="ticket-grid">
+                                {% for ticket in tickets %}
+                                <div class="ticket-item">
+                                    <div class="ticket-id">#{{ ticket.id }}</div>
+                                    <div class="ticket-content">
+                                        <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
+                                        <div class="ticket-meta">
+                                            <span class="ticket-badge badge-category">{{ ticket.created_by.get_full_name }}</span>
+                                            <span class="ticket-badge badge-category">{{ ticket.created_by.get_department_and_role_display }}</span>
+                                            <span class="ticket-badge badge-category">{{ ticket.get_category_display }}</span>
+                                            <span class="ticket-badge badge-priority-{{ ticket.priority }}">{{ ticket.get_priority_display }}</span>
+                                            <span class="ticket-badge badge-status-{{ ticket.status }}">{{ ticket.get_status_display }}</span>
+                                            <span class="ticket-date">{{ ticket.created_at|persian_date_only }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="ticket-actions">
+                                        <a href="{% url 'tickets:ticket_detail' ticket.id %}" class="btn-view">
+                                            <i class="fas fa-eye"></i>
+                                            {% trans "مشاهده" %}
+                                        </a>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="empty-state">
+                                <i class="fas fa-inbox font-size-3rem"></i>
+                                <h6>{% trans "تیکتی پیدا نشد" %}</h6>
+                                <p>{% trans "هیچ تیکتی در سیستم وجود ندارد." %}</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+
+    <!-- Recent Activity Section -->
+            <div class="section-card" id="recent-activity">
+                <div class="section-header">
+                    <div class="section-title">
+                        <i class="fas fa-comments"></i>
+                        {% trans "فعالیت اخیر" %}
+                    </div>
+                    <a href="{% url 'tickets:view_all_replies' %}" class="section-action">
+                        <i class="fas fa-eye"></i>
+                        {% trans "مشاهده همه" %}
+                    </a>
+                </div>
+                <div class="section-body">
+                    {% if recent_replies %}
+                        <div class="activity-timeline">
+                            {% for reply in recent_replies %}
+                            <div class="activity-item">
+                                <div class="activity-header">
+                                    <div class="activity-author">{{ reply.author.get_full_name }}</div>
+                                    <div class="activity-time">{{ reply.created_at|persian_date }}</div>
+                                        </div>
+                                <div class="activity-content">
+                                    {% trans "پاسخ داد" %} به 
+                                    <a href="{% url 'tickets:ticket_detail' reply.ticket.id %}" class="activity-ticket">
+                                        #{{ reply.ticket.id }} - {{ reply.ticket.title|truncatechars:40 }}
+                                    </a>
+                                    </div>
+                                <div class="activity-content">
+                                             {% if reply.is_private %}
+                                                 {% if user.role == 'it_manager' or user.department_role == 'manager' or reply.ticket.created_by == user %}
+                                                     {{ reply.content|truncatewords:15 }}
+                                                 {% else %}
+                                            {% trans "محتوای این پیام برای شما مخفی شده" %}
+                                                 {% endif %}
+                                             {% else %}
+                                                 {{ reply.content|truncatewords:15 }}
+                                             {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="fas fa-comments font-size-2rem"></i>
+                            <h6>{% trans "هیچ فعالیتی ثبت نشده است." %}</h6>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-refresh dashboard every 30 seconds
+    setTimeout(function() {
+        location.reload();
+    }, 30000);
+    
+// Add loading animation
+document.addEventListener('DOMContentLoaded', function() {
+    const cards = document.querySelectorAll('.stat-card, .section-card');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+            setTimeout(() => {
+            card.style.transition = 'all 0.6s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 100);
+        });
+    });
+</script>
+{% endblock %} 

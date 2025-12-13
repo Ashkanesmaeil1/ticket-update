@@ -1,0 +1,428 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+
+{% block title %}{% trans "جزئیات تسک" %} #{{ task.id }} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .task-detail-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 1200px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .task-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .task-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+    }
+
+    .task-header-content {
+        position: relative;
+        z-index: 2;
+    }
+
+    .task-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+
+    .task-meta-info {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-top: 1rem;
+        font-size: 0.9rem;
+        opacity: 0.95;
+    }
+
+    .task-content {
+        padding: 2rem;
+    }
+
+    .info-row {
+        display: flex;
+        padding: 1rem;
+        border-bottom: 1px solid #e2e8f0;
+        align-items: center;
+    }
+
+    .info-row:last-child {
+        border-bottom: none;
+    }
+
+    .info-label {
+        font-weight: 600;
+        color: #374151;
+        min-width: 150px;
+        margin-left: 1rem;
+    }
+
+    .info-value {
+        color: #6b7280;
+        flex: 1;
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 0.375rem 0.75rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        border-radius: 8px;
+        text-align: center;
+    }
+
+    .badge-priority-urgent {
+        background: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+    }
+
+    .badge-priority-high {
+        background: rgba(245, 158, 11, 0.1);
+        color: #f59e0b;
+    }
+
+    .badge-priority-medium {
+        background: rgba(6, 182, 212, 0.1);
+        color: #06b6d4;
+    }
+
+    .badge-priority-low {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+    }
+
+    .badge-status-open {
+        background: rgba(245, 158, 11, 0.1);
+        color: #f59e0b;
+    }
+
+    .badge-status-in_progress {
+        background: rgba(99, 102, 241, 0.1);
+        color: #6366f1;
+    }
+
+    .badge-status-waiting_for_user {
+        background: rgba(6, 182, 212, 0.1);
+        color: #06b6d4;
+    }
+
+    .badge-status-resolved {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+    }
+
+    .badge-status-closed {
+        background: rgba(107, 114, 128, 0.1);
+        color: #6b7280;
+    }
+
+    .description-box {
+        background: #f8fafc;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        border-right: 4px solid #6366f1;
+    }
+
+    .status-form-section {
+        background: #f8fafc;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-top: 2rem;
+        border: 1px solid #e2e8f0;
+    }
+
+    .replies-section {
+        margin-top: 2rem;
+    }
+
+    .reply-item {
+        background: #f8fafc;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        border-right: 4px solid #6366f1;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .reply-item:hover {
+        transform: translateX(-4px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .reply-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .reply-author {
+        font-weight: 600;
+        color: #374151;
+    }
+
+    .reply-date {
+        color: #6b7280;
+        font-size: 0.875rem;
+    }
+
+    .reply-content {
+        color: #4b5563;
+        line-height: 1.6;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 8px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(102, 126, 234, 0.4);
+    }
+
+    .form-select {
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        padding: 0.75rem;
+    }
+
+    .form-select:focus {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.25);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="task-detail-container">
+        <!-- Task Header -->
+        <div class="task-header">
+            <div class="task-header-content">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h1 class="task-title">
+                            <i class="fas fa-tasks me-2"></i>
+                            {{ task.title }}
+                        </h1>
+                        <div class="task-meta-info">
+                            <span><i class="fas fa-hashtag me-1"></i>#{{ task.id }}</span>
+                            <span><i class="fas fa-calendar me-1"></i>{{ task.created_at|persian_date }}</span>
+                            {% if task.department %}
+                            <span><i class="fas fa-building me-1"></i>{{ task.department.name }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <span class="badge badge-priority-{{ task.priority }}" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                        {{ task.get_priority_display }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Task Content -->
+        <div class="task-content">
+            <!-- Description -->
+            <div class="description-box">
+                <h5 class="mb-3" style="color: #374151; font-weight: 600;">
+                    <i class="fas fa-align-right me-2"></i>{% trans "توضیحات" %}
+                </h5>
+                <p style="color: #4b5563; line-height: 1.8; margin: 0;">{{ task.description|linebreaks }}</p>
+            </div>
+
+            <!-- Task Information -->
+            <div class="card" style="border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <div class="card-body p-0">
+                    <div class="info-row">
+                        <div class="info-label">
+                            <i class="fas fa-building me-2"></i>{% trans "بخش" %}
+                        </div>
+                        <div class="info-value">{{ task.department.name|default:"-" }}</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">
+                            <i class="fas fa-user me-2"></i>{% trans "تخصیص داده شده به" %}
+                        </div>
+                        <div class="info-value">{{ task.assigned_to.get_full_name }}</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">
+                            <i class="fas fa-info-circle me-2"></i>{% trans "وضعیت" %}
+                        </div>
+                        <div class="info-value">
+                            <span class="badge badge-status-{{ task.status }}">
+                                {{ task.get_status_display }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">
+                            <i class="fas fa-exclamation-circle me-2"></i>{% trans "اولویت" %}
+                        </div>
+                        <div class="info-value">
+                            <span class="badge badge-priority-{{ task.priority }}">
+                                {{ task.get_priority_display }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">
+                            <i class="fas fa-calendar-alt me-2"></i>{% trans "تاریخ ایجاد" %}
+                        </div>
+                        <div class="info-value">{{ task.created_at|persian_date }}</div>
+                    </div>
+                    {% if task.resolved_at %}
+                    <div class="info-row">
+                        <div class="info-label">
+                            <i class="fas fa-check-circle me-2"></i>{% trans "تاریخ انجام" %}
+                        </div>
+                        <div class="info-value">{{ task.resolved_at|persian_date }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Status Update Form (IT Manager only) -->
+            {% if can_update_status %}
+            <div class="status-form-section">
+                <h5 class="mb-3" style="color: #374151; font-weight: 600;">
+                    <i class="fas fa-edit me-2"></i>{% trans "تغییر وضعیت و اولویت" %}
+                </h5>
+                <form id="statusForm" method="post" action="{% url 'tickets:ticket_task_update_status' task.id %}">
+                    {% csrf_token %}
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" style="font-weight: 600; color: #374151;">{% trans "وضعیت" %}</label>
+                            <select name="status" class="form-select">
+                                {% for status_code, status_name in task_status_choices %}
+                                <option value="{{ status_code }}" {% if task.status == status_code %}selected{% endif %}>
+                                    {{ status_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" style="font-weight: 600; color: #374151;">{% trans "اولویت" %}</label>
+                            <select name="priority" class="form-select">
+                                {% for priority_code, priority_name in task_priority_choices %}
+                                <option value="{{ priority_code }}" {% if task.priority == priority_code %}selected{% endif %}>
+                                    {{ priority_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>
+                        {% trans "ذخیره تغییرات" %}
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+
+            <!-- Replies Section -->
+            <div class="replies-section">
+                <h5 class="mb-3" style="color: #374151; font-weight: 600;">
+                    <i class="fas fa-comments me-2"></i>{% trans "پاسخ‌ها" %}
+                    <span class="badge" style="background: #e2e8f0; color: #6b7280; margin-right: 0.5rem;">{{ replies.count }}</span>
+                </h5>
+                
+                {% if replies %}
+                <div class="replies-list">
+                    {% for reply in replies %}
+                    <div class="reply-item">
+                        <div class="reply-header">
+                            <div class="reply-author">
+                                <i class="fas fa-user me-2"></i>{{ reply.author.get_full_name }}
+                            </div>
+                            <div class="reply-date">{{ reply.created_at|persian_date }}</div>
+                        </div>
+                        <div class="reply-content">{{ reply.content|linebreaks }}</div>
+                        {% if reply.attachment %}
+                        <div class="mt-3">
+                            <a href="{{ reply.attachment.url }}" target="_blank" class="btn btn-sm" style="background: #e2e8f0; color: #374151; border: none;">
+                                <i class="fas fa-paperclip me-1"></i>
+                                {% trans "دانلود فایل پیوست" %}
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4" style="color: #6b7280;">
+                    <i class="fas fa-comments fa-3x mb-3" style="opacity: 0.3;"></i>
+                    <p>{% trans "هیچ پاسخی ثبت نشده است" %}</p>
+                </div>
+                {% endif %}
+
+                <!-- Reply Button -->
+                {% if task.assigned_to == user or task.created_by == user %}
+                <div class="mt-4">
+                    <a href="{% url 'tickets:ticket_task_reply' task.id %}" class="btn btn-primary">
+                        <i class="fas fa-reply me-2"></i>
+                        {% trans "پاسخ دادن" %}
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if can_update_status %}
+<script>
+document.getElementById('statusForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    
+    fetch(this.action, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('خطا در بروزرسانی');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('خطا در بروزرسانی');
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

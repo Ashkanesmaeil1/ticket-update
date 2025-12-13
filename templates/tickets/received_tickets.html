@@ -1,0 +1,355 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+
+{% block title %}{% trans "تیکت‌های دریافتی" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .ticket-list-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 1400px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .ticket-list-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .ticket-list-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+    }
+
+    .ticket-list-header-content {
+        position: relative;
+        z-index: 2;
+    }
+
+    .ticket-list-title {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+
+    .ticket-list-subtitle {
+        font-size: 1rem;
+        opacity: 0.9;
+        margin-bottom: 0;
+    }
+
+    .ticket-list-content {
+        padding: 2rem;
+    }
+
+    .filter-card {
+        background: #f8fafc;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        border: 1px solid #e2e8f0;
+    }
+
+    .table-card {
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .table {
+        margin-bottom: 0;
+    }
+
+    .table thead {
+        background: #f8fafc;
+    }
+
+    .table thead th {
+        border-bottom: 2px solid #e2e8f0;
+        font-weight: 600;
+        color: #374151;
+        padding: 1rem;
+    }
+
+    .table tbody tr {
+        transition: background-color 0.2s ease;
+    }
+
+    .table tbody tr:hover {
+        background-color: #f8fafc;
+    }
+
+    .table tbody td {
+        padding: 1rem;
+        vertical-align: middle;
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 0.375rem 0.75rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        border-radius: 8px;
+        text-align: center;
+    }
+
+    .badge-priority-urgent {
+        background: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+    }
+
+    .badge-priority-high {
+        background: rgba(245, 158, 11, 0.1);
+        color: #f59e0b;
+    }
+
+    .badge-priority-medium {
+        background: rgba(6, 182, 212, 0.1);
+        color: #06b6d4;
+    }
+
+    .badge-priority-low {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+    }
+
+    .badge-status-open {
+        background: rgba(245, 158, 11, 0.1);
+        color: #f59e0b;
+    }
+
+    .badge-status-in_progress {
+        background: rgba(99, 102, 241, 0.1);
+        color: #6366f1;
+    }
+
+    .badge-status-waiting_for_user {
+        background: rgba(6, 182, 212, 0.1);
+        color: #06b6d4;
+    }
+
+    .badge-status-resolved {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+    }
+
+    .badge-status-closed {
+        background: rgba(107, 114, 128, 0.1);
+        color: #6b7280;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 8px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-sm {
+        border-radius: 6px;
+        padding: 0.5rem 1rem;
+    }
+
+    .form-control, .form-select {
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        padding: 0.75rem;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.25);
+        outline: none;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: #6b7280;
+    }
+
+    .empty-state i {
+        opacity: 0.3;
+        margin-bottom: 1rem;
+        font-size: 3rem;
+    }
+
+    .pagination {
+        margin-top: 2rem;
+    }
+
+    .page-link {
+        border-radius: 8px;
+        margin: 0 0.25rem;
+        border: 1px solid #e2e8f0;
+        color: #6366f1;
+    }
+
+    .page-link:hover {
+        background: #f8fafc;
+        border-color: #6366f1;
+    }
+
+    .page-item.active .page-link {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-color: #667eea;
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="ticket-list-container">
+        <!-- Header -->
+        <div class="ticket-list-header">
+            <div class="ticket-list-header-content">
+                <h1 class="ticket-list-title">
+                    <i class="fas fa-inbox me-2"></i>
+                    {% trans "تیکت‌های دریافتی" %}
+                </h1>
+                {% if department %}
+                <p class="ticket-list-subtitle">
+                    <i class="fas fa-building me-2"></i>
+                    {% trans "بخش:" %} {{ department.name }}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="ticket-list-content">
+            <!-- Filters -->
+            <div class="filter-card">
+                <form method="get" class="row g-3">
+                    <div class="col-md-5">
+                        <label class="form-label" style="font-weight: 600; color: #374151;">{% trans "جستجو" %}</label>
+                        <input type="text" name="search" class="form-control" placeholder="{% trans 'جستجو در عنوان و توضیحات...' %}" value="{{ search_query }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" style="font-weight: 600; color: #374151;">{% trans "وضعیت" %}</label>
+                        <select name="status" class="form-select">
+                            <option value="">{% trans "همه وضعیت‌ها" %}</option>
+                            {% for value, label in status_choices %}
+                            <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search me-2"></i>
+                            {% trans "جستجو" %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Tickets List -->
+            {% if page_obj %}
+            <div class="table-card">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>{% trans "شماره" %}</th>
+                                <th>{% trans "عنوان" %}</th>
+                                <th>{% trans "ایجاد کننده" %}</th>
+                                <th>{% trans "شعبه" %}</th>
+                                <th>{% trans "اولویت" %}</th>
+                                <th>{% trans "وضعیت" %}</th>
+                                <th>{% trans "تاریخ" %}</th>
+                                <th>{% trans "عملیات" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ticket in page_obj %}
+                            <tr>
+                                <td><strong>#{{ ticket.id }}</strong></td>
+                                <td>{{ ticket.title|truncatechars:50 }}</td>
+                                <td>{{ ticket.created_by.get_full_name }}</td>
+                                <td>{% if ticket.branch %}{{ ticket.branch.name }}{% else %}-{% endif %}</td>
+                                <td>
+                                    <span class="badge badge-priority-{{ ticket.priority }}">
+                                        {{ ticket.get_priority_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge badge-status-{{ ticket.status }}">
+                                        {{ ticket.get_status_display }}
+                                    </span>
+                                </td>
+                                <td>{{ ticket.created_at|persian_date_only }}</td>
+                                <td>
+                                    <a href="{% url 'tickets:ticket_detail' ticket.id %}" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-eye"></i>
+                                        {% trans "مشاهده" %}
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">{% trans "قبلی" %}</a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+                    
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">{% trans "بعدی" %}</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+            {% else %}
+            <div class="empty-state">
+                <i class="fas fa-inbox mb-3"></i>
+                <p>{% trans "هیچ تیکت دریافتی یافت نشد." %}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "حذف شعبه" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header bg-danger text-white">
+            <h3>{% trans "حذف شعبه" %}</h3>
+        </div>
+        <div class="card-body">
+            <p>{% trans "آیا از حذف شعبه" %} <strong>{{ branch.name }}</strong> {% trans "مطمئن هستید؟" %}</p>
+            {% if department_count > 0 %}
+            <div class="alert alert-warning">
+                {% trans "این شعبه دارای" %} {{ department_count }} {% trans "بخش است. ابتدا بخش‌ها را به شعبه دیگری منتقل کنید." %}
+            </div>
+            {% endif %}
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-trash"></i>
+                    {% trans "حذف" %}
+                </button>
+                <a href="{% url 'tickets:branch_management' %}" class="btn btn-secondary">
+                    <i class="fas fa-times"></i>
+                    {% trans "لغو" %}
+                </a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

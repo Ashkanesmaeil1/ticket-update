@@ -1,0 +1,306 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{{ title }} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+    .form-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 900px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+    .form-header {
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        color: white;
+        padding: 2rem;
+        text-align: center;
+    }
+    .form-content {
+        padding: 2rem;
+    }
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+    .form-label {
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+    .form-control, .form-select {
+        width: 100%;
+        padding: 0.75rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        font-size: 1rem;
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: #6366f1;
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+    .btn-primary {
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        border: none;
+        color: white;
+        padding: 0.75rem 2rem;
+        border-radius: 12px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .btn-secondary {
+        background: transparent;
+        border: 2px solid #e2e8f0;
+        color: #6b7280;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        text-decoration: none;
+        display: inline-block;
+    }
+    .form-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: space-between;
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 2px solid #e2e8f0;
+    }
+    .errorlist {
+        color: #ef4444;
+        list-style: none;
+        padding: 0;
+        margin-top: 0.5rem;
+    }
+    .form-select {
+        width: 100%;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updateParentElements(userId) {
+    const parentElementSelect = document.getElementById('{{ form.parent_element.id_for_label }}');
+    if (!parentElementSelect || !userId) {
+        return;
+    }
+    
+    // Show loading state
+    parentElementSelect.disabled = true;
+    parentElementSelect.innerHTML = '<option value="">{% trans "در حال بارگذاری..." %}</option>';
+    
+    // Get current element ID if editing
+    const urlParams = new URLSearchParams(window.location.search);
+    const elementId = {% if element %}{{ element.id }}{% else %}null{% endif %};
+    
+    // Build API URL
+    let apiUrl = '{% url "tickets:get_parent_elements_for_user" 0 %}'.replace('0', userId);
+    if (elementId) {
+        apiUrl += '?element_id=' + elementId;
+    }
+    
+    // Fetch parent elements for selected user
+    fetch(apiUrl)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                parentElementSelect.innerHTML = '<option value="">{% trans "بدون والد (عنصر اصلی)" %}</option>';
+                data.elements.forEach(element => {
+                    const option = document.createElement('option');
+                    option.value = element.id;
+                    option.textContent = element.path || element.name;
+                    parentElementSelect.appendChild(option);
+                });
+            } else {
+                parentElementSelect.innerHTML = '<option value="">{% trans "خطا در بارگذاری" %}</option>';
+            }
+            parentElementSelect.disabled = false;
+        })
+        .catch(error => {
+            console.error('Error loading parent elements:', error);
+            parentElementSelect.innerHTML = '<option value="">{% trans "خطا در بارگذاری" %}</option>';
+            parentElementSelect.disabled = false;
+        });
+}
+
+function loadWarehouseElements() {
+    const parentElementSelect = document.getElementById('{{ form.parent_element.id_for_label }}');
+    if (!parentElementSelect) return;
+    
+    parentElementSelect.disabled = true;
+    parentElementSelect.innerHTML = '<option value="">{% trans "در حال بارگذاری..." %}</option>';
+    
+    const warehouseId = {% if warehouse %}{{ warehouse.id }}{% else %}null{% endif %};
+    if (!warehouseId) {
+        parentElementSelect.innerHTML = '<option value="">{% trans "خطا در بارگذاری" %}</option>';
+        parentElementSelect.disabled = false;
+        return;
+    }
+    
+    // Fetch warehouse sub-elements
+    fetch(`/api/inventory/warehouse/${warehouseId}/sub-elements/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                parentElementSelect.innerHTML = '<option value="">{% trans "بدون والد (عنصر اصلی)" %}</option>';
+                data.elements.forEach(element => {
+                    const option = document.createElement('option');
+                    option.value = element.id;
+                    option.textContent = element.path || element.name;
+                    parentElementSelect.appendChild(option);
+                });
+            } else {
+                parentElementSelect.innerHTML = '<option value="">{% trans "خطا در بارگذاری" %}</option>';
+            }
+            parentElementSelect.disabled = false;
+        })
+        .catch(error => {
+            console.error('Error loading warehouse elements:', error);
+            parentElementSelect.innerHTML = '<option value="">{% trans "خطا در بارگذاری" %}</option>';
+            parentElementSelect.disabled = false;
+        });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const assignedToSelect = document.getElementById('{{ form.assigned_to.id_for_label }}');
+    const parentElementSelect = document.getElementById('{{ form.parent_element.id_for_label }}');
+    
+    if (assignedToSelect && parentElementSelect && !{% if is_warehouse %}true{% else %}false{% endif %}) {
+        // Update parent elements when assigned_to changes
+        assignedToSelect.addEventListener('change', function() {
+            const selectedValue = this.value;
+            if (selectedValue === 'warehouse') {
+                // Load warehouse sub-elements
+                loadWarehouseElements();
+            } else if (selectedValue) {
+                // Load user's elements
+                updateParentElements(selectedValue);
+            } else {
+                // Clear options
+                parentElementSelect.innerHTML = '<option value="">{% trans "بدون والد (عنصر اصلی)" %}</option>';
+            }
+        });
+        
+        // Load initial parent elements if assigned_to is already selected
+        if (assignedToSelect.value === 'warehouse') {
+            loadWarehouseElements();
+        } else if (assignedToSelect.value) {
+            updateParentElements(assignedToSelect.value);
+        }
+    }
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <div class="form-header">
+        <h1><i class="fas fa-box"></i> {{ title }}</h1>
+    </div>
+    <div class="form-content">
+        <form method="post">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {{ form.non_field_errors }}
+            </div>
+            {% endif %}
+            
+            <div class="form-group">
+                <label for="{{ form.name.id_for_label }}" class="form-label">{{ form.name.label }}</label>
+                {{ form.name }}
+                {% if form.name.errors %}
+                <ul class="errorlist">{{ form.name.errors }}</ul>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <label for="{{ form.element_type.id_for_label }}" class="form-label">{{ form.element_type.label }}</label>
+                {{ form.element_type }}
+                {% if form.element_type.errors %}
+                <ul class="errorlist">{{ form.element_type.errors }}</ul>
+                {% endif %}
+            </div>
+            
+            {% if not is_warehouse %}
+            <div class="form-group">
+                <label for="{{ form.assigned_to.id_for_label }}" class="form-label">{{ form.assigned_to.label }}</label>
+                <select name="{{ form.assigned_to.name }}" id="{{ form.assigned_to.id_for_label }}" class="form-select">
+                    <option value="">{% trans "انتخاب کنید..." %}</option>
+                    <option value="warehouse" {% if form.assigned_to.value == 'warehouse' or request.POST.assigned_to == 'warehouse' %}selected{% endif %}>
+                        <i class="fas fa-warehouse"></i> {% trans "انبار" %}
+                    </option>
+                    {% for choice in form.assigned_to.field.queryset %}
+                    <option value="{{ choice.id }}" {% if form.assigned_to.value == choice.id %}selected{% endif %}>
+                        {{ choice.get_full_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% if form.assigned_to.errors %}
+                <ul class="errorlist">{{ form.assigned_to.errors }}</ul>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <label for="{{ form.parent_element.id_for_label }}" class="form-label">{{ form.parent_element.label }}</label>
+                <select name="{{ form.parent_element.name }}" id="{{ form.parent_element.id_for_label }}" class="form-select">
+                    <option value="">{% trans "بدون والد (عنصر اصلی)" %}</option>
+                    {% if form.parent_element.field.queryset %}
+                        {% for choice in form.parent_element.field.queryset %}
+                        <option value="{{ choice.id }}" {% if form.parent_element.value|stringformat:"s" == choice.id|stringformat:"s" %}selected{% endif %}>
+                            {{ choice.name|default:choice.id }}
+                        </option>
+                        {% endfor %}
+                    {% endif %}
+                </select>
+                {% if form.parent_element.errors %}
+                <ul class="errorlist">{{ form.parent_element.errors }}</ul>
+                {% endif %}
+                {% if form.parent_element.help_text %}
+                <small class="form-text text-muted">{{ form.parent_element.help_text }}</small>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <div class="form-group">
+                <label for="{{ form.description.id_for_label }}" class="form-label">{{ form.description.label }}</label>
+                {{ form.description }}
+                {% if form.description.errors %}
+                <ul class="errorlist">{{ form.description.errors }}</ul>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <div class="form-check">
+                    {{ form.is_active }}
+                    <label for="{{ form.is_active.id_for_label }}" class="form-check-label">{{ form.is_active.label }}</label>
+                </div>
+                {% if form.is_active.errors %}
+                <ul class="errorlist">{{ form.is_active.errors }}</ul>
+                {% endif %}
+            </div>
+            
+            <div class="form-actions">
+                <a href="{% if element %}{% url 'tickets:inventory_element_detail' element.id %}{% else %}{% url 'tickets:inventory_management' %}{% endif %}" class="btn-secondary">
+                    <i class="fas fa-times"></i> {% trans "انصراف" %}
+                </a>
+                <button type="submit" class="btn-primary">
+                    <i class="fas fa-save"></i> {% trans "ذخیره" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+

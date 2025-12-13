@@ -1,0 +1,639 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+
+{% block title %}{% trans "مدیریت موجودی" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #06b6d4;
+        --dark: #1f2937;
+        --light: #f8fafc;
+        --border: #e2e8f0;
+        --text: #374151;
+        --text-light: #6b7280;
+    }
+
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .inventory-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 1400px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .inventory-header {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        color: white;
+        padding: 3rem 2rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .inventory-header h1 {
+        font-size: 3rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        position: relative;
+        z-index: 2;
+        flex-wrap: wrap;
+    }
+
+    .btn-modern {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-modern:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+        color: white;
+        text-decoration: none;
+    }
+
+    .inventory-content {
+        padding: 2rem;
+    }
+
+    .filter-section {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+
+    .filter-form {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        align-items: end;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: var(--text);
+        font-size: 0.95rem;
+    }
+
+    .form-control-modern, .form-select-modern {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .form-control-modern:focus, .form-select-modern:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        outline: none;
+    }
+
+    .btn-primary-modern {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        border: none;
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .btn-primary-modern:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(99, 102, 241, 0.3);
+    }
+
+    .user-groups-container {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .user-group-card {
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 2px solid var(--border);
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .user-group-card:hover {
+        box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15);
+        border-color: var(--primary);
+    }
+
+    .user-group-header {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        color: white;
+        padding: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+    }
+
+    .user-avatar {
+        width: 60px;
+        height: 60px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        flex-shrink: 0;
+    }
+
+    .user-info {
+        flex: 1;
+    }
+
+    .user-name {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 0 0 0.5rem 0;
+        color: white;
+    }
+
+    .user-details {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .user-badge {
+        background: rgba(255, 255, 255, 0.2);
+        padding: 0.25rem 0.75rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .user-stats {
+        display: flex;
+        gap: 1.5rem;
+    }
+
+    .stat-item {
+        text-align: center;
+    }
+
+    .stat-value {
+        display: block;
+        font-size: 1.8rem;
+        font-weight: 700;
+    }
+
+    .stat-label {
+        display: block;
+        font-size: 0.85rem;
+        opacity: 0.9;
+    }
+
+    .elements-list {
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .element-item {
+        background: var(--light);
+        border-radius: 12px;
+        padding: 1rem 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.3s ease;
+        border: 1px solid var(--border);
+    }
+
+    .element-item:hover {
+        background: white;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transform: translateX(-5px);
+    }
+
+    .element-main {
+        flex: 1;
+    }
+
+    .element-title-section {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .element-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--text);
+        margin: 0;
+    }
+
+    .element-type-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        background: linear-gradient(135deg, var(--info) 0%, #0891b2 100%);
+        color: white;
+    }
+
+    .badge-inactive-small {
+        background: linear-gradient(135deg, var(--text-light) 0%, var(--dark) 100%);
+        color: white;
+        padding: 0.2rem 0.6rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .element-meta {
+        display: flex;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+        margin-top: 0.5rem;
+    }
+
+    .meta-item {
+        color: var(--text-light);
+        font-size: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .element-actions-compact {
+        display: flex;
+        gap: 0.5rem;
+        flex-shrink: 0;
+    }
+
+    .btn-action-compact {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        font-size: 0.9rem;
+    }
+
+    .btn-action-compact.btn-view {
+        background: linear-gradient(135deg, var(--info) 0%, #0891b2 100%);
+        color: white;
+    }
+
+    .btn-action-compact.btn-edit {
+        background: linear-gradient(135deg, var(--warning) 0%, #d97706 100%);
+        color: white;
+    }
+
+    .btn-action-compact.btn-delete {
+        background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+        color: white;
+    }
+
+    .btn-action-compact:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        color: white;
+        text-decoration: none;
+    }
+
+    .badge-inactive {
+        background: linear-gradient(135deg, var(--text-light) 0%, var(--dark) 100%);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: var(--text-light);
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    @media (max-width: 768px) {
+        .filter-form {
+            grid-template-columns: 1fr;
+        }
+        .user-group-header {
+            flex-direction: column;
+            text-align: center;
+        }
+        .element-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+        .element-actions-compact {
+            align-self: flex-end;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="inventory-container">
+    <div class="inventory-header">
+        <h1>
+            <i class="fas fa-boxes"></i>
+            {% trans "مدیریت موجودی" %}
+        </h1>
+        <div class="header-actions">
+            <a href="{% url 'tickets:inventory_element_create' %}" class="btn-modern">
+                <i class="fas fa-plus"></i>
+                {% trans "افزودن عنصر جدید" %}
+            </a>
+            <a href="{% url 'tickets:dashboard' %}" class="btn-modern">
+                <i class="fas fa-arrow-right"></i>
+                {% trans "بازگشت به داشبورد" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="inventory-content">
+        <!-- Filter Section -->
+        <div class="filter-section">
+            <form method="get" class="filter-form">
+                <div class="form-group">
+                    <label class="form-label">{% trans "جستجو" %}</label>
+                    <input type="text" name="search" class="form-control-modern" 
+                           placeholder="{% trans 'جستجو در نام، نوع، توضیحات...' %}" 
+                           value="{{ search_query }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">{% trans "کاربر" %}</label>
+                    <select name="user" class="form-select-modern">
+                        <option value="">{% trans "همه کاربران" %}</option>
+                        {% for u in users %}
+                        <option value="{{ u.id }}" {% if user_filter == u.id|stringformat:"s" %}selected{% endif %}>
+                            {{ u.get_full_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">{% trans "نوع عنصر" %}</label>
+                    <select name="element_type" class="form-select-modern">
+                        <option value="">{% trans "همه انواع" %}</option>
+                        {% for et in element_types %}
+                        <option value="{{ et }}" {% if element_type_filter == et %}selected{% endif %}>
+                            {{ et }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">
+                        <input type="checkbox" name="show_inactive" {% if show_inactive %}checked{% endif %}>
+                        {% trans "نمایش غیرفعال‌ها" %}
+                    </label>
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn-primary-modern">
+                        <i class="fas fa-search"></i>
+                        {% trans "جستجو" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Warehouse Section (Default/Predefined) -->
+        {% if warehouse %}
+        <div class="user-group-card" style="margin-bottom: 2rem; border: 3px solid var(--primary);">
+            <div class="user-group-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                <div class="user-avatar" style="background: rgba(255, 255, 255, 0.3);">
+                    <i class="fas fa-warehouse"></i>
+                </div>
+                <div class="user-info">
+                    <h3 class="user-name">
+                        <i class="fas fa-warehouse"></i> {{ warehouse.name }}
+                    </h3>
+                    <div class="user-details">
+                        <span class="user-badge">
+                            <i class="fas fa-info-circle"></i> {% trans "بخش پیش‌فرض سیستم" %}
+                        </span>
+                        <span class="user-badge">
+                            <i class="fas fa-layer-group"></i> {{ warehouse.sub_elements.count }} {% trans "زیرمجموعه" %}
+                        </span>
+                        <span class="user-badge">
+                            <i class="fas fa-list"></i> {{ warehouse.specifications.count }} {% trans "مشخصه" %}
+                        </span>
+                    </div>
+                </div>
+                <div class="user-stats">
+                    <div class="stat-item">
+                        <span class="stat-value">{{ warehouse.sub_elements.count }}</span>
+                        <span class="stat-label">{% trans "عنصر" %}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="elements-list">
+                <div class="element-item" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%); border: 2px solid rgba(16, 185, 129, 0.3);">
+                    <div class="element-main">
+                        <div class="element-title-section">
+                            <h4 class="element-title">
+                                <i class="fas fa-warehouse"></i> {{ warehouse.name }}
+                            </h4>
+                            <span class="element-type-badge" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                                {{ warehouse.element_type }}
+                            </span>
+                            {% if warehouse.description %}
+                            <span class="user-badge" style="background: rgba(16, 185, 129, 0.2); color: #059669;">
+                                <i class="fas fa-info-circle"></i> {{ warehouse.description|truncatewords:10 }}
+                            </span>
+                            {% endif %}
+                        </div>
+                        <div class="element-meta">
+                            <span class="meta-item">
+                                <i class="fas fa-list"></i> {{ warehouse.specifications.count }} {% trans "مشخصه" %}
+                            </span>
+                            <span class="meta-item">
+                                <i class="fas fa-layer-group"></i> {{ warehouse.sub_elements.count }} {% trans "زیرمجموعه" %}
+                            </span>
+                            <span class="meta-item">
+                                <i class="fas fa-calendar"></i> {{ warehouse.created_at|persian_date_only }}
+                            </span>
+                            <span class="meta-item">
+                                <i class="fas fa-user"></i> {{ warehouse.assigned_to.get_full_name }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="element-actions-compact">
+                        <a href="{% url 'tickets:inventory_element_detail' warehouse.id %}" class="btn-action-compact btn-view" title="{% trans 'مشاهده' %}">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                        <a href="{% url 'tickets:inventory_element_edit' warehouse.id %}" class="btn-action-compact btn-edit" title="{% trans 'ویرایش' %}">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Elements List - Organized by User -->
+        {% if user_groups %}
+        <div class="user-groups-container">
+            {% for user_group in user_groups %}
+            <div class="user-group-card">
+                <div class="user-group-header">
+                    <div class="user-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="user-info">
+                        <h3 class="user-name">{{ user_group.user.get_full_name }}</h3>
+                        <div class="user-details">
+                            <span class="user-badge">
+                                <i class="fas fa-id-card"></i> {{ user_group.user.employee_code }}
+                            </span>
+                            <span class="user-badge">
+                                <i class="fas fa-building"></i> {{ user_group.user.get_department_display }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="user-stats">
+                        <div class="stat-item">
+                            <span class="stat-value">{{ user_group.elements|length }}</span>
+                            <span class="stat-label">{% trans "عنصر" %}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="elements-list">
+                    {% for element in user_group.elements %}
+                    <div class="element-item">
+                        <div class="element-main">
+                            <div class="element-title-section">
+                                <h4 class="element-title">{{ element.name }}</h4>
+                                <span class="element-type-badge">{{ element.element_type }}</span>
+                                {% if not element.is_active %}
+                                <span class="badge-inactive-small">{% trans "غیرفعال" %}</span>
+                                {% endif %}
+                            </div>
+                            <div class="element-meta">
+                                <span class="meta-item">
+                                    <i class="fas fa-list"></i> {{ element.specifications.count }} {% trans "مشخصه" %}
+                                </span>
+                                <span class="meta-item">
+                                    <i class="fas fa-layer-group"></i> {{ element.sub_elements.count }} {% trans "زیرمجموعه" %}
+                                </span>
+                                <span class="meta-item">
+                                    <i class="fas fa-calendar"></i> {{ element.created_at|persian_date_only }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="element-actions-compact">
+                            <a href="{% url 'tickets:inventory_element_detail' element.id %}" class="btn-action-compact btn-view" title="{% trans 'مشاهده' %}">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="{% url 'tickets:inventory_element_edit' element.id %}" class="btn-action-compact btn-edit" title="{% trans 'ویرایش' %}">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <a href="{% url 'tickets:inventory_element_delete' element.id %}" class="btn-action-compact btn-delete" title="{% trans 'حذف' %}">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+        <nav aria-label="Page navigation" style="margin-top: 2rem;">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if user_filter %}&user={{ user_filter }}{% endif %}{% if element_type_filter %}&element_type={{ element_type_filter }}{% endif %}{% if show_inactive %}&show_inactive=on{% endif %}">{% trans "قبلی" %}</a>
+                </li>
+                {% endif %}
+                {% for num in page_obj.paginator.page_range %}
+                <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                    <a class="page-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if user_filter %}&user={{ user_filter }}{% endif %}{% if element_type_filter %}&element_type={{ element_type_filter }}{% endif %}{% if show_inactive %}&show_inactive=on{% endif %}">{{ num }}</a>
+                </li>
+                {% endfor %}
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if user_filter %}&user={{ user_filter }}{% endif %}{% if element_type_filter %}&element_type={{ element_type_filter }}{% endif %}{% if show_inactive %}&show_inactive=on{% endif %}">{% trans "بعدی" %}</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-box-open"></i>
+            <h3>{% trans "عنصری یافت نشد" %}</h3>
+            <p>{% trans "هیچ عنصر موجودی در سیستم ثبت نشده است." %}</p>
+            <a href="{% url 'tickets:inventory_element_create' %}" class="btn-modern" style="margin-top: 1rem;">
+                <i class="fas fa-plus"></i>
+                {% trans "افزودن اولین عنصر" %}
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

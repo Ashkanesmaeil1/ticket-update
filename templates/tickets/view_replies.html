@@ -1,0 +1,696 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+
+{% block title %}{% trans "مشاهده تمام پاسخ‌ها" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #06b6d4;
+        --dark: #1f2937;
+        --light: #f8fafc;
+        --border: #e2e8f0;
+        --text: #374151;
+        --text-light: #6b7280;
+        --replies-bg: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    }
+
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .replies-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 1400px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .replies-header {
+        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+        color: white;
+        padding: 3rem 2rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .replies-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+    }
+
+    .replies-header h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .replies-header p {
+        font-size: 1.1rem;
+        opacity: 0.9;
+        margin-bottom: 2rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        position: relative;
+        z-index: 2;
+        flex-wrap: wrap;
+    }
+
+    .btn-modern {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    .btn-modern:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+        color: white;
+        text-decoration: none;
+    }
+
+    .replies-content {
+        padding: 2rem;
+    }
+
+    .search-section {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        margin-bottom: 2rem;
+    }
+
+    .search-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid var(--border);
+    }
+
+    .search-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .search-form {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 1rem;
+        align-items: end;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: var(--text);
+        font-size: 0.95rem;
+    }
+
+    .form-control-modern {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .form-control-modern:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        outline: none;
+    }
+
+    .btn-primary-modern {
+        text-decoration: none;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        border: none;
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    .btn-primary-modern:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(99, 102, 241, 0.3);
+        background: linear-gradient(135deg, var(--primary-dark) 0%, #3730a3 100%);
+        color: white;
+    }
+
+    .btn-secondary-modern {
+        background: transparent;
+        border: 2px solid var(--border);
+        color: var(--text-light);
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        text-decoration: none;
+        cursor: pointer;
+    }
+
+    .btn-secondary-modern:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+        transform: translateY(-2px);
+        text-decoration: none;
+    }
+
+    .replies-list {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+    }
+
+    .replies-list-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid var(--border);
+    }
+
+    .replies-list-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .reply-card-modern {
+        background: white;
+        border-radius: 16px;
+        margin-bottom: 1.5rem;
+        border: 1px solid var(--border);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .reply-card-modern::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 4px;
+        height: 100%;
+        background: var(--replies-bg);
+        opacity: 0.7;
+    }
+
+    .reply-card-modern:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15);
+        border-color: var(--primary);
+    }
+
+    .reply-header {
+        padding: 1.5rem 2rem 1rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .reply-author-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .info-container {
+        display: flex;
+        flex-direction: column-reverse;
+        gap: 0.5rem;
+    }
+
+    .reply-author-name {
+        font-weight: 700;
+        color: var(--text);
+        font-size: 1.2rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .reply-author-role {
+        color: var(--text-light);
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    .reply-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 1rem;
+    }
+
+    .reply-time {
+        color: var(--text-light);
+        font-size: 0.9rem;
+    }
+
+    .reply-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .btn-sm-modern {
+        background: linear-gradient(135deg, var(--info) 0%, #0891b2 100%);
+        border: none;
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        text-decoration: none;
+    }
+
+    .btn-sm-modern:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
+        color: white;
+        text-decoration: none;
+    }
+
+    .reply-content {
+        padding: 1rem 2rem 2rem;
+    }
+
+    .ticket-info {
+        background: var(--light);
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border: 1px solid var(--border);
+    }
+
+    .ticket-badge {
+        background: linear-gradient(135deg, var(--dark) 0%, #111827 100%);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .ticket-title {
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 1.5rem;
+    }
+
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .status-badge.status-open {
+        background: linear-gradient(135deg, var(--warning) 0%, #d97706 100%);
+        color: white;
+    }
+
+    .status-badge.status-in_progress {
+        background: linear-gradient(135deg, var(--info) 0%, #0891b2 100%);
+        color: white;
+    }
+
+    .status-badge.status-resolved {
+        background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+        color: white;
+    }
+
+    .status-badge.status-closed {
+        background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+        color: white;
+    }
+
+    .reply-text {
+        background: var(--light);
+        border-radius: 12px;
+        padding: 1.5rem;
+        border-right: 4px solid var(--primary);
+        margin-bottom: 1rem;
+        line-height: 1.6;
+    }
+
+    .reply-text p {
+        margin: 0;
+        color: var(--text);
+    }
+
+    .reply-attachments {
+        margin-top: 1rem;
+    }
+
+    .attachment-link {
+        background: linear-gradient(135deg, var(--info) 0%, #0891b2 100%);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .attachment-link:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
+        color: white;
+        text-decoration: none;
+    }
+
+    .pagination-modern {
+        display: flex;
+        justify-content: center;
+        gap: 0.5rem;
+        margin-top: 2rem;
+    }
+
+    .page-link-modern {
+        background: white;
+        border: 2px solid var(--border);
+        color: var(--text-light);
+        padding: 0.75rem 1rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 44px;
+    }
+
+    .page-link-modern:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+        transform: translateY(-2px);
+        text-decoration: none;
+    }
+
+    .page-link-modern.active {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        border-color: var(--primary);
+        color: white;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: var(--text-light);
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        opacity: 0.5;
+    }
+
+    .empty-state h5 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        color: var(--text);
+    }
+
+    .empty-state p {
+        font-size: 1.1rem;
+        margin-bottom: 2rem;
+    }
+
+    .margin-bottom-1rem {
+        margin-bottom: 1rem !important;
+    }
+
+    @media (max-width: 768px) {
+        .replies-container {
+            margin: 1rem;
+            border-radius: 16px;
+        }
+
+        .replies-header {
+            padding: 2rem 1rem;
+        }
+
+        .replies-header h1 {
+            font-size: 2rem;
+        }
+
+        .replies-content {
+            padding: 1rem;
+        }
+
+        .search-form {
+            grid-template-columns: 1fr;
+        }
+
+        .reply-header {
+            padding: 1rem;
+        }
+
+        .reply-content {
+            padding: 1rem;
+        }
+
+        .reply-meta {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="replies-container">
+    <!-- Page Header -->
+    <div class="replies-header">
+        <h1>
+            <i class="fas fa-comments"></i>
+            {% trans "مشاهده تمام پاسخ‌ها" %}
+        </h1>
+        <p>{% trans "مدیریت و مشاهده تمام پاسخ‌های سیستم" %}</p>
+        <div class="header-actions">
+            <a href="{% url 'tickets:dashboard' %}" class="btn-modern">
+                <i class="fas fa-arrow-right"></i>
+                {% trans "بازگشت به داشبورد" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="replies-content">
+        <!-- Search Section -->
+        <div class="search-section">
+            <div class="search-header">
+                <div class="search-title">
+                    <i class="fas fa-search"></i>
+                    {% trans "جستجو و فیلتر" %}
+                </div>
+            </div>
+            <form method="get" class="search-form">
+                <div class="form-group">
+                    <label for="search" class="form-label">{% trans "جستجو" %}</label>
+                    <input type="text" class="form-control-modern" id="search" name="search" 
+                           value="{{ search_query }}" placeholder="{% trans 'جستجو بر اساس شماره تیکت، نام ایجاد کننده یا عنوان تیکت...' %}">
+                </div>
+                <div class="form-group">
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn-primary-modern">
+                            <i class="fas fa-search"></i>
+                            {% trans "جستجو" %}
+                        </button>
+                        <a href="{% url 'tickets:view_all_replies' %}" class="btn-secondary-modern">
+                            <i class="fas fa-times"></i>
+                            {% trans "پاک کردن" %}
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Replies List -->
+        <div class="replies-list">
+            <div class="replies-list-header">
+                <div class="replies-list-title">
+                    <i class="fas fa-list"></i>
+                    {% trans "لیست پاسخ‌ها" %}
+                </div>
+            </div>
+            
+            {% if replies %}
+                {% for reply in replies %}
+                <div class="reply-card-modern">
+                    <div class="reply-header">
+                        <div class="reply-author-info">
+                            <div class="info-container">
+                                <div class="reply-author-name">{{ reply.author.get_full_name }}</div>
+                                <div class="reply-author-role">
+                                    {% if reply.author.role == 'it_manager' %}
+                                        مدیر IT
+                                    {% elif reply.author.role == 'technician' %}
+                                        کارشناس فنی
+                                    {% elif reply.author.role == 'employee' %}
+                                        {{ reply.author.get_department_and_role_display }}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="reply-meta">
+                            <div class="reply-time">{{ reply.created_at|persian_date }}</div>
+                            <div class="reply-actions">
+                                <a href="{% url 'tickets:ticket_detail' reply.ticket.id %}" class="btn-sm-modern">
+                                    <i class="fas fa-external-link-alt"></i>
+                                    {% trans "مشاهده تیکت" %}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="reply-content">
+                        <div class="ticket-info">
+                            <div class="ticket-title">
+                                <span class="ticket-badge">#{{ reply.ticket.id }}</span>
+                                <span class="status-badge status-{{ reply.ticket.status }}">
+                                    {{ reply.ticket.get_status_display }}
+                                </span>
+                            </div>
+                            <div>
+                                {{ reply.ticket.title|truncatechars:50 }}
+                            </div>
+                        </div>
+                        
+                        <div class="reply-text">
+                            {% if reply.is_private %}
+                                {% if user.role == 'it_manager' or user.department_role == 'manager' or reply.ticket.created_by == user %}
+                                    {{ reply.content|linebreaks }}
+                                {% else %}
+                                    <p><em>محتوای این پیام برای شما مخفی شده</em></p>
+                                {% endif %}
+                            {% else %}
+                                {{ reply.content|linebreaks }}
+                            {% endif %}
+                        </div>
+                        
+                        {% if reply.attachment %}
+                            {% if not reply.is_private or user.role == 'it_manager' or user.department_role == 'manager' or reply.ticket.created_by == user %}
+                                <div class="reply-attachments">
+                                    <a href="{{ reply.attachment.url }}" target="_blank" class="attachment-link">
+                                        <i class="fas fa-paperclip"></i>
+                                        {{ reply.attachment.name|slice:"-20:" }}
+                                    </a>
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+            <div class="pagination-modern">
+                {% if page_obj.has_previous %}
+                    <a class="page-link-modern" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}">
+                        <i class="fas fa-angle-double-right"></i>
+                    </a>
+                    <a class="page-link-modern" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}">
+                        <i class="fas fa-angle-right"></i>
+                    </a>
+                {% endif %}
+                
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                        <span class="page-link-modern active">{{ num }}</span>
+                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                        <a class="page-link-modern" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}">{{ num }}</a>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if page_obj.has_next %}
+                    <a class="page-link-modern" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}">
+                        <i class="fas fa-angle-left"></i>
+                    </a>
+                    <a class="page-link-modern" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}">
+                        <i class="fas fa-angle-double-left"></i>
+                    </a>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            {% else %}
+            <div class="empty-state">
+                <i class="fas fa-comments margin-bottom-1rem"></i>
+                <h5>{% trans "پاسخی پیدا نشد" %}</h5>
+                <p>{% trans "با فیلترهای انتخاب شده هیچ پاسخی یافت نشد." %}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

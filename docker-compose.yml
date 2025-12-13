@@ -1,0 +1,82 @@
+# services:
+#   web:
+#     build: .
+#     # پورت‌های 8000 رو از هاست حذف می‌کنیم، چون Nginx قراره این کار رو بکنه
+#     # ports:
+#     #  - "80:8000"
+#     #  - "443:8000"
+#     restart: unless-stopped
+#     volumes:
+#       - .:/app
+#       - static_volume:/app/staticfiles
+#       - media_volume:/app/media
+#       - ./db.sqlite3:/app/db.sqlite3
+#     environment:
+#       - DEBUG=False
+#       - SECRET_KEY=dev-secret-key-change-in-production
+#       - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0,82.115.17.176,ticketing.pgi-services.ir
+#       - DJANGO_SETTINGS_MODULE=ticket_system.settings
+#       - CSRF_TRUSTED_ORIGINS=https://ticketing.pgi-services.ir
+#       - CSRF_TRUSTED_ORIGINS=https://ticketing.pargasiran.com   <= درسته
+#     command: gunicorn ticket_system.wsgi:application --bind 0.0.0.0:8000
+#     stdin_open: true
+#     tty: true
+#     healthcheck:
+#       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+#       interval: 30s
+#       timeout: 10s
+#       retries: 3
+#       start_period: 40s
+
+#   nginx: # سرویس Nginx اضافه شده
+#     image: nginx:latest
+#     ports:
+#       - "80:80"   # Nginx ترافیک پورت 80 هاست رو به پورت 80 کانتینر Nginx می فرسته
+#       - "443:443" # Nginx ترافیک پورت 443 هاست رو به پورت 443 کانتینر Nginx می فرسته
+#     volumes:
+#       - ./nginx.conf:/etc/nginx/nginx.conf:ro
+#       - static_volume:/app/staticfiles:ro # Mount کردن volume استاتیک به Nginx
+#       - media_volume:/app/media:ro        # Mount کردن volume مدیا به Nginx
+#     depends_on:
+#       - web
+#     restart: unless-stopped
+
+# volumes:
+#   sqlite_volume:
+#   static_volume:
+#   media_volume:
+
+
+
+
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "80:8000"
+    
+    restart: "no"
+    
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+      - ./db.sqlite3:/app/db.sqlite3
+      
+    environment:
+      - DEBUG=False 
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0 
+      - DJANGO_SETTINGS_MODULE=ticket_system.settings
+      - CSRF_TRUSTED_ORIGINS=http://localhost
+      
+    command: python manage.py runserver 0.0.0.0:8000
+    
+    stdin_open: true 
+    tty: true
+
+volumes:
+  static_volume:
+  media_volume:

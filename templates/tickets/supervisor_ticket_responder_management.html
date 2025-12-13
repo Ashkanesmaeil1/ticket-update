@@ -1,0 +1,456 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load crispy_forms_tags %}
+
+{% block title %}{% trans "مدیریت پاسخ‌دهنده تیکت" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #06b6d4;
+        --dark: #1f2937;
+        --light: #f8fafc;
+        --border: #e2e8f0;
+        --text: #374151;
+        --text-light: #6b7280;
+    }
+
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .form-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 800px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .form-header {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        color: white;
+        padding: 3rem 2rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .form-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+    }
+
+    .form-header h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .form-header p {
+        font-size: 1.1rem;
+        opacity: 0.9;
+        margin-bottom: 2rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .form-content {
+        padding: 2rem;
+    }
+
+    .form-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        margin-bottom: 2rem;
+    }
+
+    .info-section {
+        background: rgba(6, 182, 212, 0.1);
+        border: 2px solid var(--info);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .info-section h3 {
+        color: var(--info);
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .info-section p {
+        color: var(--text);
+        margin: 0.5rem 0;
+    }
+
+    .current-responder {
+        background: rgba(16, 185, 129, 0.1);
+        border: 2px solid var(--success);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .current-responder h3 {
+        color: var(--success);
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .current-responder-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: white;
+        border-radius: 8px;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-label {
+        display: block;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+    }
+
+    .form-select-modern {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        background: white;
+        cursor: pointer;
+    }
+
+    .form-select-modern:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+
+    .help-text {
+        font-size: 0.85rem;
+        color: var(--text-light);
+        margin-top: 0.5rem;
+        line-height: 1.4;
+    }
+
+    .form-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 2rem;
+        border-top: 2px solid var(--border);
+        gap: 1rem;
+    }
+
+    .btn-cancel {
+        background: rgba(107, 114, 128, 0.1);
+        color: var(--text);
+        border: 2px solid var(--border);
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-cancel:hover {
+        background: var(--text);
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .btn-submit {
+        background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    .btn-submit:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-clear {
+        background: linear-gradient(135deg, var(--warning) 0%, #d97706 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-clear:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(245, 158, 11, 0.4);
+        color: white;
+    }
+
+    .employee-list {
+        max-height: 300px;
+        overflow-y: auto;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        padding: 1rem;
+    }
+
+    .employee-item {
+        padding: 0.75rem;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .employee-item:last-child {
+        border-bottom: none;
+    }
+
+    .employee-item:hover {
+        background: var(--light);
+    }
+
+    @media (max-width: 768px) {
+        .form-container {
+            margin: 1rem;
+            border-radius: 16px;
+        }
+
+        .form-header {
+            padding: 2rem 1rem;
+        }
+
+        .form-header h1 {
+            font-size: 2rem;
+        }
+
+        .form-actions {
+            flex-direction: column;
+            align-items: stretch;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <!-- Header -->
+    <div class="form-header">
+        <h1>
+            <i class="fas fa-user-check me-3"></i>
+            {% trans "مدیریت پاسخ‌دهنده تیکت" %}
+        </h1>
+        <p>{% trans "انتخاب کارمندی از بخش خود برای پاسخ به تیکت‌های دریافتی" %}</p>
+    </div>
+
+    <div class="form-content">
+        <!-- Info Section -->
+        <div class="info-section">
+            <h3>
+                <i class="fas fa-info-circle"></i>
+                {% trans "اطلاعات بخش" %}
+            </h3>
+            <p><strong>{% trans "نام بخش:" %}</strong> {{ department.name }}</p>
+            <p><strong>{% trans "شعبه:" %}</strong> {% if department.branch %}{{ department.branch.name }}{% else %}{% trans "تعیین نشده" %}{% endif %}</p>
+            <p><strong>{% trans "وضعیت دریافت تیکت:" %}</strong> 
+                {% if department.can_receive_tickets %}
+                    <span style="color: var(--success);">{% trans "فعال" %}</span>
+                {% else %}
+                    <span style="color: var(--danger);">{% trans "غیرفعال" %}</span>
+                {% endif %}
+            </p>
+        </div>
+
+        <!-- Current Responder -->
+        {% if current_responder %}
+        <div class="current-responder">
+            <h3>
+                <i class="fas fa-user-check"></i>
+                {% trans "پاسخ‌دهنده فعلی" %}
+            </h3>
+            <div class="current-responder-info">
+                <div style="width: 50px; height: 50px; background: var(--success); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700;">
+                    {{ current_responder.first_name|first }}{{ current_responder.last_name|first }}
+                </div>
+                <div>
+                    <div style="font-weight: 700; color: var(--text);">{{ current_responder.get_full_name }}</div>
+                    <div style="font-size: 0.9rem; color: var(--text-light);">{% trans "کد کارمندی:" %} {{ current_responder.employee_code }}</div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="info-section" style="background: rgba(107, 114, 128, 0.1); border-color: var(--text-light);">
+            <h3 style="color: var(--text-light);">
+                <i class="fas fa-info-circle"></i>
+                {% trans "وضعیت فعلی" %}
+            </h3>
+            <p>{% trans "در حال حاضر پاسخ‌دهنده تیکت تعیین نشده است. تیکت‌های دریافتی به شما (سرپرست) ارسال می‌شوند." %}</p>
+        </div>
+        {% endif %}
+
+        <!-- Form Card -->
+        <div class="form-card">
+            <form method="post" novalidate>
+                {% csrf_token %}
+                
+                <div class="form-group">
+                    <label class="form-label" for="ticket_responder">
+                        <i class="fas fa-users me-1"></i>
+                        {% trans "انتخاب پاسخ‌دهنده تیکت" %}
+                    </label>
+                    <select name="ticket_responder" 
+                            id="ticket_responder"
+                            class="form-select-modern">
+                        <option value="">{% trans "هیچ‌کس (سرپرست پاسخ می‌دهد)" %}</option>
+                        {% for employee in employees %}
+                            <option value="{{ employee.id }}" {% if current_responder and current_responder.id == employee.id %}selected{% endif %}>
+                                {{ employee.get_full_name }} ({{ employee.employee_code }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <div class="help-text">
+                        <i class="fas fa-info-circle"></i>
+                        {% trans "کارمندی را انتخاب کنید که می‌تواند به تیکت‌های دریافتی این بخش پاسخ دهد و وضعیت آن‌ها را تغییر دهد. اگر هیچ‌کس انتخاب نشود، تیکت‌ها به شما (سرپرست) ارسال می‌شوند." %}
+                    </div>
+                </div>
+
+                <!-- Employee List -->
+                {% if employees %}
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-list me-1"></i>
+                        {% trans "لیست کارمندان بخش" %}
+                    </label>
+                    <div class="employee-list">
+                        {% for employee in employees %}
+                        <div class="employee-item">
+                            <div style="width: 40px; height: 40px; background: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 0.9rem;">
+                                {{ employee.first_name|first }}{{ employee.last_name|first }}
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; color: var(--text);">{{ employee.get_full_name }}</div>
+                                <div style="font-size: 0.85rem; color: var(--text-light);">{% trans "کد کارمندی:" %} {{ employee.employee_code }}</div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div style="text-align: center; padding: 2rem; color: var(--text-light);">
+                            <i class="fas fa-users" style="font-size: 2rem; margin-bottom: 1rem; display: block;"></i>
+                            {% trans "هیچ کارمندی در این بخش وجود ندارد." %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Form Actions -->
+                <div class="form-actions">
+                    <a href="{% url 'tickets:dashboard' %}" class="btn-cancel">
+                        <i class="fas fa-arrow-right"></i>
+                        {% trans "بازگشت به داشبورد" %}
+                    </a>
+                    <div style="display: flex; gap: 1rem;">
+                        {% if current_responder %}
+                        <a href="{% url 'tickets:supervisor_ticket_responder_management' %}" 
+                           class="btn-clear"
+                           onclick="return confirm('{% trans 'آیا مطمئن هستید که می‌خواهید پاسخ‌دهنده تیکت را حذف کنید؟' %}')"
+                           style="display: none;">
+                            <i class="fas fa-times"></i>
+                            {% trans "حذف پاسخ‌دهنده" %}
+                        </a>
+                        {% endif %}
+                        <button type="submit" class="btn-submit">
+                            <i class="fas fa-save"></i>
+                            {% trans "ذخیره" %}
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Add loading animation
+document.addEventListener('DOMContentLoaded', function() {
+    const cards = document.querySelectorAll('.form-card, .info-section, .current-responder');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+            card.style.transition = 'all 0.6s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 200);
+    });
+});
+
+// Form validation
+document.querySelector('form').addEventListener('submit', function(e) {
+    const submitBtn = this.querySelector('.btn-submit');
+    const originalText = submitBtn.innerHTML;
+    
+    // Show loading state
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> در حال ذخیره...';
+    submitBtn.disabled = true;
+    
+    // Re-enable after 3 seconds if form doesn't submit
+    setTimeout(() => {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    }, 3000);
+});
+</script>
+{% endblock %}
+
+

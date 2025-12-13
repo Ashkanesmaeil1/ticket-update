@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+
+{% block title %}{% trans "مدیریت شعبه‌ها" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #6366f1;
+        --success: #10b981;
+        --danger: #ef4444;
+        --info: #06b6d4;
+        --text: #374151;
+        --text-light: #6b7280;
+    }
+
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .branch-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 1400px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .branch-header {
+        background: linear-gradient(135deg, var(--primary) 0%, #4f46e5 100%);
+        color: white;
+        padding: 3rem 2rem;
+        text-align: center;
+    }
+
+    .branch-header h1 {
+        font-size: 3rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+    }
+
+    .branch-content {
+        padding: 2rem;
+    }
+
+    .action-bar {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .btn-create {
+        background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+        border: none;
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .branch-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .branch-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid #e2e8f0;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .branch-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 4px;
+        height: 100%;
+        background: linear-gradient(135deg, var(--info) 0%, #0891b2 100%);
+    }
+
+    .branch-header-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+    }
+
+    .branch-info h3 {
+        margin: 0;
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: var(--text);
+    }
+
+    .branch-info p {
+        margin: 0.25rem 0 0;
+        color: var(--text-light);
+        font-size: 0.9rem;
+    }
+
+    .branch-actions {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: flex-end;
+    }
+
+    .btn-action {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-edit {
+        background: rgba(99, 102, 241, 0.1);
+        color: var(--primary);
+        border: 1px solid rgba(99, 102, 241, 0.2);
+    }
+
+    .btn-delete {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger);
+        border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="branch-container">
+    <div class="branch-header">
+        <h1>
+            <i class="fas fa-map-marker-alt me-3"></i>
+            {% trans "مدیریت شعبه‌ها" %}
+        </h1>
+        <p>{% trans "ایجاد و مدیریت شعبه‌های شرکت" %}</p>
+    </div>
+
+    <div class="branch-content">
+        <div class="action-bar">
+            <a href="{% url 'tickets:branch_create' %}" class="btn-create">
+                <i class="fas fa-plus"></i>
+                {% trans "ایجاد شعبه جدید" %}
+            </a>
+        </div>
+
+        {% if branches %}
+        <div class="branch-grid">
+            {% for branch in branches %}
+            <div class="branch-card">
+                <div class="branch-header-card">
+                    <div class="branch-info">
+                        <h3>{{ branch.name }}</h3>
+                        <p>{% trans "کد شعبه:" %} {{ branch.branch_code }}</p>
+                        <p>
+                            {% trans "بخش‌ها:" %}
+                            {% if branch.departments.exists %}
+                                {% for dept in branch.departments.all %}
+                                    <span class="badge bg-info" style="margin-left: 0.25rem;">{{ dept.name }}</span>
+                                {% endfor %}
+                            {% else %}
+                                <span style="color: var(--text-light);">{% trans "هیچ بخشی اختصاص داده نشده" %}</span>
+                            {% endif %}
+                        </p>
+                        <p style="font-size: 0.85rem; color: var(--text-light); margin-top: 0.5rem;">
+                            <i class="fas fa-info-circle"></i>
+                            {% trans "این شعبه می‌تواند چندین بخش داشته باشد. بخش‌ها را از صفحه مدیریت بخش‌ها به این شعبه اختصاص دهید." %}
+                        </p>
+                    </div>
+                </div>
+                <div class="branch-actions">
+                    <a href="{% url 'tickets:branch_edit' branch.id %}" class="btn-action btn-edit">
+                        <i class="fas fa-edit"></i>
+                        {% trans "ویرایش" %}
+                    </a>
+                    <a href="{% url 'tickets:branch_delete' branch.id %}" class="btn-action btn-delete">
+                        <i class="fas fa-trash"></i>
+                        {% trans "حذف" %}
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="text-align: center; padding: 4rem 2rem;">
+            <i class="fas fa-map-marker-alt" style="font-size: 3rem; color: var(--text-light);"></i>
+            <h3>{% trans "هیچ شعبه‌ای یافت نشد" %}</h3>
+            <p>{% trans "برای شروع، اولین شعبه خود را ایجاد کنید" %}</p>
+            <a href="{% url 'tickets:branch_create' %}" class="btn-create">
+                <i class="fas fa-plus me-2"></i>
+                {% trans "ایجاد اولین شعبه" %}
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

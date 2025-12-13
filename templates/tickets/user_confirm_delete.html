@@ -1,0 +1,210 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+
+{% block title %}{% trans "حذف کاربر" %} - {{ user_to_delete.get_full_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #6366f1;
+        --danger: #ef4444;
+        --info: #06b6d4;
+        --text: #374151;
+        --text-light: #6b7280;
+        --light: #f8fafc;
+        --border: #e2e8f0;
+    }
+
+    .delete-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 840px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .delete-header {
+        background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+        color: white;
+        padding: 2.5rem 2rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+    .delete-header h1 { font-size: 2rem; font-weight: 800; margin-bottom: .75rem; position: relative; z-index: 2; }
+    .delete-header p { opacity: .9; position: relative; z-index: 2; margin: 0; }
+
+    .header-actions { display: flex; gap: 1rem; justify-content: center; margin-top: 1rem; position: relative; z-index: 2; }
+    .btn-modern { background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.3); color: #fff; padding: .75rem 1.5rem; border-radius: 12px; font-weight: 700; transition: all .3s ease; backdrop-filter: blur(10px); text-decoration: none; display: inline-flex; align-items: center; gap: .5rem; }
+    .btn-modern:hover { background: rgba(255,255,255,.3); transform: translateY(-2px); color: #fff; }
+
+    .delete-content { padding: 2rem; }
+
+    .warning-card { background: #fff; border-radius: 20px; padding: 1.5rem; box-shadow: 0 10px 25px -5px rgba(0,0,0,.1); border: 1px solid var(--border); text-align: center; margin-bottom: 1.25rem; }
+    .warning-icon { width: 88px; height: 88px; border-radius: 50%; background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%); display: flex; align-items: center; justify-content: center; font-size: 2.25rem; color: #fff; margin: 0 auto 1rem; box-shadow: 0 10px 25px -5px rgba(239,68,68,.4); }
+    .warning-title { font-size: 1.25rem; font-weight: 800; color: var(--text); }
+    .warning-text { color: var(--text-light); }
+
+    .user-info-card { background: #fff; border-radius: 20px; padding: 1.5rem; box-shadow: 0 10px 25px -5px rgba(0,0,0,.1); border: 1px solid var(--border); }
+    .info-title { font-weight: 800; color: var(--text); display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem; }
+    .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+    .info-item { padding: 1rem; background: var(--light); border-radius: 12px; border: 1px solid var(--border); }
+    .info-label { font-size: .85rem; color: var(--text-light); font-weight: 700; margin-bottom: .25rem; }
+    .info-value { font-size: 1.05rem; font-weight: 800; color: var(--text); }
+
+    /* Long email handling */
+    .info-value.email {
+        direction: ltr;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 100%;
+        display: block;
+    }
+
+    .alert-card { background: #fff; border-radius: 20px; padding: 1.25rem; box-shadow: 0 10px 25px -5px rgba(0,0,0,.1); border: 1px solid var(--border); margin-top: 1.25rem; }
+    .alert-danger-soft { border-right: 4px solid var(--danger); background: rgba(239,68,68,.06); }
+
+    .form-actions { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1.5rem; }
+    .btn-cancel { background: rgba(107,114,128,.1); color: var(--text); border: 2px solid var(--border); padding: .75rem 1.5rem; border-radius: 12px; font-weight: 700; transition: all .3s ease; text-decoration: none; display: inline-flex; align-items: center; gap: .5rem; }
+    .btn-cancel:hover { background: var(--text); color: #fff; transform: translateY(-2px); }
+    .btn-delete { background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%); color: #fff; border: none; padding: .75rem 2rem; border-radius: 12px; font-weight: 700; transition: all .3s ease; display: inline-flex; align-items: center; gap: .5rem; cursor: pointer; }
+    .btn-delete:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(239,68,68,.4); }
+    .btn-delete:disabled { opacity: .6; cursor: not-allowed; }
+
+    @media (max-width: 768px) {
+        .delete-container { margin: 1rem; border-radius: 16px; }
+        .delete-header { padding: 2rem 1rem; }
+        .delete-header h1 { font-size: 1.75rem; }
+        .header-actions { flex-direction: column; }
+        .info-grid { grid-template-columns: 1fr; }
+        .form-actions { flex-direction: column; align-items: stretch; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="delete-container">
+    <div class="delete-header">
+        <h1>
+            <i class="fas fa-user-times me-3"></i>
+            {% trans "حذف کاربر" %}
+        </h1>
+        <p>{% trans "تایید حذف کاربر از سیستم" %}</p>
+        <div class="header-actions">
+            <a href="{% url 'tickets:user_management' %}" class="btn-modern">
+                <i class="fas fa-arrow-left"></i>
+                {% trans "بازگشت به مدیریت کاربران" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="delete-content">
+        <!-- Warning Card -->
+        <div class="warning-card">
+            <div class="warning-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div class="warning-title">{% trans "آیا از حذف این کاربر اطمینان دارید؟" %}</div>
+            <div class="warning-text">{% trans "این عملیات غیرقابل بازگشت است." %}</div>
+        </div>
+
+        <!-- User Information -->
+        <div class="user-info-card">
+            <div class="info-title">
+                <i class="fas fa-info-circle"></i>
+                {% trans "اطلاعات کاربر" %}
+            </div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">{% trans "نام کامل" %}</div>
+                    <div class="info-value">{{ user_to_delete.get_full_name }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">{% trans "نقش" %}</div>
+                    <div class="info-value">
+                        {% if user_to_delete.role == 'employee' %}
+                            {{ user_to_delete.get_department_role_display }}
+                        {% else %}
+                            {{ user_to_delete.get_role_display }}
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">{% trans "کد ملی" %}</div>
+                    <div class="info-value">{{ user_to_delete.national_id }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">{% trans "کد کارمندی" %}</div>
+                    <div class="info-value">{{ user_to_delete.employee_code }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">{% trans "ایمیل" %}</div>
+                    <div class="info-value email" title="{{ user_to_delete.email|default:'-' }}">{{ user_to_delete.email|default:"-" }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">{% trans "بخش" %}</div>
+                    <div class="info-value">{{ user_to_delete.department|default:"-" }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Danger Alert -->
+        <div class="alert-card alert-danger-soft">
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <span class="badge bg-danger">{% trans "هشدار" %}</span>
+                <strong>{% trans "این عملیات غیرقابل بازگشت است." %}</strong>
+            </div>
+            <div class="text-muted">{% trans "پس از حذف، تمام اطلاعات این کاربر از دیتابیس پاک خواهد شد." %}</div>
+        </div>
+
+        <!-- Actions -->
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-actions">
+                <a href="{% url 'tickets:user_management' %}" class="btn-cancel">
+                    <i class="fas fa-times"></i>
+                    {% trans "انصراف" %}
+                </a>
+                <button type="submit" class="btn-delete">
+                    <i class="fas fa-trash"></i>
+                    {% trans "حذف کاربر" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const cards = document.querySelectorAll('.warning-card, .user-info-card, .alert-card');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+            card.style.transition = 'all 0.6s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 200);
+    });
+
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function() {
+            const btn = form.querySelector('.btn-delete');
+            if (btn && !btn.disabled) {
+                const original = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + btn.textContent.trim();
+                btn.disabled = true;
+                setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 3000);
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

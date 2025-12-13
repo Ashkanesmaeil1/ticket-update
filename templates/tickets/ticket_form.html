@@ -1,0 +1,1524 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% load i18n %}
+{% load persian_date %}
+
+{% block title %}
+    {% if form.instance.pk %}
+        {% if user.role == 'employee' %}
+            {% trans "ویرایش تیکت" %}
+        {% else %}
+            {% trans "ویرایش وضعیت تیکت" %}
+        {% endif %}
+    {% else %}
+        {% trans "ساخت تیکت جدید" %}
+    {% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+:root {
+    --primary: #6366f1;
+    --primary-dark: #4f46e5;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --info: #06b6d4;
+    --dark: #1f2937;
+    --light: #f8fafc;
+    --border: #e2e8f0;
+    --text: #374151;
+    --text-light: #6b7280;
+    --status-bg: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+}
+
+body {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+}
+
+.ticket-form-container {
+    background: rgba(248, 250, 252, 0.95);
+    backdrop-filter: blur(20px);
+    border-radius: 24px;
+    margin: 2rem auto;
+    max-width: 1000px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+}
+
+.ticket-form-header {
+    background: var(--status-bg);
+    color: white;
+    padding: 3rem 2rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.ticket-form-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+}
+
+.ticket-form-header-content {
+    position: relative;
+    z-index: 2;
+}
+
+.ticket-form-title {
+    font-size: 2.5rem;
+    font-weight: 800;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+}
+
+.ticket-form-title i {
+    font-size: 2.2rem;
+    opacity: 0.9;
+}
+
+.ticket-form-subtitle {
+    font-size: 1.1rem;
+    opacity: 0.9;
+    font-weight: 300;
+}
+
+.ticket-form-content {
+    padding: 2rem;
+}
+
+.form-section {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: var(--shadow-medium);
+    border: 1px solid var(--glass-border);
+    position: relative;
+    overflow: hidden;
+}
+
+.form-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--primary-gradient);
+}
+
+.form-section-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #f8f9fa;
+}
+
+.form-section-icon {
+    width: 50px;
+    height: 50px;
+    background: var(--primary-gradient);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.2rem;
+    margin-left: 1rem;
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+}
+
+.form-section-title {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.form-row.single {
+    grid-template-columns: 1fr;
+}
+
+.form-group {
+    position: relative;
+}
+
+.form-label {
+    display: block;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+    font-size: 0.95rem;
+}
+
+.form-control-modern {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(10px);
+}
+
+.form-control-modern:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    background: white;
+}
+
+.form-control-modern::placeholder {
+    color: #adb5bd;
+    font-style: italic;
+}
+
+.form-select-modern {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(10px);
+    cursor: pointer;
+}
+
+.form-select-modern:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    background: white;
+}
+
+.form-textarea-modern {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(10px);
+    resize: vertical;
+    min-height: 120px;
+}
+
+.form-textarea-modern:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    background: white;
+}
+
+.form-file-modern {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border: 2px dashed #e9ecef;
+    border-radius: 12px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    background: rgba(248, 249, 250, 0.9);
+    backdrop-filter: blur(10px);
+    cursor: pointer;
+}
+
+.form-file-modern:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    background: rgba(248, 249, 250, 1);
+}
+
+.form-file-modern:hover {
+    border-color: #667eea;
+    background: rgba(248, 249, 250, 1);
+}
+
+.help-text {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.help-text i {
+    color: #667eea;
+}
+
+.notice-card {
+    background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+    border: 1px solid rgba(102, 126, 234, 0.2);
+    border-radius: 12px;
+    padding: 1rem;
+    margin: 1rem 0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.notice-icon {
+    width: 40px;
+    height: 40px;
+    background: var(--primary-gradient);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.notice-content {
+    flex: 1;
+}
+
+.notice-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.notice-text {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 2px solid #f8f9fa;
+}
+
+.btn-modern {
+    padding: 0.875rem 2rem;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 1rem;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+
+.btn-secondary-modern {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-secondary-modern:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
+    background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+    color: white;
+}
+
+.btn-primary-modern {
+    background: linear-gradient(135deg, var(--info) 0%, #0891b2 100%);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-primary-modern:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(6, 182, 212, 0.4);
+    background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
+    color: white;
+}
+
+.btn-primary-modern:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.loading-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top: 2px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-left: 0.5rem;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Streamlined Status Management Styles */
+.ticket-quick-info {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.ticket-quick-info::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--status-bg);
+}
+
+.ticket-id {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 0.5rem;
+}
+
+.ticket-id i {
+    color: var(--info);
+}
+
+.ticket-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 1rem;
+    line-height: 1.4;
+}
+
+.ticket-meta {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+
+.ticket-creator,
+.ticket-date {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--text-light);
+}
+
+.ticket-creator i,
+.ticket-date i {
+    color: var(--info);
+}
+
+.current-status-section {
+    margin-bottom: 2rem;
+}
+
+.current-status-card {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(15px);
+    border-radius: 20px;
+    padding: 2rem;
+    border: 2px solid;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.current-status-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 4px;
+    height: 100%;
+}
+
+.current-status-card.status-open {
+    border-color: var(--warning);
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%);
+}
+
+.current-status-card.status-open::before {
+    background: linear-gradient(135deg, var(--warning) 0%, #d97706 100%);
+}
+
+.current-status-card.status-in_progress {
+    border-color: var(--info);
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(6, 182, 212, 0.05) 100%);
+}
+
+.current-status-card.status-in_progress::before {
+    background: linear-gradient(135deg, var(--info) 0%, #0891b2 100%);
+}
+
+.current-status-card.status-resolved {
+    border-color: var(--success);
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+}
+
+.current-status-card.status-resolved::before {
+    background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+}
+
+.current-status-card.status-closed {
+    border-color: var(--danger);
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%);
+}
+
+.current-status-card.status-closed::before {
+    background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+}
+
+.current-status-card.status-waiting_for_user {
+    border-color: #8b5cf6;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(139, 92, 246, 0.05) 100%);
+}
+
+.current-status-card.status-waiting_for_user::before {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+}
+
+.status-icon {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    color: white;
+    flex-shrink: 0;
+}
+
+.status-open .status-icon {
+    background: linear-gradient(135deg, var(--warning) 0%, #d97706 100%);
+}
+
+.status-in_progress .status-icon {
+    background: linear-gradient(135deg, var(--info) 0%, #0891b2 100%);
+}
+
+.status-resolved .status-icon {
+    background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+}
+
+.status-closed .status-icon {
+    background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+}
+
+.status-waiting_for_user .status-icon {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+}
+
+.status-info {
+    flex: 1;
+}
+
+.status-label {
+    font-size: 0.9rem;
+    color: var(--text-light);
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.status-value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.assignment-info {
+    text-align: left;
+}
+
+.assignment-label {
+    font-size: 0.9rem;
+    color: var(--text-light);
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.assignment-value {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.status-management-section {
+    margin-bottom: 2rem;
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid var(--border);
+}
+
+.section-title i {
+    color: var(--info);
+}
+
+.status-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.status-option {
+    position: relative;
+}
+
+.status-radio {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.status-option-label {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem;
+    border-radius: 16px;
+    border: 2px solid var(--border);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+}
+
+.status-option-label:hover {
+    border-color: var(--info);
+    background: rgba(6, 182, 212, 0.05);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.status-radio:checked + .status-option-label {
+    border-color: var(--info);
+    background: rgba(6, 182, 212, 0.1);
+    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
+}
+
+.option-icon {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    color: white;
+    flex-shrink: 0;
+}
+
+.status-open .option-icon {
+    background: linear-gradient(135deg, var(--warning) 0%, #d97706 100%);
+}
+
+.status-in_progress .option-icon {
+    background: linear-gradient(135deg, var(--info) 0%, #0891b2 100%);
+}
+
+.status-resolved .option-icon {
+    background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+}
+
+.status-closed .option-icon {
+    background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+}
+
+.status-waiting_for_user .option-icon {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+}
+
+.option-content {
+    flex: 1;
+}
+
+.option-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 0.25rem;
+}
+
+.option-desc {
+    font-size: 0.85rem;
+    color: var(--text-light);
+    line-height: 1.4;
+}
+
+.assignment-section {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 1.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.assignment-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--status-bg);
+}
+
+.subsection-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 1rem;
+}
+
+.subsection-title i {
+    color: var(--info);
+}
+
+.assignment-select {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(10px);
+    cursor: pointer;
+}
+
+.assignment-select:focus {
+    outline: none;
+    border-color: var(--info);
+    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
+    background: white;
+}
+
+.preview-section {
+    margin-bottom: 2rem;
+}
+
+.preview-card {
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(8, 145, 178, 0.1) 100%);
+    border: 2px solid rgba(6, 182, 212, 0.2);
+    border-radius: 16px;
+    padding: 1.5rem;
+}
+
+.preview-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    margin-bottom: 0.75rem;
+}
+
+.preview-item:last-child {
+    margin-bottom: 0;
+}
+
+.preview-label {
+    font-weight: 600;
+    color: var(--text);
+}
+
+.preview-value {
+    font-weight: 700;
+    color: var(--info);
+    font-size: 1.1rem;
+}
+
+@media (max-width: 768px) {
+    .ticket-form-header {
+        padding: 2rem 1rem;
+    }
+    
+    .ticket-form-title {
+        font-size: 2rem;
+    }
+    
+    .form-section {
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .btn-modern {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .ticket-info-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .status-display {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .status-management-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .preview-content {
+        gap: 0.5rem;
+    }
+    
+    .preview-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ticket-form-container">
+    <div class="ticket-form-header">
+        <div class="ticket-form-header-content">
+            <h1 class="ticket-form-title">
+                <i class="fas fa-ticket-alt"></i>
+                {% if form.instance.pk %}
+                    {% if user.role == 'employee' %}
+                        {% trans "ویرایش تیکت" %}
+                    {% else %}
+                        {% trans "ویرایش وضعیت تیکت" %}
+                    {% endif %}
+                {% else %}
+                    {% trans "ساخت تیکت جدید" %}
+                {% endif %}
+            </h1>
+            <p class="ticket-form-subtitle">
+                        {% if form.instance.pk %}
+                            {% if user.role == 'employee' %}
+                        {% trans "اطلاعات تیکت خود را ویرایش کنید" %}
+                            {% else %}
+                        {% trans "وضعیت و تخصیص تیکت را مدیریت کنید" %}
+                            {% endif %}
+                        {% else %}
+                    {% trans "تیکت جدیدی برای درخواست پشتیبانی ایجاد کنید" %}
+                        {% endif %}
+            </p>
+        </div>
+                </div>
+
+    <div class="ticket-form-content">
+        <form method="post" enctype="multipart/form-data" id="ticketForm">
+                        {% csrf_token %}
+                        
+                        {% if user.role == 'employee' or not form.instance.pk %}
+                            <!-- Ticket creation/editing fields for employees -->
+                <div class="form-section">
+                    <div class="form-section-header">
+                        <div class="form-section-icon">
+                            <i class="fas fa-edit"></i>
+                        </div>
+                        <h3 class="form-section-title">{% trans "اطلاعات تیکت" %}</h3>
+                    </div>
+                    
+                    <!-- Branch and Department Selection -->
+                    {% if user.role == 'employee' and not form.instance.pk %}
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="{{ form.branch.id_for_label }}" class="form-label">
+                                <i class="fas fa-map-marker-alt"></i>
+                                {% trans "شعبه" %}
+                            </label>
+                            <select name="{{ form.branch.name }}" id="{{ form.branch.id_for_label }}" class="form-select-modern" required>
+                                <option value="">{% trans "شعبه را انتخاب کنید" %}</option>
+                                {% for branch in form.branch.field.queryset %}
+                                    <option value="{{ branch.id }}" {% if form.branch.value == branch.id %}selected{% endif %}>{{ branch.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="help-text">
+                                <i class="fas fa-info-circle"></i>
+                                {% trans "ابتدا شعبه را انتخاب کنید" %}
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="{{ form.target_department.id_for_label }}" class="form-label">
+                                <i class="fas fa-building"></i>
+                                {% trans "بخش" %}
+                            </label>
+                            <select name="{{ form.target_department.name }}" id="{{ form.target_department.id_for_label }}" class="form-select-modern" required disabled>
+                                <option value="">{% trans "ابتدا شعبه را انتخاب کنید" %}</option>
+                                {% if form.instance and form.instance.target_department and form.instance.branch %}
+                                    {% for dept in form.target_department.field.queryset %}
+                                        <option value="{{ dept.id }}" {% if form.target_department.value == dept.id %}selected{% endif %}>{{ dept.name }}</option>
+                                    {% endfor %}
+                                {% endif %}
+                            </select>
+                            <div class="help-text">
+                                <i class="fas fa-info-circle"></i>
+                                {% trans "پس از انتخاب شعبه، بخش را انتخاب کنید (فقط بخش‌هایی که قابلیت دریافت تیکت دارند نمایش داده می‌شوند)" %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="{{ form.title.id_for_label }}" class="form-label">
+                                <i class="fas fa-heading"></i>
+                                {% trans "عنوان تیکت" %}
+                            </label>
+                            <input type="text" name="{{ form.title.name }}" id="{{ form.title.id_for_label }}" class="form-control-modern" value="{{ form.title.value|default:'' }}" placeholder="{% trans 'عنوان تیکت را وارد کنید' %}" required>
+                            <div class="help-text">
+                                <i class="fas fa-info-circle"></i>
+                                {% trans "عنوان کوتاه و واضح برای تیکت خود وارد کنید" %}
+                                </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="{{ form.category.id_for_label }}" class="form-label">
+                                <i class="fas fa-tags"></i>
+                                {% trans "دسته‌بندی" %}
+                            </label>
+                            <select name="{{ form.category.name }}" id="{{ form.category.id_for_label }}" class="form-select-modern" required>
+                                {% for value, label in form.category.field.choices %}
+                                    <option value="{{ value }}" {% if form.category.value == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="help-text">
+                                <i class="fas fa-info-circle"></i>
+                                {% trans "نوع مشکل یا درخواست خود را انتخاب کنید" %}
+                            </div>
+                                </div>
+                            </div>
+
+                            <!-- Software Category Notice -->
+                    <div id="software-notice" style="display: none;">
+                        <div class="notice-card">
+                            <div class="notice-icon">
+                                <i class="fas fa-info-circle" style="color: #667eea;"></i>
+                            </div>
+                            <div class="notice-content">
+                                <div class="notice-title">{% trans "توجه" %}</div>
+                                <p class="notice-text">
+                                    {% trans "درخواست‌های مربوط به دسته‌بندی «نرم‌افزار» حداکثر ظرف ۲۴ ساعت کاری بررسی و رسیدگی خواهند شد." %}
+                                </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="{{ form.priority.id_for_label }}" class="form-label">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                {% trans "اولویت" %}
+                            </label>
+                            <select name="{{ form.priority.name }}" id="{{ form.priority.id_for_label }}" class="form-select-modern" required>
+                                {% for value, label in form.priority.field.choices %}
+                                    <option value="{{ value }}" {% if form.priority.value == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="help-text">
+                                <i class="fas fa-info-circle"></i>
+                                {% trans "میزان فوریت مشکل خود را مشخص کنید" %}
+                            </div>
+                                </div>
+                                    {% if user.role == 'it_manager' or user.role == 'technician' %}
+                        <div class="form-group">
+                            <label for="{{ form.assigned_to.id_for_label }}" class="form-label">
+                                <i class="fas fa-user-tie"></i>
+                                {% trans "تخصیص به" %}
+                            </label>
+                            <select name="{{ form.assigned_to.name }}" id="{{ form.assigned_to.id_for_label }}" class="form-select-modern">
+                                {% for value, label in form.assigned_to.field.choices %}
+                                    <option value="{{ value }}" {% if form.assigned_to.value == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="help-text">
+                                <i class="fas fa-info-circle"></i>
+                                {% trans "کارشناس مسئول رسیدگی به تیکت را انتخاب کنید" %}
+                            </div>
+                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                <div class="form-section">
+                    <div class="form-section-header">
+                        <div class="form-section-icon">
+                            <i class="fas fa-align-right"></i>
+                        </div>
+                        <h3 class="form-section-title">{% trans "توضیحات و پیوست" %}</h3>
+                    </div>
+                    
+                    <div class="form-row single">
+                        <div class="form-group">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">
+                                <i class="fas fa-file-text"></i>
+                                {% trans "شرح مشکل" %}
+                            </label>
+                            <textarea name="{{ form.description.name }}" id="{{ form.description.id_for_label }}" class="form-textarea-modern" rows="4" placeholder="{% trans 'مشکل خود را به تفصیل شرح دهید' %}" required>{{ form.description.value|default:'' }}</textarea>
+                            <div class="help-text">
+                                <i class="fas fa-info-circle"></i>
+                                {% trans "مشکل خود را کامل و با جزئیات شرح دهید" %}
+                            </div>
+                                </div>
+                            </div>
+
+                    <div class="form-row single">
+                        <div class="form-group">
+                            <label for="{{ form.attachment.id_for_label }}" class="form-label">
+                                <i class="fas fa-paperclip"></i>
+                                {% trans "پیوست" %}
+                            </label>
+                            <input type="file" name="{{ form.attachment.name }}" id="{{ form.attachment.id_for_label }}" class="form-file-modern" accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png">
+                            <div class="help-text">
+                                        <i class="fas fa-info-circle"></i>
+                                {% trans "فرمت های ساپورت شده: PDF, DOC, DOCX, TXT, JPG, PNG (حداکثر 5MB)" %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <!-- Streamlined Status Management Interface -->
+                
+                <!-- Ticket Quick Info -->
+                <div class="ticket-quick-info">
+                    <div class="ticket-id">
+                        <i class="fas fa-hashtag"></i>
+                        <span>#{{ form.instance.id }}</span>
+                    </div>
+                    <div class="ticket-title">{{ form.instance.title }}</div>
+                    <div class="ticket-meta">
+                        <span class="ticket-creator">
+                            <i class="fas fa-user"></i>
+                            {{ form.instance.created_by.get_full_name }}
+                        </span>
+                        <span class="ticket-date">
+                            <i class="fas fa-calendar"></i>
+                            {{ form.instance.created_at|persian_date_only }}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Current Status -->
+                <div class="current-status-section">
+                    <div class="current-status-card status-{{ form.instance.status }}">
+                        <div class="status-icon">
+                            {% if form.instance.status == 'open' %}
+                                <i class="fas fa-clock"></i>
+                            {% elif form.instance.status == 'in_progress' %}
+                                <i class="fas fa-tools"></i>
+                            {% elif form.instance.status == 'resolved' %}
+                                <i class="fas fa-check-circle"></i>
+                            {% elif form.instance.status == 'closed' %}
+                                <i class="fas fa-times-circle"></i>
+                            {% elif form.instance.status == 'waiting_for_user' %}
+                                <i class="fas fa-user-clock" style="position: relative; left: 3px;"></i>
+                            {% endif %}
+                        </div>
+                        <div class="status-info">
+                            <div class="status-label">{% trans "وضعیت فعلی" %}</div>
+                            <div class="status-value">{{ form.instance.get_status_display }}</div>
+                        </div>
+                        {% if form.instance.assigned_to %}
+                        <div class="assignment-info">
+                            <div class="assignment-label">{% trans "تخصیص یافته به" %}</div>
+                            <div class="assignment-value">{{ form.instance.assigned_to.get_full_name }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Status Management -->
+                <div class="status-management-section">
+                    <h3 class="section-title">
+                        <i class="fas fa-cogs"></i>
+                        {% trans "مدیریت وضعیت" %}
+                    </h3>
+                    
+                    <div class="status-options">
+                        {% for value, label in form.status.field.choices %}
+                            {% if value %}
+                            <div class="status-option">
+                                <input type="radio" name="{{ form.status.name }}" id="status_{{ value }}" value="{{ value }}" 
+                                       {% if form.status.value == value %}checked{% endif %} class="status-radio">
+                                <label for="status_{{ value }}" class="status-option-label status-{{ value }}">
+                                    <div class="option-icon">
+                                        {% if value == 'open' %}
+                                            <i class="fas fa-clock"></i>
+                                        {% elif value == 'in_progress' %}
+                                            <i class="fas fa-tools"></i>
+                                        {% elif value == 'resolved' %}
+                                            <i class="fas fa-check-circle"></i>
+                                        {% elif value == 'closed' %}
+                                            <i class="fas fa-times-circle"></i>
+                                        {% elif value == 'waiting_for_user' %}
+                                            <i class="fas fa-user-clock" style="position: relative; left: 2px;"></i>
+                                        {% endif %}
+                                    </div>
+                                    <div class="option-content">
+                                        <div class="option-title">{{ label }}</div>
+                                        <div class="option-desc">
+                                            {% if value == 'open' %}
+                                                {% trans "تیکت در انتظار رسیدگی" %}
+                                            {% elif value == 'in_progress' %}
+                                                {% trans "در حال بررسی و حل" %}
+                                            {% elif value == 'resolved' %}
+                                                {% trans "مشکل حل شده" %}
+                                            {% elif value == 'closed' %}
+                                                {% trans "تیکت بسته شده" %}
+                                            {% elif value == 'waiting_for_user' %}
+                                                {% trans "در انتظار پاسخ کاربر" %}
+                                            {% endif %}
+                                        </div>
+                                </div>
+                                </label>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+
+                    {% if user.role == 'it_manager' %}
+                    <div class="assignment-section">
+                        <h4 class="subsection-title">
+                            <i class="fas fa-user-tie"></i>
+                            {% trans "تخصیص کارشناس" %}
+                        </h4>
+                        <select name="{{ form.assigned_to.name }}" id="{{ form.assigned_to.id_for_label }}" class="assignment-select">
+                            {% for value, label in form.assigned_to.field.choices %}
+                                <option value="{{ value }}" {% if form.assigned_to.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                            </div>
+                        {% else %}
+                                        <!-- Hidden field for technicians - assignment is automatic -->
+                                        {{ form.assigned_to }}
+                    {% endif %}
+                </div>
+
+                <!-- Live Preview -->
+                <div class="preview-section">
+                    <h3 class="section-title">
+                        <i class="fas fa-eye"></i>
+                        {% trans "پیش‌نمایش تغییرات" %}
+                    </h3>
+                    <div class="preview-card">
+                        <div class="preview-item">
+                            <span class="preview-label">{% trans "وضعیت جدید:" %}</span>
+                            <span class="preview-value" id="preview-status">{{ form.instance.get_status_display }}</span>
+                        </div>
+                        {% if user.role == 'it_manager' %}
+                        <div class="preview-item">
+                            <span class="preview-label">{% trans "تخصیص به:" %}</span>
+                            <span class="preview-value" id="preview-assignment">
+                                {% if form.instance.assigned_to %}
+                                    {{ form.instance.assigned_to.get_full_name }}
+                                    {% else %}
+                                    {% trans "تخصیص نیافته" %}
+                                {% endif %}
+                            </span>
+                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endif %}
+                        
+            <!-- Form Actions -->
+            <div class="form-actions">
+                <a href="{% url 'tickets:ticket_list' %}{% if request.GET.department %}?department=1{% endif %}{% if request.GET.all_tickets %}?all_tickets=1{% endif %}" class="btn-modern btn-secondary-modern">
+                                        <i class="fas fa-arrow-left"></i>
+                    {% trans "بازگشت به تیکت ها" %}
+                                    </a>
+                <button type="submit" class="btn-modern btn-primary-modern" id="submitBtn">
+                                        <i class="fas fa-save"></i>
+                    <span class="btn-text">
+                                        {% if form.instance.pk %}
+                                            {% if user.role == 'employee' %}
+                                {% trans "ویرایش تیکت" %}
+                                            {% else %}
+                                {% trans "ویرایش وضعیت تیکت" %}
+                                            {% endif %}
+                                        {% else %}
+                            {% trans "ساخت تیکت" %}
+                                        {% endif %}
+                    </span>
+                    <div class="loading-spinner" style="display: none;"></div>
+                                    </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+    // Branch and Department selection functionality
+    const branchSelect = document.getElementById('id_branch');
+    const departmentSelect = document.getElementById('id_target_department');
+    
+    function loadDepartments() {
+        if (!branchSelect || !departmentSelect) return;
+        
+        const branchId = branchSelect.value;
+        if (!branchId) {
+            departmentSelect.innerHTML = '<option value="">{% trans "ابتدا شعبه را انتخاب کنید" %}</option>';
+            departmentSelect.disabled = true;
+            departmentSelect.required = false;
+            return;
+        }
+        
+        // Show loading state
+        departmentSelect.innerHTML = '<option value="">{% trans "در حال بارگذاری..." %}</option>';
+        departmentSelect.disabled = true;
+        
+        // Fetch departments for selected branch (only those that can receive tickets)
+        fetch(`/api/branches/${branchId}/departments/`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success && data.departments && data.departments.length > 0) {
+                    departmentSelect.innerHTML = '<option value="">{% trans "بخش را انتخاب کنید" %}</option>';
+                    data.departments.forEach(dept => {
+                        const option = document.createElement('option');
+                        option.value = dept.id;
+                        option.textContent = dept.name;
+                        departmentSelect.appendChild(option);
+                    });
+                    departmentSelect.disabled = false;
+                    departmentSelect.required = true;
+                } else {
+                    departmentSelect.innerHTML = '<option value="">{% trans "هیچ بخشی با قابلیت دریافت تیکت برای این شعبه یافت نشد" %}</option>';
+                    departmentSelect.disabled = true;
+                    departmentSelect.required = false;
+                }
+            })
+            .catch(error => {
+                console.error('Error loading departments:', error);
+                departmentSelect.innerHTML = '<option value="">{% trans "خطا در بارگذاری بخش‌ها" %}</option>';
+                departmentSelect.disabled = true;
+                departmentSelect.required = false;
+            });
+    }
+    
+    if (branchSelect) {
+        branchSelect.addEventListener('change', loadDepartments);
+        // Load departments if branch is already selected (for editing)
+        if (branchSelect.value) {
+            loadDepartments();
+        }
+    }
+    
+    // Ensure department field is disabled initially
+    if (departmentSelect && !branchSelect.value) {
+        departmentSelect.disabled = true;
+        departmentSelect.innerHTML = '<option value="">{% trans "ابتدا شعبه را انتخاب کنید" %}</option>';
+    }
+
+    // Software category notice functionality
+    const categorySelect = document.getElementById('id_category');
+    const softwareNotice = document.getElementById('software-notice');
+    
+    function toggleSoftwareNotice() {
+        if (categorySelect && categorySelect.value === 'software') {
+            softwareNotice.style.display = 'block';
+            softwareNotice.classList.add('no-auto-hide');
+        } else if (softwareNotice) {
+            softwareNotice.style.display = 'none';
+        }
+    }
+    
+    // Check on page load
+    toggleSoftwareNotice();
+    
+    // Check when category changes
+    if (categorySelect) {
+    categorySelect.addEventListener('change', toggleSoftwareNotice);
+    }
+    
+    // File validation helpers
+    function isAllowedExtension(fileName) {
+        const allowed = ['.pdf', '.doc', '.docx', '.txt', '.jpg', '.jpeg', '.png'];
+        const dot = fileName.lastIndexOf('.');
+        if (dot === -1) return false;
+        const ext = fileName.substring(dot).toLowerCase();
+        return allowed.includes(ext);
+    }
+
+    function validateFileInput(inputEl) {
+        if (!inputEl || !inputEl.files || !inputEl.files[0]) return { valid: true };
+        const file = inputEl.files[0];
+        const maxBytes = 5 * 1024 * 1024; // 5MB
+        if (!isAllowedExtension(file.name)) {
+            return { valid: false, message: '{% trans "فرمت فایل مجاز نیست. فرمت‌های مجاز: PDF, DOC, DOCX, TXT, JPG, PNG" %}' };
+        }
+        if (file.size > maxBytes) {
+            return { valid: false, message: '{% trans "حجم فایل نباید بیشتر از ۵ مگابایت باشد." %}' };
+        }
+        return { valid: true };
+    }
+
+    // Form submission with loading state and client-side file validation
+    const form = document.getElementById('ticketForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const btnText = submitBtn.querySelector('.btn-text');
+    const loadingSpinner = submitBtn.querySelector('.loading-spinner');
+    
+    if (form && submitBtn) {
+        form.addEventListener('submit', function(e) {
+            // Validate file input before locking UI
+            const fileInput = document.getElementById('{{ form.attachment.id_for_label }}');
+            const result = validateFileInput(fileInput);
+            if (!result.valid) {
+                e.preventDefault();
+                // Visual feedback
+                if (fileInput) {
+                    fileInput.style.borderColor = '#dc3545';
+                    fileInput.style.boxShadow = '0 0 0 3px rgba(220, 53, 69, 0.1)';
+                }
+                if (typeof showNotification === 'function') {
+                    showNotification(result.message, 'error');
+                } else {
+                    alert(result.message);
+                }
+                return false;
+            }
+            // Show loading state
+            submitBtn.disabled = true;
+            btnText.style.display = 'none';
+            loadingSpinner.style.display = 'inline-block';
+            
+            // Add loading class for visual feedback
+            submitBtn.classList.add('loading');
+        });
+    }
+    
+    // Auto-resize textarea
+    const textareas = document.querySelectorAll('textarea');
+    textareas.forEach(textarea => {
+        textarea.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = this.scrollHeight + 'px';
+        });
+        
+        // Initial resize
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+    });
+    
+    // File input enhancement
+    const fileInputs = document.querySelectorAll('input[type="file"]');
+    fileInputs.forEach(input => {
+        input.addEventListener('change', function() {
+            // Validate on change and show message if invalid
+            const result = validateFileInput(this);
+            if (!result.valid) {
+                if (typeof showNotification === 'function') {
+                    showNotification(result.message, 'error');
+                } else {
+                    alert(result.message);
+                }
+                this.value = '';
+                this.style.borderColor = '#dc3545';
+                this.style.boxShadow = '0 0 0 3px rgba(220, 53, 69, 0.1)';
+                return;
+            } else {
+                this.style.borderColor = '';
+                this.style.boxShadow = '';
+            }
+            const fileName = this.files[0]?.name;
+            if (fileName) {
+                // Create or update file name display
+                let fileNameDisplay = this.parentNode.querySelector('.file-name-display');
+                if (!fileNameDisplay) {
+                    fileNameDisplay = document.createElement('div');
+                    fileNameDisplay.className = 'file-name-display';
+                    fileNameDisplay.style.cssText = 'margin-top: 0.5rem; font-size: 0.9rem; color: #667eea; font-weight: 500;';
+                    this.parentNode.appendChild(fileNameDisplay);
+                }
+                fileNameDisplay.innerHTML = `<i class="fas fa-file"></i> ${fileName}`;
+            }
+        });
+    });
+    
+    // Form validation enhancement
+    const requiredFields = document.querySelectorAll('input[required], select[required], textarea[required]');
+    requiredFields.forEach(field => {
+        field.addEventListener('blur', function() {
+            if (!this.value.trim()) {
+                this.style.borderColor = '#dc3545';
+                this.style.boxShadow = '0 0 0 3px rgba(220, 53, 69, 0.1)';
+            } else {
+                this.style.borderColor = '#28a745';
+                this.style.boxShadow = '0 0 0 3px rgba(40, 167, 69, 0.1)';
+            }
+        });
+        
+        field.addEventListener('focus', function() {
+            this.style.borderColor = '#667eea';
+            this.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
+        });
+    });
+    
+    // Animate form sections on load
+    const formSections = document.querySelectorAll('.form-section');
+    formSections.forEach((section, index) => {
+        section.style.opacity = '0';
+        section.style.transform = 'translateY(20px)';
+        
+        setTimeout(() => {
+            section.style.transition = 'all 0.6s ease';
+            section.style.opacity = '1';
+            section.style.transform = 'translateY(0)';
+        }, index * 200);
+    });
+    
+    // Status management functionality
+    const statusRadios = document.querySelectorAll('.status-radio');
+    const previewStatus = document.getElementById('preview-status');
+    const assignmentSelect = document.getElementById('{{ form.assigned_to.id_for_label }}');
+    const previewAssignment = document.getElementById('preview-assignment');
+    
+    // Update preview when status changes
+    statusRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.checked && previewStatus) {
+                const statusLabel = this.nextElementSibling.querySelector('.option-title').textContent;
+                previewStatus.textContent = statusLabel;
+                
+                // Add visual feedback
+                previewStatus.style.transform = 'scale(1.1)';
+                previewStatus.style.color = '#10b981';
+                setTimeout(() => {
+                    previewStatus.style.transform = 'scale(1)';
+                    previewStatus.style.color = '#06b6d4';
+                }, 300);
+            }
+        });
+    });
+    
+    // Update preview when assignment changes
+    if (assignmentSelect && previewAssignment) {
+        assignmentSelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            previewAssignment.textContent = selectedOption.textContent;
+            
+            // Add visual feedback
+            previewAssignment.style.transform = 'scale(1.1)';
+            previewAssignment.style.color = '#10b981';
+            setTimeout(() => {
+                previewAssignment.style.transform = 'scale(1)';
+                previewAssignment.style.color = '#06b6d4';
+            }, 300);
+        });
+    }
+    
+    // Add hover effects to status options
+    const statusOptionLabels = document.querySelectorAll('.status-option-label');
+    statusOptionLabels.forEach(label => {
+        label.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-3px) scale(1.02)';
+        });
+        
+        label.addEventListener('mouseleave', function() {
+            if (!this.previousElementSibling.checked) {
+                this.style.transform = 'translateY(0) scale(1)';
+            }
+        });
+    });
+    
+    // Add click animation to status options
+    statusOptionLabels.forEach(label => {
+        label.addEventListener('click', function() {
+            this.style.transform = 'translateY(-2px) scale(1.01)';
+            setTimeout(() => {
+                this.style.transform = 'translateY(-3px) scale(1.02)';
+            }, 100);
+        });
+    });
+    
+    // Override the global auto-hide for our software notice
+    if (typeof $ !== 'undefined') {
+    const originalFadeOut = $.fn.fadeOut;
+    $.fn.fadeOut = function(speed, callback) {
+        if (this.hasClass('no-auto-hide')) {
+            return this; // Don't fade out if it has no-auto-hide class
+        }
+        return originalFadeOut.call(this, speed, callback);
+    };
+    }
+});
+</script>
+{% endblock %}
+{% endblock %} 

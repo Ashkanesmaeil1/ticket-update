@@ -1,0 +1,243 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+
+{% block title %}{{ element.name }} - {% trans "جزئیات عنصر موجودی" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+    .detail-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 1200px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+    .detail-header {
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        color: white;
+        padding: 2rem;
+    }
+    .detail-content {
+        padding: 2rem;
+    }
+    .info-section {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+    .section-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #374151;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #e2e8f0;
+    }
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 1rem 0;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .info-row:last-child {
+        border-bottom: none;
+    }
+    .info-label {
+        font-weight: 600;
+        color: #6b7280;
+    }
+    .info-value {
+        color: #374151;
+        font-weight: 500;
+    }
+    .spec-table, .sub-elements-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+    }
+    .spec-table th, .sub-elements-table th {
+        background: #f8fafc;
+        padding: 1rem;
+        text-align: right;
+        font-weight: 600;
+        border-bottom: 2px solid #e2e8f0;
+    }
+    .spec-table td, .sub-elements-table td {
+        padding: 1rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .btn-action {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0.25rem;
+    }
+    .btn-primary { background: #6366f1; color: white; }
+    .btn-warning { background: #f59e0b; color: white; }
+    .btn-danger { background: #ef4444; color: white; }
+    .btn-info { background: #06b6d4; color: white; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="detail-container">
+    <div class="detail-header">
+        <h1><i class="fas fa-box"></i> {{ element.name }}</h1>
+        <div style="margin-top: 1rem;">
+            <a href="{% url 'tickets:inventory_management' %}" class="btn-action btn-info">
+                <i class="fas fa-arrow-right"></i> {% trans "بازگشت" %}
+            </a>
+            <a href="{% url 'tickets:inventory_element_edit' element.id %}" class="btn-action btn-warning">
+                <i class="fas fa-edit"></i> {% trans "ویرایش" %}
+            </a>
+            {% if not is_warehouse %}
+            <a href="{% url 'tickets:inventory_element_delete' element.id %}" class="btn-action btn-danger">
+                <i class="fas fa-trash"></i> {% trans "حذف" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="detail-content">
+        <!-- Basic Information -->
+        <div class="info-section">
+            <h2 class="section-title">{% trans "اطلاعات پایه" %}</h2>
+            <div class="info-row">
+                <span class="info-label">{% trans "نام:" %}</span>
+                <span class="info-value">{{ element.name }}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">{% trans "نوع:" %}</span>
+                <span class="info-value">{{ element.element_type }}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">{% trans "کاربر:" %}</span>
+                <span class="info-value">{{ element.assigned_to.get_full_name }}</span>
+            </div>
+            {% if element.parent_element %}
+            <div class="info-row">
+                <span class="info-label">{% trans "عنصر والد:" %}</span>
+                <span class="info-value">
+                    <a href="{% url 'tickets:inventory_element_detail' element.parent_element.id %}">
+                        {{ element.parent_element.name }}
+                    </a>
+                </span>
+            </div>
+            {% endif %}
+            <div class="info-row">
+                <span class="info-label">{% trans "وضعیت:" %}</span>
+                <span class="info-value">{% if element.is_active %}{% trans "فعال" %}{% else %}{% trans "غیرفعال" %}{% endif %}</span>
+            </div>
+            {% if element.description %}
+            <div class="info-row">
+                <span class="info-label">{% trans "توضیحات:" %}</span>
+                <span class="info-value">{{ element.description }}</span>
+            </div>
+            {% endif %}
+            <div class="info-row">
+                <span class="info-label">{% trans "تاریخ ایجاد:" %}</span>
+                <span class="info-value">{{ element.created_at|persian_date }}</span>
+            </div>
+        </div>
+        
+        <!-- Specifications -->
+        <div class="info-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #e2e8f0;">
+                <h2 class="section-title" style="margin: 0;">{% trans "مشخصات" %}</h2>
+                <a href="{% url 'tickets:inventory_specification_create' element.id %}" class="btn-action btn-primary">
+                    <i class="fas fa-plus"></i> {% trans "افزودن مشخصه" %}
+                </a>
+            </div>
+            {% if specifications %}
+            <table class="spec-table">
+                <thead>
+                    <tr>
+                        <th>{% trans "کلید" %}</th>
+                        <th>{% trans "مقدار" %}</th>
+                        <th>{% trans "توضیحات" %}</th>
+                        <th>{% trans "عملیات" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for spec in specifications %}
+                    <tr>
+                        <td>{{ spec.key }}</td>
+                        <td>{{ spec.value }}</td>
+                        <td>{{ spec.description|default:"-" }}</td>
+                        <td>
+                            <a href="{% url 'tickets:inventory_specification_edit' element.id spec.id %}" class="btn-action btn-warning" style="font-size: 0.85rem;">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <form method="post" action="{% url 'tickets:inventory_specification_delete' element.id spec.id %}" style="display: inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-action btn-danger" style="font-size: 0.85rem;" onclick="return confirm('{% trans 'آیا از حذف این مشخصه اطمینان دارید؟' %}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="text-align: center; color: #6b7280; padding: 2rem;">
+                {% trans "هیچ مشخصه‌ای ثبت نشده است." %}
+                <a href="{% url 'tickets:inventory_specification_create' element.id %}">{% trans "افزودن اولین مشخصه" %}</a>
+            </p>
+            {% endif %}
+        </div>
+        
+        <!-- Sub-elements -->
+        <div class="info-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #e2e8f0;">
+                <h2 class="section-title" style="margin: 0;">{% trans "زیرمجموعه‌ها" %}</h2>
+            </div>
+            {% if sub_elements %}
+            <table class="sub-elements-table">
+                <thead>
+                    <tr>
+                        <th>{% trans "نام" %}</th>
+                        <th>{% trans "نوع" %}</th>
+                        <th>{% trans "کاربر" %}</th>
+                        <th>{% trans "عملیات" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sub in sub_elements %}
+                    <tr>
+                        <td><a href="{% url 'tickets:inventory_element_detail' sub.id %}">{{ sub.name }}</a></td>
+                        <td>{{ sub.element_type }}</td>
+                        <td>{{ sub.assigned_to.get_full_name }}</td>
+                        <td>
+                            <a href="{% url 'tickets:inventory_element_detail' sub.id %}" class="btn-action btn-info" style="font-size: 0.85rem;">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="text-align: center; color: #6b7280; padding: 2rem;">
+                {% trans "این عنصر زیرمجموعه‌ای ندارد." %}
+            </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+

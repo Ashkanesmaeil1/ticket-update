@@ -1,0 +1,618 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load crispy_forms_tags %}
+{% load persian_date %}
+
+{% block title %}{% trans "پروفایل" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #06b6d4;
+        --dark: #1f2937;
+        --light: #f8fafc;
+        --border: #e2e8f0;
+        --text: #374151;
+        --text-light: #6b7280;
+        --profile-bg: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    }
+
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .profile-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 1400px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .profile-header {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        padding: 3rem 2rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .profile-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+    }
+
+    .profile-header h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .profile-header p {
+        font-size: 1.1rem;
+        opacity: 0.9;
+        margin-bottom: 2rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        position: relative;
+        z-index: 2;
+        flex-wrap: wrap;
+    }
+
+    .btn-modern {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    .btn-modern:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+        color: white;
+        text-decoration: none;
+    }
+
+    .profile-content {
+        padding: 2rem;
+    }
+
+    .profile-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 2rem;
+    }
+
+    .form-section {
+        background: white;
+        border-radius: 20px;
+        padding: 2.5rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+    }
+
+    .form-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid var(--border);
+    }
+
+    .form-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .info-alert {
+        background: linear-gradient(135deg, var(--info) 0%, #0891b2 100%);
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 12px;
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-weight: 600;
+    }
+
+    .form-section-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--primary);
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid var(--border);
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: var(--text);
+        font-size: 0.95rem;
+    }
+
+    .form-control-modern {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        background: white;
+    }
+
+    .form-control-modern:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        outline: none;
+    }
+
+    .form-control-modern:disabled {
+        background: var(--light);
+        color: var(--text-light);
+        cursor: not-allowed;
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-end;
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 2px solid var(--border);
+    }
+
+    .btn-primary-modern {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        border: none;
+        color: white;
+        padding: 0.75rem 2rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    .btn-primary-modern:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(99, 102, 241, 0.3);
+        background: linear-gradient(135deg, var(--primary-dark) 0%, #3730a3 100%);
+        color: white;
+    }
+
+    .btn-secondary-modern {
+        background: transparent;
+        border: 2px solid var(--border);
+        color: var(--text-light);
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        text-decoration: none;
+        cursor: pointer;
+    }
+
+    .btn-secondary-modern:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+        transform: translateY(-2px);
+        text-decoration: none;
+    }
+
+    .profile-info-section {
+        background: white;
+        border-radius: 20px;
+        padding: 2.5rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        height: fit-content;
+    }
+
+    .profile-info-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid var(--border);
+    }
+
+    .profile-info-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .profile-avatar {
+        width: 100px;
+        height: 100px;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 700;
+        font-size: 2.5rem;
+        margin: 0 auto 1.5rem;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .profile-name {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .profile-name h5 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 0.5rem;
+    }
+
+    .profile-role {
+        color: var(--text-light);
+        font-weight: 600;
+        font-size: 1rem;
+    }
+
+    .info-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        background: var(--light);
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        transition: all 0.3s ease;
+    }
+
+    .info-item:hover {
+        background: white;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+    }
+
+    .info-icon {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, var(--info) 0%, #0891b2 100%);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+
+    .info-content {
+        flex: 1;
+    }
+
+    .info-label {
+        font-size: 0.85rem;
+        color: var(--text-light);
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .info-value {
+        font-size: 1rem;
+        color: var(--text);
+        font-weight: 600;
+    }
+
+    @media (max-width: 768px) {
+        .profile-container {
+            margin: 1rem;
+            border-radius: 16px;
+        }
+
+        .profile-header {
+            padding: 2rem 1rem;
+        }
+
+        .profile-header h1 {
+            font-size: 2rem;
+        }
+
+        .profile-content {
+            padding: 1rem;
+        }
+
+        .profile-grid {
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
+        .form-section,
+        .profile-info-section {
+            padding: 1.5rem;
+        }
+
+        .form-row {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+
+        .form-actions {
+            flex-direction: column;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+    <!-- Page Header -->
+    <div class="profile-header">
+        <h1>
+            <i class="fas fa-user-cog"></i>
+            {% trans "پروفایل" %}
+        </h1>
+        <p>{% trans "مدیریت اطلاعات شخصی و تنظیمات حساب کاربری" %}</p>
+        <div class="header-actions">
+            <a href="{% url 'tickets:dashboard' %}" class="btn-modern">
+                <i class="fas fa-arrow-right"></i>
+                {% trans "بازگشت به داشبورد" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="profile-content">
+        <div class="profile-grid">
+            <!-- Profile Form -->
+            <div class="form-section">
+                <div class="form-header">
+                    <div class="form-title">
+                        <i class="fas fa-edit"></i>
+                        {% trans "ویرایش اطلاعات شخصی" %}
+                    </div>
+                </div>
+
+                <!-- Permanent Message at Top -->
+                <div class="info-alert">
+                    <i class="fas fa-info-circle"></i>
+                    {% trans "کد ملی و کد کارمندی قابل تغییر نیستند." %}
+                </div>
+
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    
+                    <!-- Personal Information Section -->
+                    <div class="form-section-title">
+                        <i class="fas fa-user"></i>
+                        {% trans "اطلاعات شخصی" %}
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="{{ form.first_name.id_for_label }}" class="form-label">{% trans "نام" %}</label>
+                            <input type="text" name="{{ form.first_name.name }}" id="{{ form.first_name.id_for_label }}" 
+                                   value="{{ form.first_name.value|default:'' }}" class="form-control-modern" 
+                                   placeholder="{% trans 'نام خود را وارد کنید' %}">
+                        </div>
+                        <div class="form-group">
+                            <label for="{{ form.last_name.id_for_label }}" class="form-label">{% trans "نام خانوادگی" %}</label>
+                            <input type="text" name="{{ form.last_name.name }}" id="{{ form.last_name.id_for_label }}" 
+                                   value="{{ form.last_name.value|default:'' }}" class="form-control-modern" 
+                                   placeholder="{% trans 'نام خانوادگی خود را وارد کنید' %}">
+                        </div>
+                    </div>
+
+                    <!-- Contact Information Section -->
+                    <div class="form-section-title">
+                        <i class="fas fa-phone"></i>
+                        {% trans "اطلاعات تماس" %}
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="{{ form.phone.id_for_label }}" class="form-label">{% trans "شماره تلفن" %}</label>
+                            <input type="tel" name="{{ form.phone.name }}" id="{{ form.phone.id_for_label }}" 
+                                   value="{{ form.phone.value|default:'' }}" class="form-control-modern" 
+                                   placeholder="{% trans 'شماره تلفن خود را وارد کنید' %}">
+                        </div>
+                    </div>
+
+                    <!-- IT Department Settings Section -->
+                    <div class="form-section-title">
+                        <i class="fas fa-building"></i>
+                        {% trans "تنظیمات بخش IT" %}
+                    </div>
+                    <div class="info-alert" style="background: linear-gradient(135deg, var(--warning) 0%, #d97706 100%);">
+                        <i class="fas fa-info-circle"></i>
+                        {% trans "بخش IT همیشه فعال است و قابلیت دریافت تیکت دارد. شما می‌توانید نام و شعبه آن را تغییر دهید." %}
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="{{ form.it_department_name.id_for_label }}" class="form-label">{% trans "نام بخش IT" %}</label>
+                            <input type="text" name="{{ form.it_department_name.name }}" id="{{ form.it_department_name.id_for_label }}" 
+                                   value="{{ form.it_department_name.value|default:'' }}" class="form-control-modern" 
+                                   placeholder="{% trans 'نام بخش IT را وارد کنید' %}" required>
+                            {% if form.it_department_name.help_text %}
+                            <small class="form-text text-muted">{{ form.it_department_name.help_text }}</small>
+                            {% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label for="{{ form.it_department_branch.id_for_label }}" class="form-label">{% trans "شعبه بخش IT" %}</label>
+                            <select name="{{ form.it_department_branch.name }}" id="{{ form.it_department_branch.id_for_label }}" 
+                                    class="form-control-modern">
+                                <option value="">{% trans "بدون شعبه" %}</option>
+                                {% for branch in form.it_department_branch.field.queryset %}
+                                <option value="{{ branch.id }}" {% if form.it_department_branch.value == branch.id %}selected{% endif %}>
+                                    {{ branch.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            {% if form.it_department_branch.help_text %}
+                            <small class="form-text text-muted">{{ form.it_department_branch.help_text }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Form Actions -->
+                    <div class="form-actions">
+                        <a href="{% url 'tickets:dashboard' %}" class="btn-secondary-modern">
+                            <i class="fas fa-times"></i>
+                            {% trans "انصراف" %}
+                        </a>
+                        <button type="submit" class="btn-primary-modern">
+                            <i class="fas fa-save"></i>
+                            {% trans "ذخیره تغییرات" %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Profile Information Card -->
+            <div class="profile-info-section">
+                <div class="profile-info-header">
+                    <div class="profile-info-title">
+                        <i class="fas fa-info-circle"></i>
+                        {% trans "اطلاعات پروفایل" %}
+                    </div>
+                </div>
+
+                <div class="profile-name">
+                    <h5>{{ user.get_full_name }}</h5>
+                    <div class="profile-role">{% trans "مدیر IT" %}</div>
+                </div>
+                
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-phone"></i>
+                    </div>
+                    <div class="info-content">
+                        <div class="info-label">{% trans "تلفن" %}</div>
+                        <div class="info-value">{{ user.phone|default:"-" }}</div>
+                    </div>
+                </div>
+                
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-id-card"></i>
+                    </div>
+                    <div class="info-content">
+                        <div class="info-label">{% trans "کد ملی" %}</div>
+                        <div class="info-value">{{ user.national_id }}</div>
+                    </div>
+                </div>
+                
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-user-tag"></i>
+                    </div>
+                    <div class="info-content">
+                        <div class="info-label">{% trans "کد کارمندی" %}</div>
+                        <div class="info-value">{{ user.employee_code }}</div>
+                    </div>
+                </div>
+                
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <div class="info-content">
+                        <div class="info-label">{% trans "تاریخ عضویت" %}</div>
+                        <div class="info-value">{{ user.date_joined|persian_date_only }}</div>
+                    </div>
+                </div>
+                
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="info-content">
+                        <div class="info-label">{% trans "آخرین ورود" %}</div>
+                        <div class="info-value">{{ user.last_login|persian_date|default:"-" }}</div>
+                    </div>
+                </div>
+                
+                {% if it_department %}
+                <div class="info-item" style="border: 2px solid var(--primary); background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(79, 70, 229, 0.1) 100%);">
+                    <div class="info-icon" style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);">
+                        <i class="fas fa-building"></i>
+                    </div>
+                    <div class="info-content">
+                        <div class="info-label">{% trans "بخش IT" %}</div>
+                        <div class="info-value">{{ it_department.name }}</div>
+                        {% if it_department.branch %}
+                        <div class="info-label" style="margin-top: 0.5rem;">{% trans "شعبه" %}</div>
+                        <div class="info-value">{{ it_department.branch.name }}</div>
+                        {% else %}
+                        <div class="info-label" style="margin-top: 0.5rem; color: var(--warning);">{% trans "شعبه" %}</div>
+                        <div class="info-value" style="color: var(--warning);">{% trans "تعیین نشده" %}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
