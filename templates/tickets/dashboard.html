@@ -858,10 +858,18 @@
                             ({{ my_open_tasks_count|default:0 }} {% trans "باز" %} | {{ my_resolved_tasks_count|default:0 }} {% trans "انجام شده" %})
                         </span>
                     </div>
-                    <a href="{% url 'tickets:my_ticket_tasks' %}" class="section-action">
-                        <i class="fas fa-eye"></i>
-                        {% trans "مشاهده همه" %}
-                    </a>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <a href="{% url 'tickets:my_ticket_tasks' %}" class="section-action">
+                            <i class="fas fa-eye"></i>
+                            {% trans "مشاهده همه" %}
+                        </a>
+                        {% if can_create_tasks %}
+                        <a href="{% url 'tickets:ticket_task_create' %}" class="section-action" style="background: rgba(22, 163, 74, 0.1); color: var(--success); border: 1px solid var(--success);">
+                            <i class="fas fa-plus"></i>
+                            {% trans "ایجاد تسک جدید" %}
+                        </a>
+                        {% endif %}
+                    </div>
                 </div>
                 <div class="section-body">
                     {% if my_tasks %}
@@ -1331,6 +1339,49 @@
                 </div>
             </div>
                 {% endif %}
+            {% endif %}
+            
+            <!-- Task Management Section for Task Creators (Regular Employees) -->
+            {% if user.role == 'employee' and can_create_tasks and not is_manager and not is_senior %}
+            <div class="section-card" style="border: 2px solid #10b981; background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(16, 185, 129, 0.02) 100%);">
+                <div class="section-header">
+                    <div class="section-title">
+                        <i class="fas fa-tasks" style="color: #10b981;"></i>
+                        {% trans "مدیریت تسک" %}
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <a href="{% url 'tickets:ticket_task_list' %}" class="section-action">
+                            <i class="fas fa-list"></i>
+                            {% trans "مشاهده همه تسک‌ها" %}
+                        </a>
+                        <a href="{% url 'tickets:ticket_task_create' %}" class="section-action" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 2px solid #10b981; font-weight: 600;">
+                            <i class="fas fa-plus-circle"></i>
+                            {% trans "ایجاد تسک جدید" %}
+                        </a>
+                    </div>
+                </div>
+                <div class="section-body">
+                    <div style="padding: 1.5rem; text-align: center;">
+                        <div style="margin-bottom: 1.5rem;">
+                            <i class="fas fa-clipboard-list" style="font-size: 3rem; color: #10b981; margin-bottom: 1rem; opacity: 0.7;"></i>
+                            <h4 style="color: var(--text); margin-bottom: 0.5rem;">{% trans "ایجاد و مدیریت تسک‌ها" %}</h4>
+                            <p style="color: var(--text-light); font-size: 0.95rem; line-height: 1.6;">
+                                {% trans "شما می‌توانید تسک‌های جدید برای کارمندان بخش خود ایجاد کنید و آن‌ها را مدیریت نمایید." %}
+                            </p>
+                        </div>
+                        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                            <a href="{% url 'tickets:ticket_task_create' %}" class="btn-create" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; padding: 0.75rem 2rem; font-size: 1rem; font-weight: 600;">
+                                <i class="fas fa-plus"></i>
+                                {% trans "ایجاد تسک جدید" %}
+                            </a>
+                            <a href="{% url 'tickets:ticket_task_list' %}" class="btn-view" style="padding: 0.75rem 2rem; font-size: 1rem;">
+                                <i class="fas fa-list"></i>
+                                {% trans "مشاهده همه تسک‌ها" %}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
             {% endif %}
             
             {% if is_administrator %}

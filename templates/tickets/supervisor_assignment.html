@@ -201,18 +201,21 @@
                                 <div>
                                     <h5 class="mb-1">{{ supervisor.get_full_name }}</h5>
                                     <div class="d-flex flex-wrap gap-2">
-                                        {% for dept in supervisor.supervised_departments.all %}
-                                        <span class="badge-dept">
-                                            <i class="fas fa-building"></i> {{ dept.name }}
-                                            <a href="{% url 'tickets:remove_supervisor_from_department' dept.id %}"
-                                               class="btn-remove btn-sm"
-                                               onclick="return confirm('{% trans 'آیا مطمئن هستید که می‌خواهید این سرپرست را از بخش حذف کنید؟' %}')">
-                                                <i class="fas fa-times"></i>
-                                            </a>
-                                        </span>
-                                        {% empty %}
-                                        <span class="badge-empty">{% trans "هیچ بخشی اختصاص داده نشده" %}</span>
-                                        {% endfor %}
+                                        {% with all_supervised_depts=supervisor.get_supervised_departments %}
+                                            {% for dept in all_supervised_depts %}
+                                            <span class="badge-dept">
+                                                <i class="fas fa-building"></i> {{ dept.name }}
+                                                <form method="post" action="{% url 'tickets:remove_supervisor_from_department' dept.id %}" style="display: inline;" onsubmit="return confirm('{% trans 'آیا مطمئن هستید که می‌خواهید این سرپرست را از بخش حذف کنید؟' %}')">
+                                                    {% csrf_token %}
+                                                    <button type="submit" class="btn-remove btn-sm" style="border: none; background: none; cursor: pointer;">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                </form>
+                                            </span>
+                                            {% empty %}
+                                            <span class="badge-empty">{% trans "هیچ بخشی اختصاص داده نشده" %}</span>
+                                            {% endfor %}
+                                        {% endwith %}
                                     </div>
                                 </div>
                             </div>

@@ -22,6 +22,9 @@ urlpatterns = [
     # User profile - REMOVED
 # path('profile/', views.profile_view, name='profile'),
     
+    # SuperAdmin profile
+    path('superadmin-profile/', views.superadmin_profile, name='superadmin_profile'),
+    
     # IT Manager profile
     path('profile/', views.it_manager_profile, name='it_manager_profile'),
     
@@ -106,10 +109,16 @@ urlpatterns = [
     path('ticket-tasks/', views.ticket_task_list, name='ticket_task_list'),
     path('ticket-tasks/create/', views.ticket_task_create, name='ticket_task_create'),
     path('ticket-tasks/<int:task_id>/', views.ticket_task_detail, name='ticket_task_detail'),
+    path('ticket-tasks/<int:task_id>/edit/', views.ticket_task_edit, name='ticket_task_edit'),
+    path('ticket-tasks/<int:task_id>/delete/', views.ticket_task_delete, name='ticket_task_delete'),
     path('ticket-tasks/<int:task_id>/update-status/', views.ticket_task_update_status, name='ticket_task_update_status'),
     path('ticket-tasks/<int:task_id>/reply/', views.ticket_task_reply, name='ticket_task_reply'),
     path('my-tasks/', views.my_ticket_tasks, name='my_ticket_tasks'),
     # API endpoint for getting employees by department
     path('api/departments/<int:department_id>/employees/', views.get_employees_for_department, name='get_employees_for_department'),
+    
+    # Calendar API endpoints
+    path('api/calendar/', views.calendar_api_view, name='calendar_api'),
+    path('api/current-jalali-date/', views.get_current_jalali_date_api, name='current_jalali_date_api'),
 
 ] 

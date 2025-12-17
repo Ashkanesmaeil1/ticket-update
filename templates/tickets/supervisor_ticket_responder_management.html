@@ -293,22 +293,41 @@
     </div>
 
     <div class="form-content">
+        <!-- Department Selector (if multiple departments) -->
+        {% if departments_that_can_receive|length > 1 %}
+        <div class="form-card">
+            <label class="form-label">
+                <i class="fas fa-building me-1"></i>
+                {% trans "انتخاب بخش" %}
+            </label>
+            <select name="department_selector" id="department_selector" class="form-select-modern" onchange="window.location.href='{% url 'tickets:supervisor_ticket_responder_management' %}?department_id=' + this.value;">
+                {% for dept in departments_that_can_receive %}
+                <option value="{{ dept.id }}" {% if selected_department and selected_department.id == dept.id %}selected{% endif %}>
+                    {{ dept.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+        
         <!-- Info Section -->
+        {% if selected_department %}
         <div class="info-section">
             <h3>
                 <i class="fas fa-info-circle"></i>
                 {% trans "اطلاعات بخش" %}
             </h3>
-            <p><strong>{% trans "نام بخش:" %}</strong> {{ department.name }}</p>
-            <p><strong>{% trans "شعبه:" %}</strong> {% if department.branch %}{{ department.branch.name }}{% else %}{% trans "تعیین نشده" %}{% endif %}</p>
+            <p><strong>{% trans "نام بخش:" %}</strong> {{ selected_department.name }}</p>
+            <p><strong>{% trans "شعبه:" %}</strong> {% if selected_department.branch %}{{ selected_department.branch.name }}{% else %}{% trans "تعیین نشده" %}{% endif %}</p>
             <p><strong>{% trans "وضعیت دریافت تیکت:" %}</strong> 
-                {% if department.can_receive_tickets %}
+                {% if selected_department.can_receive_tickets %}
                     <span style="color: var(--success);">{% trans "فعال" %}</span>
                 {% else %}
                     <span style="color: var(--danger);">{% trans "غیرفعال" %}</span>
                 {% endif %}
             </p>
         </div>
+        {% endif %}
 
         <!-- Current Responder -->
         {% if current_responder %}
@@ -338,9 +357,11 @@
         {% endif %}
 
         <!-- Form Card -->
+        {% if selected_department %}
         <div class="form-card">
             <form method="post" novalidate>
                 {% csrf_token %}
+                <input type="hidden" name="department_id" value="{{ selected_department.id }}">
                 
                 <div class="form-group">
                     <label class="form-label" for="ticket_responder">
@@ -360,6 +381,28 @@
                     <div class="help-text">
                         <i class="fas fa-info-circle"></i>
                         {% trans "کارمندی را انتخاب کنید که می‌تواند به تیکت‌های دریافتی این بخش پاسخ دهد و وضعیت آن‌ها را تغییر دهد. اگر هیچ‌کس انتخاب نشود، تیکت‌ها به شما (سرپرست) ارسال می‌شوند." %}
+                    </div>
+                </div>
+
+                <!-- Task Creator selection -->
+                <div class="form-group">
+                    <label class="form-label" for="task_creator">
+                        <i class="fas fa-tasks me-1"></i>
+                        {% trans "انتخاب ایجادکننده تسک" %}
+                    </label>
+                    <select name="task_creator"
+                            id="task_creator"
+                            class="form-select-modern">
+                        <option value="">{% trans "هیچ‌کس (فقط سرپرست می‌تواند تسک ایجاد کند)" %}</option>
+                        {% for employee in employees %}
+                            <option value="{{ employee.id }}" {% if current_task_creator and current_task_creator.id == employee.id %}selected{% endif %}>
+                                {{ employee.get_full_name }} ({{ employee.employee_code }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <div class="help-text">
+                        <i class="fas fa-info-circle"></i>
+                        {% trans "کارمندی را انتخاب کنید که بتواند برای این بخش تسک ایجاد کرده و آن را به سایر کارمندان این بخش تخصیص دهد. اگر هیچ‌کس انتخاب نشود، فقط شما (سرپرست) می‌توانید تسک ایجاد کنید." %}
                     </div>
                 </div>
 
@@ -415,6 +458,15 @@
                 </div>
             </form>
         </div>
+        {% else %}
+        <div class="info-section" style="background: rgba(239, 68, 68, 0.1); border-color: var(--danger);">
+            <h3 style="color: var(--danger);">
+                <i class="fas fa-exclamation-triangle"></i>
+                {% trans "خطا" %}
+            </h3>
+            <p>{% trans "لطفاً یک بخش انتخاب کنید یا با مدیر IT تماس بگیرید." %}</p>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

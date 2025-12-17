@@ -737,8 +737,8 @@
                                         {% endfor %}
                                     </div>
                                     {% endif %}
-                                    </div>
                                 </div>
+                            </div>
                                 
                             <div class="form-row">
                                 <div class="form-group">
@@ -761,6 +761,7 @@
                                     {% endif %}
                                 </div>
                                 
+                                {% if employee_form.department.field.widget.input_type != 'hidden' %}
                                 <div class="form-group">
                                     <label class="form-label" for="{{ employee_form.department.id_for_label }}">
                                         <i class="fas fa-building me-1"></i>
@@ -783,8 +784,18 @@
                                         {% endfor %}
                                     </div>
                                     {% endif %}
+                                </div>
+                                {% else %}
+                                {# Hidden field for supervisors - department assignment done on Assign to Team Leader page #}
+                                {{ employee_form.department }}
+                                <div class="form-group">
+                                    <div class="alert alert-info" style="margin-top: 0.5rem;">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        {% trans "برای سرپرستان، بخش باید از صفحه 'اختصاص سرپرست به بخش‌ها' تعیین شود." %}
                                     </div>
                                 </div>
+                                {% endif %}
+                            </div>
                                 
                             <div class="form-group">
                                         <label class="form-label">{% trans "نقش در بخش" %}</label>
@@ -1154,8 +1165,9 @@ function showUserTab(tabName) {
     function toggleDepartmentField() {
         const departmentRoleInputs = document.querySelectorAll('input[name="department_role"]');
         const departmentSelect = document.getElementById('id_department');
+        const departmentFormGroup = departmentSelect ? departmentSelect.closest('.form-group') : null;
         
-        if (!departmentSelect) return;
+        if (!departmentSelect || !departmentFormGroup) return;
         
         let selectedRole = '';
         departmentRoleInputs.forEach(input => {
@@ -1164,13 +1176,19 @@ function showUserTab(tabName) {
             }
         });
         
-        if (selectedRole === 'manager') {
-            departmentSelect.disabled = true;
-            departmentSelect.value = '';
-            departmentSelect.style.opacity = '0.5';
+        // Hide department field for supervisors (senior/manager) - handled server-side now
+        // This JS is just for backward compatibility if field is still visible
+        if (selectedRole === 'senior' || selectedRole === 'manager') {
+            if (departmentSelect.tagName === 'SELECT') {
+                departmentSelect.disabled = true;
+                departmentSelect.value = '';
+                departmentSelect.style.opacity = '0.5';
+            }
         } else {
-            departmentSelect.disabled = false;
-            departmentSelect.style.opacity = '1';
+            if (departmentSelect.tagName === 'SELECT') {
+                departmentSelect.disabled = false;
+                departmentSelect.style.opacity = '1';
+            }
         }
     }
 

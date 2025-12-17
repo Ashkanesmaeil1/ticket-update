@@ -288,7 +288,24 @@ class TicketStatusForm(forms.ModelForm):
         return instance
 
 class TicketTaskForm(forms.ModelForm):
-    """Form for creating ticket tasks (IT Manager only)"""
+    """Form for creating ticket tasks (IT Manager or Supervisor)
+    
+    For Supervisors: Departments and employees are filtered to only show
+    departments they manage and employees from those departments.
+    """
+    # Deadline field (Jalali date and time combined: "YYYY/MM/DD HH:MM")
+    deadline_date = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': _('برای انتخاب تاریخ و زمان کلیک کنید'),
+            'id': 'deadline-date-input',
+            'readonly': True,  # Will be set by date picker
+            'autocomplete': 'off',  # Prevent browser autocomplete
+        }),
+        label=_('تاریخ و زمان مهلت انجام')
+    )
+    
     class Meta:
         model = TicketTask
         fields = ['title', 'description', 'priority', 'department', 'assigned_to']
@@ -315,15 +332,151 @@ class TicketTaskForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        # #region agent log - Hypothesis E: Form init entry
+        import json
+        import os
+        from datetime import datetime
+        log_path = r'c:\Users\User\Desktop\pticket-main\.cursor\debug.log'
+        def log_debug(hypothesis_id, location, message, data):
+            try:
+                os.makedirs(os.path.dirname(log_path), exist_ok=True)
+                entry = {
+                    'id': f'log_{int(datetime.now().timestamp() * 1000)}',
+                    'timestamp': int(datetime.now().timestamp() * 1000),
+                    'location': location,
+                    'message': message,
+                    'data': data,
+                    'sessionId': 'debug-session',
+                    'runId': 'run1',
+                    'hypothesisId': hypothesis_id
+                }
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+            except Exception: pass
+        # #endregion
+        
         user = kwargs.pop('user', None)
+        log_debug('E', 'tickets/forms.py:321', 'TicketTaskForm __init__ entry', {
+            'has_user': user is not None,
+            'user_id': user.id if user else None,
+            'user_pk': user.pk if user else None
+        })
+        
         super().__init__(*args, **kwargs)
         
-        # Filter departments to only show active employee departments
+        # CRITICAL: Ensure user object is fresh from database to get latest relationships
+        if user and user.pk:
+            log_debug('E', 'tickets/forms.py:332', 'Before refresh_from_db', {
+                'user_role': user.role,
+                'department_role': getattr(user, 'department_role', None)
+            })
+            user.refresh_from_db()
+            log_debug('E', 'tickets/forms.py:335', 'After refresh_from_db', {
+                'user_role': user.role,
+                'department_role': getattr(user, 'department_role', None)
+            })
+            # Prefetch M2M relationships to ensure they're loaded
+            if hasattr(user, 'supervised_departments'):
+                # Force evaluation of M2M relationship
+                m2m_list = list(user.supervised_departments.all())
+                log_debug('E', 'tickets/forms.py:340', 'M2M prefetch result', {
+                    'm2m_count': len(m2m_list),
+                    'm2m_ids': [d.id for d in m2m_list]
+                })
+        
+        # Determine if user is a supervisor (senior/manager)
+        is_supervisor = user and user.role == 'employee' and user.department_role in ['senior', 'manager']
+        is_it_manager = user and user.role == 'it_manager'
+        
+        # Task creator: any department that has this user as task_creator (may be different from user.department)
+        task_creator_departments = Department.objects.filter(
+            task_creator=user,
+            is_active=True,
+            department_type='employee'
+        ) if user else Department.objects.none()
+        is_task_creator = user and user.role == 'employee' and task_creator_departments.exists()
+        
+        log_debug('B', 'tickets/forms.py:345', 'Form supervisor check', {
+            'is_supervisor': is_supervisor,
+            'is_it_manager': is_it_manager,
+            'is_task_creator': is_task_creator,
+            'task_creator_dept_ids': list(task_creator_departments.values_list('id', flat=True)) if is_task_creator else [],
+            'user_role': user.role if user else None,
+            'department_role': getattr(user, 'department_role', None) if user else None
+        })
+        
+        # Make deadline fields mandatory for supervisors
+        if is_supervisor:
+            self.fields['deadline_date'].required = True
+            # Deadline field is already combined (date + time), no separate time field
+        
+        # Initialize deadline fields from existing deadline if editing
+        if self.instance and hasattr(self.instance, 'pk') and self.instance.pk:
+            try:
+                # Safely get deadline attribute (might not exist if migration not run)
+                if hasattr(self.instance, 'deadline'):
+                    deadline = self.instance.deadline
+                    if deadline:
+                        from .calendar_services.jalali_calendar import JalaliCalendarService
+                        jalali_components = JalaliCalendarService.gregorian_to_jalali(deadline)
+                        # Format as combined date and time: "YYYY/MM/DD HH:MM"
+                        date_str = JalaliCalendarService.format_jalali_date(
+                            jalali_components['year'],
+                            jalali_components['month'],
+                            jalali_components['day']
+                        )
+                        time_str = f"{jalali_components['hour']:02d}:{jalali_components['minute']:02d}"
+                        self.initial['deadline_date'] = f"{date_str} {time_str}"
+            except (AttributeError, TypeError, ValueError, ImportError) as e:
+                # If deadline conversion fails or module not available, just skip initialization
+                # This prevents crashes if calendar service is unavailable or deadline field doesn't exist yet
+                pass
+        
+        # Filter departments based on user role/permissions
         if 'department' in self.fields:
-            self.fields['department'].queryset = Department.objects.filter(
-                is_active=True,
-                department_type='employee'
-            ).order_by('name')
+            if is_supervisor:
+                # For supervisors: only show departments they manage
+                # CRITICAL: Call get_supervised_departments() which queries database directly
+                supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+                log_debug('A', 'tickets/forms.py:352', 'Supervised departments in form', {
+                    'supervised_depts_count': len(supervised_depts),
+                    'supervised_dept_ids': [d.id for d in supervised_depts],
+                    'supervised_dept_names': [d.name for d in supervised_depts]
+                })
+                if supervised_depts:
+                    # Get department IDs from supervised departments
+                    supervised_dept_ids = [dept.id for dept in supervised_depts]
+                    dept_queryset = Department.objects.filter(
+                        id__in=supervised_dept_ids,
+                        is_active=True,
+                        department_type='employee'
+                    ).order_by('name')
+                    log_debug('A', 'tickets/forms.py:361', 'Department queryset result', {
+                        'queryset_count': dept_queryset.count(),
+                        'queryset_ids': list(dept_queryset.values_list('id', flat=True)),
+                        'queryset_names': list(dept_queryset.values_list('name', flat=True))
+                    })
+                    self.fields['department'].queryset = dept_queryset
+                else:
+                    # Supervisor has no assigned departments - show empty queryset
+                    log_debug('A', 'tickets/forms.py:368', 'No supervised departments - empty queryset', {})
+                    self.fields['department'].queryset = Department.objects.none()
+            elif is_it_manager:
+                # For IT managers: show all active employee departments
+                self.fields['department'].queryset = Department.objects.filter(
+                    is_active=True,
+                    department_type='employee'
+                ).order_by('name')
+            elif is_task_creator:
+                # For task creators: show only departments where they are explicitly task_creator
+                log_debug('A', 'tickets/forms.py:task_creator', 'Task creator departments in form', {
+                    'task_creator_dept_ids': list(task_creator_departments.values_list('id', flat=True)),
+                    'task_creator_dept_names': list(task_creator_departments.values_list('name', flat=True))
+                })
+                self.fields['department'].queryset = task_creator_departments.order_by('name')
+            else:
+                # Other users: show empty (shouldn't reach here due to view restriction)
+                self.fields['department'].queryset = Department.objects.none()
         
         # Determine which department to use for employee queryset
         department = None
@@ -340,21 +493,93 @@ class TicketTaskForm(forms.ModelForm):
                 except Department.DoesNotExist:
                     department = None
         
-        # Update assigned_to queryset based on department
+        # Update assigned_to queryset based on department AND supervisor restrictions
         if 'assigned_to' in self.fields:
             if department:
-                self.fields['assigned_to'].queryset = User.objects.filter(
+                # Start with employees from the selected department
+                employee_queryset = User.objects.filter(
                     department=department,
                     is_active=True,
                     role='employee'
-                ).order_by('first_name', 'last_name')
+                )
+
+                # Exclude department heads (supervisors) - users with senior/manager role
+                employee_queryset = employee_queryset.exclude(department_role__in=['senior', 'manager'])
+                
+                # Exclude the FK supervisor of this department if exists
+                if department.supervisor:
+                    employee_queryset = employee_queryset.exclude(id=department.supervisor.id)
+                
+                # Exclude users who supervise this department via M2M relationship
+                supervisors_of_dept = User.objects.filter(
+                    supervised_departments=department,
+                    is_active=True
+                ).values_list('id', flat=True)
+                if supervisors_of_dept:
+                    employee_queryset = employee_queryset.exclude(id__in=supervisors_of_dept)
+
+                # Supervisors and task creators must not be able to assign tasks to themselves
+                if (is_supervisor or is_task_creator) and user and user.id:
+                    employee_queryset = employee_queryset.exclude(id=user.id)
+
+                # Additional restriction for supervisors: ensure department is in their managed departments
+                if is_supervisor:
+                    # CRITICAL: Query fresh from database to ensure we have latest relationships
+                    supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+                    supervised_dept_ids = [dept.id for dept in supervised_depts]
+                    log_debug('C', 'tickets/forms.py:395', 'Employee filtering check', {
+                        'selected_dept_id': department.id,
+                        'supervised_dept_ids': supervised_dept_ids,
+                        'dept_in_supervised': department.id in supervised_dept_ids,
+                        'employee_count_before_filter': employee_queryset.count()
+                    })
+                    if department.id in supervised_dept_ids:
+                        # Department is supervised by this user - show employees (excluding the supervisor themselves)
+                        final_employee_queryset = employee_queryset.order_by('first_name', 'last_name')
+                        log_debug('C', 'tickets/forms.py:402', 'Employee queryset result', {
+                            'employee_count': final_employee_queryset.count(),
+                            'employee_ids': list(final_employee_queryset.values_list('id', flat=True))
+                        })
+                        self.fields['assigned_to'].queryset = final_employee_queryset
+                    else:
+                        # Department not supervised - show empty (shouldn't happen due to department filter, but safety check)
+                        log_debug('C', 'tickets/forms.py:408', 'Department not in supervised - empty queryset', {
+                            'selected_dept_id': department.id,
+                            'supervised_dept_ids': supervised_dept_ids
+                        })
+                        self.fields['assigned_to'].queryset = User.objects.none()
+                elif is_task_creator:
+                    # For task creators: allow employees only in departments where they are task_creator
+                    allowed_dept_ids = list(task_creator_departments.values_list('id', flat=True))
+                    log_debug('C', 'tickets/forms.py:task_creator_employee', 'Task creator employee filtering check', {
+                        'selected_dept_id': department.id,
+                        'allowed_dept_ids': allowed_dept_ids,
+                        'dept_allowed': department.id in allowed_dept_ids,
+                        'employee_count_before_filter': employee_queryset.count()
+                    })
+                    if department.id in allowed_dept_ids:
+                        final_employee_queryset = employee_queryset.order_by('first_name', 'last_name')
+                        log_debug('C', 'tickets/forms.py:task_creator_employee_result', 'Task creator employee queryset result', {
+                            'employee_count': final_employee_queryset.count(),
+                            'employee_ids': list(final_employee_queryset.values_list('id', flat=True))
+                        })
+                        self.fields['assigned_to'].queryset = final_employee_queryset
+                    else:
+                        log_debug('C', 'tickets/forms.py:task_creator_employee_empty', 'Department not allowed for task creator - empty queryset', {
+                            'selected_dept_id': department.id,
+                            'allowed_dept_ids': allowed_dept_ids
+                        })
+                        self.fields['assigned_to'].queryset = User.objects.none()
+                else:
+                    # IT manager - show all employees from selected department
+                    self.fields['assigned_to'].queryset = employee_queryset.order_by('first_name', 'last_name')
             else:
                 # Initially empty - will be populated via JavaScript based on department selection
                 self.fields['assigned_to'].queryset = User.objects.none()
             self.fields['assigned_to'].required = True
     
     def clean_assigned_to(self):
-        """Validate that the assigned user is from the selected department"""
+        """Validate that the assigned user is from the selected department and supervisor has access"""
         assigned_to = self.cleaned_data.get('assigned_to')
         department = self.cleaned_data.get('department')
         
@@ -368,6 +593,213 @@ class TicketTaskForm(forms.ModelForm):
                 raise ValidationError(_('کاربر انتخاب شده باید یک کارمند فعال باشد.'))
         
         return assigned_to
+    
+    def clean(self):
+        """Cross-field validation and deadline validation/conversion"""
+        cleaned_data = super().clean()
+        assigned_to = cleaned_data.get('assigned_to')
+        department = cleaned_data.get('department')
+        
+        # Get user from form instance if available (set by view)
+        user = getattr(self, '_user', None)
+        is_supervisor = user and user.role == 'employee' and user.department_role in ['senior', 'manager']
+        
+        # Task creator in clean(): any active employee department that has this user as task_creator
+        is_task_creator = False
+        task_creator_departments = Department.objects.filter(
+            task_creator=user,
+            is_active=True,
+            department_type='employee'
+        ) if user else Department.objects.none()
+        if user and user.role == 'employee' and task_creator_departments.exists():
+            is_task_creator = True
+        
+        if is_supervisor:
+            # Supervisors are not allowed to assign tasks to themselves
+            if assigned_to and assigned_to.id == user.id:
+                raise ValidationError({
+                    'assigned_to': _('سرپرست نمی‌تواند تسک را به خود اختصاص دهد. لطفاً یکی از کارمندان زیرمجموعه را انتخاب کنید.')
+                })
+
+            # Supervisor validation: ensure department is in their supervised departments
+            if department:
+                supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+                supervised_dept_ids = [dept.id for dept in supervised_depts]
+                
+                if department.id not in supervised_dept_ids:
+                    raise ValidationError({
+                        'department': _('شما فقط می‌توانید تسک‌ها را به بخش‌های تحت سرپرستی خود اختصاص دهید.')
+                    })
+            
+            # Ensure assigned employee is from a supervised department
+            if assigned_to and assigned_to.department:
+                supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+                supervised_dept_ids = [dept.id for dept in supervised_depts]
+                
+                if assigned_to.department.id not in supervised_dept_ids:
+                    raise ValidationError({
+                        'assigned_to': _('شما فقط می‌توانید تسک‌ها را به کارمندان بخش‌های تحت سرپرستی خود اختصاص دهید.')
+                    })
+        
+        elif is_task_creator:
+            # Task creators are not allowed to assign tasks to themselves
+            if assigned_to and assigned_to.id == user.id:
+                raise ValidationError({
+                    'assigned_to': _('شما نمی‌توانید تسک را به خود اختصاص دهید. لطفاً یکی از کارمندان بخش را انتخاب کنید.')
+                })
+            
+            # Task creator validation: ensure department is one of their task_creator departments
+            allowed_dept_ids = list(task_creator_departments.values_list('id', flat=True))
+            if department and department.id not in allowed_dept_ids:
+                raise ValidationError({
+                    'department': _('شما فقط می‌توانید برای بخش‌هایی که به عنوان ایجادکننده تسک آن‌ها تعیین شده‌اید تسک ایجاد کنید.')
+                })
+            
+            # Ensure assigned employee is from an allowed department
+            if assigned_to and assigned_to.department and assigned_to.department.id not in allowed_dept_ids:
+                raise ValidationError({
+                    'assigned_to': _('شما فقط می‌توانید تسک‌ها را به کارمندان بخش‌هایی که برای آن‌ها ایجادکننده تسک هستید اختصاص دهید.')
+                })
+        
+        # Validate deadline field (combined date and time: "YYYY/MM/DD HH:MM")
+        deadline_date = cleaned_data.get('deadline_date')
+        
+        # Get user from form instance if available (set by view)
+        user = getattr(self, '_user', None)
+        is_supervisor = user and user.role == 'employee' and user.department_role in ['senior', 'manager']
+        
+        # For supervisors: deadline is mandatory
+        if is_supervisor and not deadline_date:
+            raise ValidationError({
+                'deadline_date': _('برای سرپرستان، تعیین مهلت انجام تسک الزامی است.')
+            })
+        
+        # Normalize, validate, and convert deadline if provided
+        if deadline_date:
+            from .calendar_services.jalali_calendar import JalaliCalendarService
+            try:
+                raw_value = str(deadline_date).strip()
+                # Handle empty strings
+                if not raw_value:
+                    return cleaned_data
+                
+                # Collapse multiple spaces and normalize
+                normalized = ' '.join(raw_value.split())
+                parts = normalized.split(' ')
+                if len(parts) < 1:
+                    raise ValidationError({
+                        'deadline_date': _('فرمت تاریخ و زمان صحیح نیست. از فرمت YYYY/MM/DD HH:MM استفاده کنید.')
+                    })
+                
+                date_str = parts[0]
+                time_str = parts[1] if len(parts) > 1 else '09:00'  # Default time if not provided
+                
+                # Parse date (Jalali format: YYYY/MM/DD)
+                date_parts = date_str.split('/')
+                if len(date_parts) != 3:
+                    raise ValidationError({
+                        'deadline_date': _('فرمت تاریخ صحیح نیست. از فرمت YYYY/MM/DD استفاده کنید (مثال: 1403/09/25).')
+                    })
+                
+                try:
+                    year = int(date_parts[0])
+                    month = int(date_parts[1])
+                    day = int(date_parts[2])
+                except (ValueError, TypeError) as e:
+                    raise ValidationError({
+                        'deadline_date': _('تاریخ باید شامل اعداد باشد. از فرمت YYYY/MM/DD استفاده کنید (مثال: 1403/09/25).')
+                    }) from e
+                
+                # Validate Jalali date ranges and format
+                if year < 1300 or year > 1500 or month < 1 or month > 12 or day < 1 or day > 31:
+                    raise ValidationError({
+                        'deadline_date': _('محدوده تاریخ معتبر نیست. سال بین 1300-1500، ماه 1-12، روز 1-31.')
+                    })
+                
+                # Validate Jalali date using service
+                if not JalaliCalendarService.validate_jalali_date(year, month, day):
+                    raise ValidationError({
+                        'deadline_date': _('تاریخ وارد شده معتبر نیست. لطفاً تاریخ شمسی صحیح را وارد کنید.')
+                    })
+                
+                # Parse time (format: HH:MM, 24-hour)
+                time_parts = time_str.split(':')
+                if len(time_parts) != 2:
+                    raise ValidationError({
+                        'deadline_date': _('فرمت زمان صحیح نیست. از فرمت HH:MM استفاده کنید (مثال: 14:30).')
+                    })
+                
+                try:
+                    hour = int(time_parts[0])
+                    minute = int(time_parts[1])
+                except (ValueError, TypeError) as e:
+                    raise ValidationError({
+                        'deadline_date': _('زمان باید شامل اعداد باشد. از فرمت HH:MM استفاده کنید (مثال: 14:30).')
+                    }) from e
+                
+                # Validate time range (24-hour format)
+                if hour < 0 or hour > 23:
+                    raise ValidationError({
+                        'deadline_date': _('ساعت باید بین 00 تا 23 باشد.')
+                    })
+                if minute < 0 or minute > 59:
+                    raise ValidationError({
+                        'deadline_date': _('دقیقه باید بین 00 تا 59 باشد.')
+                    })
+                
+                # Convert Jalali to Gregorian once and store the datetime in cleaned_data
+                converted_deadline = JalaliCalendarService.jalali_to_gregorian(
+                    year, month, day, hour, minute
+                )
+                cleaned_data['deadline_converted'] = converted_deadline
+            except ValidationError:
+                # Re-raise ValidationError as-is
+                raise
+            except (ValueError, IndexError, AttributeError, TypeError) as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f'Error parsing deadline_date: {deadline_date}, error: {str(e)}')
+                raise ValidationError({
+                    'deadline_date': _('فرمت تاریخ و زمان صحیح نیست. از فرمت YYYY/MM/DD HH:MM استفاده کنید (مثال: 1403/09/25 14:30).')
+                }) from e
+        
+        return cleaned_data
+    
+    def save(self, commit=True):
+        """Override save to apply already-converted deadline datetime"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        instance = super().save(commit=False)
+        
+        converted_deadline = self.cleaned_data.get('deadline_converted', None)
+        logger.info('=== TICKET TASK FORM SAVE DEBUG (normalized) ===')
+        logger.info(f'instance.pk (is editing?): {self.instance.pk}')
+        logger.info(f'converted_deadline from cleaned_data: {converted_deadline}')
+        logger.info(f'converted_deadline type: {type(converted_deadline)}')
+        
+        if converted_deadline is not None:
+            # A valid deadline was provided and parsed
+            instance.deadline = converted_deadline
+            logger.info(f'Set instance.deadline to: {instance.deadline}')
+        else:
+            # No new deadline provided in this submission
+            if not self.instance.pk:
+                # New task with no deadline
+                instance.deadline = None
+                logger.info('No deadline provided for new task, setting deadline to None')
+            else:
+                # Editing existing task with no new deadline value: preserve current deadline
+                logger.info('No new deadline provided on edit; preserving existing instance.deadline')
+        
+        logger.info(f'Final instance.deadline before save: {instance.deadline}')
+        
+        if commit:
+            instance.save()
+            logger.info(f'Instance saved. Final deadline in database: {instance.deadline}')
+        
+        logger.info('=== TICKET TASK FORM SAVE COMPLETED ===')
+        return instance
 
 class TaskReplyForm(forms.ModelForm):
     """Form for replying to ticket tasks"""
@@ -616,6 +1048,58 @@ class BranchForm(forms.ModelForm):
             'is_active': _('فعال')
         }
 
+class SuperAdminProfileForm(forms.ModelForm):
+    """Form for SuperAdmin to update their national_id and employee_code"""
+    
+    class Meta:
+        model = User
+        fields = ['national_id', 'employee_code']
+        widgets = {
+            'national_id': forms.TextInput(attrs={'class': 'form-control', 'required': True}),
+            'employee_code': forms.TextInput(attrs={'class': 'form-control', 'required': True})
+        }
+        labels = {
+            'national_id': _('کد ملی'),
+            'employee_code': _('کد پرسنلی'),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Make fields required
+        self.fields['national_id'].required = True
+        self.fields['employee_code'].required = True
+    
+    def clean_national_id(self):
+        """Validate national_id uniqueness (excluding current user)"""
+        national_id = self.cleaned_data.get('national_id')
+        if national_id:
+            # Check if another user (excluding current instance) has this national_id
+            existing_user = User.objects.filter(national_id=national_id).exclude(
+                id=self.instance.id if self.instance and self.instance.pk else None
+            ).first()
+            if existing_user:
+                raise ValidationError(_('کاربری با این کد ملی قبلاً ثبت شده است.'))
+        return national_id
+    
+    def clean_employee_code(self):
+        """Validate employee_code uniqueness (excluding current user)"""
+        employee_code = self.cleaned_data.get('employee_code')
+        if employee_code:
+            # Check if another user (excluding current instance) has this employee_code
+            existing_user = User.objects.filter(employee_code=employee_code).exclude(
+                id=self.instance.id if self.instance and self.instance.pk else None
+            ).first()
+            if existing_user:
+                raise ValidationError(_('کاربری با این کد پرسنلی قبلاً ثبت شده است.'))
+        return employee_code
+    
+    def save(self, commit=True):
+        """Save the user with updated national_id and employee_code"""
+        user = super().save(commit=False)
+        if commit:
+            user.save()
+        return user
+
 class ITManagerProfileForm(forms.ModelForm):
     """Form for IT Manager to update their profile and IT department settings"""
     it_department_name = forms.CharField(
@@ -766,67 +1250,22 @@ class EmployeeCreationForm(forms.ModelForm):
                     dept_role = self.initial.get('department_role')
                     is_team_lead = dept_role in ['senior', 'manager']
             
-            # DEBUG: Log the detection result (remove in production)
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.debug(f"EmployeeCreationForm: is_team_lead={is_team_lead}, dept_role={dept_role}, has_data={bool(self.data)}")
-            
             if is_team_lead:
-                # Filter to only show departments WITHOUT a Team Lead
-                # Use the same comprehensive filtering logic as SupervisorAssignmentForm
-                # Method 1: Exclude departments with active FK supervisor
-                depts_with_fk_supervisor = Department.objects.filter(
-                    is_active=True,
-                    department_type='employee',
-                    supervisor__isnull=False,
-                    supervisor__is_active=True
-                ).values_list('id', flat=True)
-                
-                # Method 2: Exclude departments with active M2M supervisors
-                depts_with_m2m_supervisor = Department.objects.filter(
-                    is_active=True,
-                    department_type='employee',
-                    supervisors__is_active=True
-                ).values_list('id', flat=True)
-                
-                # Method 3: Exclude departments with active users having department_role='senior' or 'manager'
-                depts_with_role_based_leads = list(
-                    User.objects.filter(
-                        role='employee',
-                        department_role__in=['senior', 'manager'],
-                        is_active=True,
-                        department__isnull=False,
-                        department__is_active=True,
-                        department__department_type='employee'
-                    ).values_list('department_id', flat=True).distinct()
-                )
-                
-                # Combine all excluded department IDs
-                all_excluded_dept_ids = set(depts_with_fk_supervisor) | set(depts_with_m2m_supervisor) | set(depts_with_role_based_leads)
-                
-                # Final queryset: All active employee departments EXCEPT those with any type of Team Lead
-                if all_excluded_dept_ids:
-                    filtered_queryset = Department.objects.filter(
-                        is_active=True,
-                        department_type='employee'
-                    ).exclude(id__in=all_excluded_dept_ids).distinct().order_by('name')
-                else:
-                    filtered_queryset = Department.objects.filter(
-                        is_active=True,
-                        department_type='employee'
-                    ).distinct().order_by('name')
-                
-                # Store original queryset for potential dynamic updates
-                self._team_lead_filtered_queryset = filtered_queryset
-                self.fields['department'].queryset = filtered_queryset
+                # For Supervisors (Team Leaders/Group Managers), disable/hide the department field
+                # Department assignment must be done exclusively on the 'Assign to Team Leader' page
+                if 'department' in self.fields:
+                    self.fields['department'].required = False
+                    self.fields['department'].widget = forms.HiddenInput()
+                    self.fields['department'].initial = None
             else:
-                # Not a Team Lead - show all active employee departments
-                all_depts_queryset = Department.objects.filter(
-                    is_active=True,
-                    department_type='employee'
-                ).order_by('name')
-                self._team_lead_filtered_queryset = None
-                self.fields['department'].queryset = all_depts_queryset
+                # Not a Team Lead - show all active employee departments and make department required
+                if 'department' in self.fields:
+                    all_depts_queryset = Department.objects.filter(
+                        is_active=True,
+                        department_type='employee'
+                    ).order_by('name')
+                    self.fields['department'].queryset = all_depts_queryset
+                    self.fields['department'].required = True
     
     def clean_password2(self):
         password1 = self.cleaned_data.get('password1')
@@ -836,8 +1275,34 @@ class EmployeeCreationForm(forms.ModelForm):
                 raise ValidationError(_('رمزهای عبور مطابقت ندارند.'))
         return password2
     
+    def clean_department(self):
+        """Validate department - must be None for supervisors"""
+        department = self.cleaned_data.get('department')
+        department_role = self.cleaned_data.get('department_role')
+        
+        # If creating a supervisor (senior or manager), department must be None
+        if department_role in ['senior', 'manager']:
+            if department is not None:
+                from django.core.exceptions import ValidationError
+                raise ValidationError(_('برای سرپرستان، بخش نباید انتخاب شود. اختصاص بخش باید از صفحه "اختصاص سرپرست به بخش‌ها" انجام شود.'))
+            return None
+        
+        # For regular employees, department is required
+        if not department_role or department_role == 'employee':
+            if not department:
+                from django.core.exceptions import ValidationError
+                raise ValidationError(_('لطفاً یک بخش انتخاب کنید.'))
+        
+        return department
+    
     def save(self, commit=True):
         user = super().save(commit=False)
+        
+        # CRITICAL: For supervisors (senior/manager), ensure department is None
+        department_role = self.cleaned_data.get('department_role')
+        if department_role in ['senior', 'manager']:
+            user.department = None
+        
         password = self.cleaned_data.get('password1')
         if password:
             user.set_password(password)
@@ -947,58 +1412,19 @@ class EmployeeEditForm(forms.ModelForm):
         # Filter departments based on Team Lead status
         if 'department' in self.fields:
             if is_team_lead:
-                # Filter to only show departments WITHOUT a Team Lead
-                # Use the same comprehensive filtering logic as SupervisorAssignmentForm
-                # Method 1: Exclude departments with active FK supervisor
-                depts_with_fk_supervisor = Department.objects.filter(
-                    is_active=True,
-                    department_type='employee',
-                    supervisor__isnull=False,
-                    supervisor__is_active=True
-                ).values_list('id', flat=True)
-                
-                # Method 2: Exclude departments with active M2M supervisors
-                depts_with_m2m_supervisor = Department.objects.filter(
-                    is_active=True,
-                    department_type='employee',
-                    supervisors__is_active=True
-                ).values_list('id', flat=True)
-                
-                # Method 3: Exclude departments with active users having department_role='senior' or 'manager'
-                # CRITICAL: Exclude other users' departments, but include current user's department if editing
-                depts_with_role_based_leads = list(
-                    User.objects.filter(
-                        role='employee',
-                        department_role__in=['senior', 'manager'],
-                        is_active=True,
-                        department__isnull=False,
-                        department__is_active=True,
-                        department__department_type='employee'
-                    ).exclude(
-                        id=self.instance.id if (self.instance and self.instance.pk) else None
-                    ).values_list('department_id', flat=True).distinct()
-                )
-                
-                # Combine all excluded department IDs
-                all_excluded_dept_ids = set(depts_with_fk_supervisor) | set(depts_with_m2m_supervisor) | set(depts_with_role_based_leads)
-                
-                # CRITICAL: For edit form, include current user's department even if it has a Team Lead
-                # This allows saving without changes or reassignment
+                # For Supervisors (Team Leaders/Group Managers), disable the department field
+                # Department assignment must be done exclusively on the 'Assign to Team Leader' page
+                self.fields['department'].required = False
+                self.fields['department'].disabled = True
+                self.fields['department'].widget.attrs['readonly'] = True
+                self.fields['department'].widget.attrs['style'] = 'pointer-events: none; opacity: 0.6;'
+                # Still set the queryset to include current department for display purposes
                 if current_dept_id:
-                    all_excluded_dept_ids.discard(current_dept_id)  # Remove current dept from excluded list
-                
-                # Final queryset: All active employee departments EXCEPT those with any type of Team Lead
-                # (but including current user's department if editing)
-                if all_excluded_dept_ids:
                     self.fields['department'].queryset = Department.objects.filter(
-                        is_active=True,
-                        department_type='employee'
-                    ).exclude(id__in=all_excluded_dept_ids).distinct().order_by('name')
+                        id=current_dept_id
+                    )
                 else:
-                    self.fields['department'].queryset = Department.objects.filter(
-                        is_active=True,
-                        department_type='employee'
-                    ).distinct().order_by('name')
+                    self.fields['department'].queryset = Department.objects.none()
             else:
                 # Not a Team Lead - show all active employee departments
                 self.fields['department'].queryset = Department.objects.filter(
@@ -1017,6 +1443,14 @@ class EmployeeEditForm(forms.ModelForm):
     
     def clean_department(self):
         """Validate department selection based on department_role"""
+        # If department field is disabled (for supervisors), preserve the original value
+        if 'department' in self.fields and self.fields['department'].disabled:
+            # For disabled fields, Django doesn't include them in cleaned_data
+            # We need to get the original value from the instance
+            if self.instance and self.instance.pk:
+                return self.instance.department
+            return None
+        
         department = self.cleaned_data.get('department')
         department_role = self.cleaned_data.get('department_role')
         
@@ -1088,6 +1522,7 @@ class EmployeeEditForm(forms.ModelForm):
                 'national_id': self.instance.national_id,
                 'employee_code': self.instance.employee_code,
                 'password': self.instance.password,  # Preserve password hash
+                'department': self.instance.department,  # Preserve department for disabled field
             }
             log_form('FORM_SAVE', 'tickets/forms.py:1060', 'BEFORE super().save() - Original fields captured', {
                 'instance_pk': self.instance.pk,
@@ -1131,6 +1566,10 @@ class EmployeeEditForm(forms.ModelForm):
             else:
                 # User explicitly changed the role
                 user.department_role = new_dept_role
+            
+            # Preserve department if field is disabled (for supervisors)
+            if 'department' in self.fields and self.fields['department'].disabled:
+                user.department = original_fields.get('department')
             
             log_form('FORM_SAVE', 'tickets/forms.py:1093', 'AFTER restoration - Fields before user.save()', {
                 'user_id': user.id if user.id else None,

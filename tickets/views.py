@@ -10,7 +10,7 @@ from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
-from django.urls import reverse_lazy
+from django.urls import reverse_lazy, reverse
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth.decorators import user_passes_test
 from django.utils.translation import gettext_lazy as _
@@ -244,372 +244,585 @@ def email_settings(request):
 @login_required
 def dashboard(request):
     """Dashboard view with role-based content"""
-    user = request.user
-    
-    if user.role == 'employee':
-        # Get ticket tasks assigned to this user
-        my_tasks = TicketTask.objects.filter(assigned_to=user).order_by('-created_at')[:5]
-        my_tasks_count = TicketTask.objects.filter(assigned_to=user).count()
-        my_open_tasks_count = TicketTask.objects.filter(assigned_to=user, status='open').count()
-        my_resolved_tasks_count = TicketTask.objects.filter(assigned_to=user, status__in=['resolved', 'closed']).count()
-        
-        if user.department_role == 'manager':
-            # Manager dashboard - can see all tickets across the company
-            # Get all tickets (EXCLUDING manager's own tickets to avoid duplication)
-            all_tickets = Ticket.objects.all().exclude(created_by=user).order_by('-created_at')[:5]
-            # Get manager's own tickets (these will NOT appear in all tickets)
-            my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
-            # Get task tickets assigned to manager by IT managers/technicians
-            task_tickets = Ticket.objects.filter(assigned_to=user).order_by('-created_at')[:5]
-            # Only replies to manager's own tickets
-            recent_replies = Reply.objects.filter(ticket__created_by=user).order_by('-created_at')[:3]
-            
-            context = {
-                'all_tickets': all_tickets,
-                'my_tickets': my_tickets,
-                'task_tickets': task_tickets,
-                'recent_replies': recent_replies,
-                'total_tickets': Ticket.objects.filter(created_by=user).count(),
-                'open_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
-                'resolved_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
-                'my_total_tickets': Ticket.objects.filter(created_by=user).count(),
-                'my_open_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
-                'my_resolved_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
-                'all_total_tickets': Ticket.objects.all().count(),
-                'all_open_tickets': Ticket.objects.filter(status='open').count(),
-                'all_resolved_tickets': Ticket.objects.filter(status='resolved').count(),
-                'task_total_tickets': Ticket.objects.filter(assigned_to=user).count(),
-                'task_open_tickets': Ticket.objects.filter(assigned_to=user, status='open').count(),
-                'task_resolved_tickets': Ticket.objects.filter(assigned_to=user, status='resolved').count(),
-                'my_tasks': my_tasks,
-                'my_tasks_count': my_tasks_count,
-                'my_open_tasks_count': my_open_tasks_count,
-                'my_resolved_tasks_count': my_resolved_tasks_count,
-                'is_manager': True,
+    # #region agent log - Dashboard error tracking
+    import json
+    import os
+    import traceback
+    from datetime import datetime
+    log_path = r'c:\Users\User\Desktop\pticket-main\.cursor\debug.log'
+    def log_debug(hypothesis_id, location, message, data):
+        try:
+            log_dir = os.path.dirname(log_path)
+            if log_dir:
+                os.makedirs(log_dir, exist_ok=True)
+            entry = {
+                'id': f'log_{int(datetime.now().timestamp() * 1000)}',
+                'timestamp': int(datetime.now().timestamp() * 1000),
+                'location': location,
+                'message': message,
+                'data': data,
+                'sessionId': 'debug-session',
+                'runId': 'run1',
+                'hypothesisId': hypothesis_id
             }
-        elif user.department_role == 'senior':
-            # Senior employee dashboard - can see tickets from all supervised departments
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+        except Exception as log_err:
+            # Silently fail logging - don't break the main flow
+            pass
+    # #endregion
+    
+    # Log entry immediately to confirm function is called
+    try:
+        log_debug('DASHBOARD', 'tickets/views.py:245', 'Dashboard function entry', {'timestamp': 'start'})
+    except Exception:
+        pass
+    
+    try:
+        log_debug('DASHBOARD', 'tickets/views.py:245', 'Dashboard entry', {
+            'user_id': request.user.id if request.user.is_authenticated else None,
+            'user_role': request.user.role if request.user.is_authenticated else None
+        })
+        user = request.user
+        log_debug('DASHBOARD', 'tickets/views.py:250', 'User retrieved', {
+            'user_role': user.role,
+            'department_role': getattr(user, 'department_role', None)
+        })
+
+        # Global flag: can this user create ticket tasks?
+        can_create_tasks = False
+        try:
+            if user.role == 'it_manager':
+                can_create_tasks = True
+            elif user.role == 'employee' and user.department_role in ['senior', 'manager']:
+                # Supervisors/managers can always create tasks for their supervised departments
+                can_create_tasks = True
+            elif user.role == 'employee' and user.department and getattr(user.department, 'task_creator_id', None) == user.id:
+                # Regular employee explicitly designated as task creator for their department
+                can_create_tasks = True
+        except Exception:
+            can_create_tasks = False
+        
+        if user.role == 'employee':
+            # Get ticket tasks: assigned to this user OR created by this user (if task creator) OR created by task creators in supervised departments (if supervisor)
+            # Check if user is a task creator
+            is_task_creator_for_tasks = False
             try:
-                supervised_depts = user.get_supervised_departments()
-                # Ensure it's always a list
-                if not isinstance(supervised_depts, list):
-                    supervised_depts = []
+                if user.department and user.department.task_creator_id == user.id:
+                    is_task_creator_for_tasks = True
             except Exception:
-                supervised_depts = []
+                pass
             
-            # Initialize variables
-            departments_that_can_receive = []
-            can_receive = False
+            # Check if user is a supervisor
+            is_supervisor_for_tasks = user.department_role in ['senior', 'manager']
             
-            if supervised_depts:
-                # Get department tickets from all supervised departments (EXCLUDING senior's own tickets)
-                department_tickets = Ticket.objects.filter(
-                    created_by__department__in=[d.id for d in supervised_depts]
-                ).exclude(created_by=user).order_by('-created_at')[:5]
-                # Get senior's own tickets
-                my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
-                # Get task tickets assigned to senior
-                task_tickets = Ticket.objects.filter(assigned_to=user).order_by('-created_at')[:5]
-                recent_replies = Reply.objects.filter(
-                    ticket__created_by__department__in=[d.id for d in supervised_depts]
-                ).order_by('-created_at')[:3]
+            # Build queryset based on user role
+            if is_supervisor_for_tasks:
+                # Supervisors see: tasks assigned to them OR tasks they created OR tasks created by task creators in their supervised departments
+                supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+                supervised_dept_ids = [dept.id for dept in supervised_depts] if supervised_depts else []
                 
-                # Get received tickets from all supervised departments that can receive tickets
-                departments_that_can_receive = [d for d in supervised_depts if d.can_receive_tickets]
+                # Get task creators in supervised departments
+                task_creators_in_supervised_depts = User.objects.filter(
+                    department__in=supervised_dept_ids,
+                    department__task_creator__isnull=False,
+                    is_active=True
+                ).values_list('id', flat=True)
+                
+                # Build query: assigned to supervisor OR created by supervisor OR created by task creators in supervised departments
+                task_query = Q(assigned_to=user) | Q(created_by=user)
+                if task_creators_in_supervised_depts:
+                    task_query |= Q(created_by__in=task_creators_in_supervised_depts)
+                
+                my_tasks_queryset = TicketTask.objects.filter(task_query).defer('deadline')
+            elif is_task_creator_for_tasks:
+                # Task creators see both assigned tasks and tasks they created
+                my_tasks_queryset = TicketTask.objects.filter(
+                    Q(assigned_to=user) | Q(created_by=user)
+                ).defer('deadline')
+            else:
+                # Regular employees only see tasks assigned to them
+                my_tasks_queryset = TicketTask.objects.filter(assigned_to=user).defer('deadline')
+            
+            my_tasks = my_tasks_queryset.order_by('-created_at')[:5]
+            my_tasks_count = my_tasks_queryset.count()
+            my_open_tasks_count = my_tasks_queryset.filter(status='open').count()
+            my_resolved_tasks_count = my_tasks_queryset.filter(status__in=['resolved', 'closed']).count()
+            
+            if user.department_role == 'manager':
+                # Manager dashboard - can see all tickets across the company
+                # Get all tickets (EXCLUDING manager's own tickets to avoid duplication)
+                all_tickets = Ticket.objects.all().exclude(created_by=user).order_by('-created_at')[:5]
+                # Get manager's own tickets (these will NOT appear in all tickets)
+                my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
+                # Get task tickets assigned to manager by IT managers/technicians
+                task_tickets = Ticket.objects.filter(assigned_to=user).order_by('-created_at')[:5]
+                # Only replies to manager's own tickets
+                recent_replies = Reply.objects.filter(ticket__created_by=user).order_by('-created_at')[:3]
+                
+                context = {
+                    'all_tickets': all_tickets,
+                    'my_tickets': my_tickets,
+                    'task_tickets': task_tickets,
+                    'recent_replies': recent_replies,
+                    'total_tickets': Ticket.objects.filter(created_by=user).count(),
+                    'open_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
+                    'resolved_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
+                    'my_total_tickets': Ticket.objects.filter(created_by=user).count(),
+                    'my_open_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
+                    'my_resolved_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
+                    'all_total_tickets': Ticket.objects.all().count(),
+                    'all_open_tickets': Ticket.objects.filter(status='open').count(),
+                    'all_resolved_tickets': Ticket.objects.filter(status='resolved').count(),
+                    'task_total_tickets': Ticket.objects.filter(assigned_to=user).count(),
+                    'task_open_tickets': Ticket.objects.filter(assigned_to=user, status='open').count(),
+                    'task_resolved_tickets': Ticket.objects.filter(assigned_to=user, status='resolved').count(),
+                    'my_tasks': my_tasks,
+                    'my_tasks_count': my_tasks_count,
+                    'my_open_tasks_count': my_open_tasks_count,
+                    'my_resolved_tasks_count': my_resolved_tasks_count,
+                    'is_manager': True,
+                    'can_create_tasks': can_create_tasks,
+                }
+            elif user.department_role == 'senior':
+                # Senior employee dashboard - can see tickets from all supervised departments
+                try:
+                    supervised_depts = user.get_supervised_departments()
+                    # Ensure it's always a list
+                    if not isinstance(supervised_depts, list):
+                        supervised_depts = []
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"Dashboard error - get_supervised_departments: {e}", exc_info=True)
+                    supervised_depts = []
+                
+                # Initialize variables
+                departments_that_can_receive = []
+                can_receive = False
+                
+                if supervised_depts:
+                    # Get department tickets from all supervised departments (EXCLUDING senior's own tickets)
+                    department_tickets = Ticket.objects.filter(
+                        created_by__department__in=[d.id for d in supervised_depts]
+                    ).exclude(created_by=user).order_by('-created_at')[:5]
+                    # Get senior's own tickets
+                    my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
+                    # Get task tickets assigned to senior
+                    task_tickets = Ticket.objects.filter(assigned_to=user).order_by('-created_at')[:5]
+                    recent_replies = Reply.objects.filter(
+                        ticket__created_by__department__in=[d.id for d in supervised_depts]
+                    ).order_by('-created_at')[:3]
+                    
+                    # Get received tickets from all supervised departments that can receive tickets
+                    departments_that_can_receive = [d for d in supervised_depts if d.can_receive_tickets]
+                    received_tickets = None
+                    received_total_tickets = 0
+                    received_open_tickets = 0
+                    received_resolved_tickets = 0
+                    
+                    if departments_that_can_receive:
+                        received_tickets = Ticket.objects.filter(
+                            target_department__in=[d.id for d in departments_that_can_receive]
+                        ).order_by('-created_at')[:5]
+                        received_total_tickets = Ticket.objects.filter(
+                            target_department__in=[d.id for d in departments_that_can_receive]
+                        ).count()
+                        received_open_tickets = Ticket.objects.filter(
+                            target_department__in=[d.id for d in departments_that_can_receive],
+                            status='open'
+                        ).count()
+                        received_resolved_tickets = Ticket.objects.filter(
+                            target_department__in=[d.id for d in departments_that_can_receive],
+                            status='resolved'
+                        ).count()
+                    
+                    # Check if user is ticket responder for any department
+                    is_ticket_responder = any(
+                        d.can_receive_tickets and d.ticket_responder == user 
+                        for d in supervised_depts
+                    )
+                else:
+                    # Fallback to old behavior if no supervised departments (backward compatibility)
+                    if user.department:
+                        department_tickets = Ticket.objects.filter(created_by__department=user.department).exclude(created_by=user).order_by('-created_at')[:5]
+                        my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
+                        task_tickets = Ticket.objects.filter(assigned_to=user).order_by('-created_at')[:5]
+                        recent_replies = Reply.objects.filter(ticket__created_by__department=user.department).order_by('-created_at')[:3]
+                        
+                        can_receive = user.department.can_receive_tickets
+                        is_ticket_responder = (user.department.can_receive_tickets and user.department.ticket_responder == user)
+                        received_tickets = None
+                        received_total_tickets = 0
+                        received_open_tickets = 0
+                        received_resolved_tickets = 0
+                        
+                        if can_receive:
+                            received_tickets = Ticket.objects.filter(target_department=user.department).order_by('-created_at')[:5]
+                            received_total_tickets = Ticket.objects.filter(target_department=user.department).count()
+                            received_open_tickets = Ticket.objects.filter(target_department=user.department, status='open').count()
+                            received_resolved_tickets = Ticket.objects.filter(target_department=user.department, status='resolved').count()
+                    else:
+                        department_tickets = Ticket.objects.none()
+                        my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
+                        task_tickets = Ticket.objects.filter(assigned_to=user).order_by('-created_at')[:5]
+                        recent_replies = Reply.objects.none()
+                        is_ticket_responder = False
+                        received_tickets = None
+                        received_total_tickets = 0
+                        received_open_tickets = 0
+                        received_resolved_tickets = 0
+                
+                # Calculate statistics for all supervised departments
+                supervised_dept_ids = [d.id for d in supervised_depts] if supervised_depts else ([user.department.id] if user.department else [])
+                
+                context = {
+                    'department_tickets': department_tickets,
+                    'received_tickets': received_tickets,
+                    'my_tickets': my_tickets,
+                    'task_tickets': task_tickets,
+                    'recent_replies': recent_replies,
+                    'total_tickets': Ticket.objects.filter(created_by=user).count(),
+                    'open_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
+                    'resolved_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
+                    'my_total_tickets': Ticket.objects.filter(created_by=user).count(),
+                    'my_open_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
+                    'my_resolved_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
+                    'department_total_tickets': Ticket.objects.filter(created_by__department__in=supervised_dept_ids).count() if supervised_dept_ids else 0,
+                    'department_open_tickets': Ticket.objects.filter(created_by__department__in=supervised_dept_ids, status='open').count() if supervised_dept_ids else 0,
+                    'department_resolved_tickets': Ticket.objects.filter(created_by__department__in=supervised_dept_ids, status='resolved').count() if supervised_dept_ids else 0,
+                    'received_total_tickets': received_total_tickets,
+                    'received_open_tickets': received_open_tickets,
+                    'received_resolved_tickets': received_resolved_tickets,
+                    'can_receive_tickets': bool(departments_that_can_receive) if supervised_depts else can_receive,
+                    'task_total_tickets': Ticket.objects.filter(assigned_to=user).count(),
+                    'task_open_tickets': Ticket.objects.filter(assigned_to=user, status='open').count(),
+                    'task_resolved_tickets': Ticket.objects.filter(assigned_to=user, status='resolved').count(),
+                    'my_tasks': my_tasks,
+                    'my_tasks_count': my_tasks_count,
+                    'my_open_tasks_count': my_open_tasks_count,
+                    'my_resolved_tasks_count': my_resolved_tasks_count,
+                    'is_senior': True,
+                    'supervised_departments': supervised_depts if supervised_depts else [],
+                    'department_name': supervised_depts[0] if supervised_depts and len(supervised_depts) > 0 else (user.department if user.department else None),
+                    'can_create_tasks': can_create_tasks,
+                }
+            else:
+                # Regular employee dashboard
+                my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
+                # Get task tickets assigned to employee by IT managers/technicians
+                task_tickets = Ticket.objects.filter(assigned_to=user).order_by('-created_at')[:5]
+                recent_replies = Reply.objects.filter(ticket__created_by=user).order_by('-created_at')[:3]
+                
+                # Check if user is a ticket responder
+                is_ticket_responder = (user.department and 
+                                     user.department.can_receive_tickets and 
+                                     user.department.ticket_responder == user)
                 received_tickets = None
                 received_total_tickets = 0
                 received_open_tickets = 0
                 received_resolved_tickets = 0
                 
-                if departments_that_can_receive:
+                if is_ticket_responder:
+                    # Get received tickets - tickets sent to this department
                     received_tickets = Ticket.objects.filter(
-                        target_department__in=[d.id for d in departments_that_can_receive]
+                        target_department=user.department
                     ).order_by('-created_at')[:5]
-                    received_total_tickets = Ticket.objects.filter(
-                        target_department__in=[d.id for d in departments_that_can_receive]
-                    ).count()
-                    received_open_tickets = Ticket.objects.filter(
-                        target_department__in=[d.id for d in departments_that_can_receive],
-                        status='open'
-                    ).count()
-                    received_resolved_tickets = Ticket.objects.filter(
-                        target_department__in=[d.id for d in departments_that_can_receive],
-                        status='resolved'
-                    ).count()
+                    received_total_tickets = Ticket.objects.filter(target_department=user.department).count()
+                    received_open_tickets = Ticket.objects.filter(target_department=user.department, status='open').count()
+                    received_resolved_tickets = Ticket.objects.filter(target_department=user.department, status='resolved').count()
                 
-                # Check if user is ticket responder for any department
-                is_ticket_responder = any(
-                    d.can_receive_tickets and d.ticket_responder == user 
-                    for d in supervised_depts
-                )
-            else:
-                # Fallback to old behavior if no supervised departments (backward compatibility)
-                if user.department:
-                    department_tickets = Ticket.objects.filter(created_by__department=user.department).exclude(created_by=user).order_by('-created_at')[:5]
-                    my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
-                    task_tickets = Ticket.objects.filter(assigned_to=user).order_by('-created_at')[:5]
-                    recent_replies = Reply.objects.filter(ticket__created_by__department=user.department).order_by('-created_at')[:3]
-                    
-                    can_receive = user.department.can_receive_tickets
-                    is_ticket_responder = (user.department.can_receive_tickets and user.department.ticket_responder == user)
-                    received_tickets = None
-                    received_total_tickets = 0
-                    received_open_tickets = 0
-                    received_resolved_tickets = 0
-                    
-                    if can_receive:
-                        received_tickets = Ticket.objects.filter(target_department=user.department).order_by('-created_at')[:5]
-                        received_total_tickets = Ticket.objects.filter(target_department=user.department).count()
-                        received_open_tickets = Ticket.objects.filter(target_department=user.department, status='open').count()
-                        received_resolved_tickets = Ticket.objects.filter(target_department=user.department, status='resolved').count()
-                else:
-                    department_tickets = Ticket.objects.none()
-                    my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
-                    task_tickets = Ticket.objects.filter(assigned_to=user).order_by('-created_at')[:5]
-                    recent_replies = Reply.objects.none()
-                    is_ticket_responder = False
-                    received_tickets = None
-                    received_total_tickets = 0
-                    received_open_tickets = 0
-                    received_resolved_tickets = 0
+                context = {
+                    'tickets': my_tickets,  # Use 'tickets' to match template
+                    'my_tickets': my_tickets,
+                    'task_tickets': task_tickets,
+                    'recent_replies': recent_replies,
+                    'received_tickets': received_tickets,
+                    'total_tickets': Ticket.objects.filter(created_by=user).count(),
+                    'open_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
+                    'resolved_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
+                    'in_progress_tickets': Ticket.objects.filter(created_by=user, status='in_progress').count(),
+                    'task_total_tickets': Ticket.objects.filter(assigned_to=user).count(),
+                    'task_open_tickets': Ticket.objects.filter(assigned_to=user, status='open').count(),
+                    'received_total_tickets': received_total_tickets,
+                    'received_open_tickets': received_open_tickets,
+                    'received_resolved_tickets': received_resolved_tickets,
+                    'can_receive_tickets': is_ticket_responder,
+                    'is_ticket_responder': is_ticket_responder,
+                    'task_resolved_tickets': Ticket.objects.filter(assigned_to=user, status='resolved').count(),
+                    'my_tasks': my_tasks,
+                    'my_tasks_count': my_tasks_count,
+                    'my_open_tasks_count': my_open_tasks_count,
+                    'my_resolved_tasks_count': my_resolved_tasks_count,
+                    'is_manager': False,
+                    'is_senior': False,
+                    'can_create_tasks': can_create_tasks,
+                }
+        
+        elif user.role == 'technician':
+            # Technician dashboard - only assigned IT department tickets
+            # Get ticket tasks assigned to technician
+            # Temporarily defer 'deadline' field until migration is applied
+            my_tasks = TicketTask.objects.filter(assigned_to=user).defer('deadline').order_by('-created_at')[:5]
+            my_tasks_count = TicketTask.objects.filter(assigned_to=user).defer('deadline').count()
+            my_open_tasks_count = TicketTask.objects.filter(assigned_to=user, status='open').defer('deadline').count()
+            my_resolved_tasks_count = TicketTask.objects.filter(assigned_to=user, status__in=['resolved', 'closed']).defer('deadline').count()
             
-            # Calculate statistics for all supervised departments
-            supervised_dept_ids = [d.id for d in supervised_depts] if supervised_depts else ([user.department.id] if user.department else [])
-            
-            context = {
-                'department_tickets': department_tickets,
-                'received_tickets': received_tickets,
-                'my_tickets': my_tickets,
-                'task_tickets': task_tickets,
-                'recent_replies': recent_replies,
-                'total_tickets': Ticket.objects.filter(created_by=user).count(),
-                'open_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
-                'resolved_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
-                'my_total_tickets': Ticket.objects.filter(created_by=user).count(),
-                'my_open_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
-                'my_resolved_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
-                'department_total_tickets': Ticket.objects.filter(created_by__department__in=supervised_dept_ids).count() if supervised_dept_ids else 0,
-                'department_open_tickets': Ticket.objects.filter(created_by__department__in=supervised_dept_ids, status='open').count() if supervised_dept_ids else 0,
-                'department_resolved_tickets': Ticket.objects.filter(created_by__department__in=supervised_dept_ids, status='resolved').count() if supervised_dept_ids else 0,
-                'received_total_tickets': received_total_tickets,
-                'received_open_tickets': received_open_tickets,
-                'received_resolved_tickets': received_resolved_tickets,
-                'can_receive_tickets': bool(departments_that_can_receive) if supervised_depts else can_receive,
-                'task_total_tickets': Ticket.objects.filter(assigned_to=user).count(),
-                'task_open_tickets': Ticket.objects.filter(assigned_to=user, status='open').count(),
-                'task_resolved_tickets': Ticket.objects.filter(assigned_to=user, status='resolved').count(),
-                'my_tasks': my_tasks,
-                'my_tasks_count': my_tasks_count,
-                'my_open_tasks_count': my_open_tasks_count,
-                'my_resolved_tasks_count': my_resolved_tasks_count,
-                'is_senior': True,
-                'supervised_departments': supervised_depts if supervised_depts else [],
-                'department_name': supervised_depts[0] if supervised_depts and len(supervised_depts) > 0 else (user.department if user.department else None),
-            }
-        else:
-            # Regular employee dashboard
-            my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
-            # Get task tickets assigned to employee by IT managers/technicians
-            task_tickets = Ticket.objects.filter(assigned_to=user).order_by('-created_at')[:5]
-            recent_replies = Reply.objects.filter(ticket__created_by=user).order_by('-created_at')[:3]
-            
-            # Check if user is a ticket responder
-            is_ticket_responder = (user.department and 
-                                 user.department.can_receive_tickets and 
-                                 user.department.ticket_responder == user)
-            received_tickets = None
-            received_total_tickets = 0
-            received_open_tickets = 0
-            received_resolved_tickets = 0
-            
-            if is_ticket_responder:
-                # Get received tickets - tickets sent to this department
-                received_tickets = Ticket.objects.filter(
-                    target_department=user.department
+            it_department = get_it_department()
+            if it_department:
+                assigned_tickets = Ticket.objects.filter(
+                    Q(assigned_to=user) & (Q(target_department__isnull=True) | Q(target_department=it_department))
                 ).order_by('-created_at')[:5]
-                received_total_tickets = Ticket.objects.filter(target_department=user.department).count()
-                received_open_tickets = Ticket.objects.filter(target_department=user.department, status='open').count()
-                received_resolved_tickets = Ticket.objects.filter(target_department=user.department, status='resolved').count()
-            
-            context = {
-                'tickets': my_tickets,  # Use 'tickets' to match template
-                'my_tickets': my_tickets,
-                'task_tickets': task_tickets,
-                'recent_replies': recent_replies,
-                'received_tickets': received_tickets,
-                'total_tickets': Ticket.objects.filter(created_by=user).count(),
-                'open_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
-                'resolved_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
-                'in_progress_tickets': Ticket.objects.filter(created_by=user, status='in_progress').count(),
-                'task_total_tickets': Ticket.objects.filter(assigned_to=user).count(),
-                'task_open_tickets': Ticket.objects.filter(assigned_to=user, status='open').count(),
-                'received_total_tickets': received_total_tickets,
-                'received_open_tickets': received_open_tickets,
-                'received_resolved_tickets': received_resolved_tickets,
-                'can_receive_tickets': is_ticket_responder,
-                'is_ticket_responder': is_ticket_responder,
-                'task_resolved_tickets': Ticket.objects.filter(assigned_to=user, status='resolved').count(),
-                'my_tasks': my_tasks,
-                'my_tasks_count': my_tasks_count,
-                'my_open_tasks_count': my_open_tasks_count,
-                'my_resolved_tasks_count': my_resolved_tasks_count,
-                'is_manager': False,
-                'is_senior': False,
-            }
-        
-    elif user.role == 'technician':
-        # Technician dashboard - only assigned IT department tickets
-        # Get ticket tasks assigned to technician
-        my_tasks = TicketTask.objects.filter(assigned_to=user).order_by('-created_at')[:5]
-        my_tasks_count = TicketTask.objects.filter(assigned_to=user).count()
-        my_open_tasks_count = TicketTask.objects.filter(assigned_to=user, status='open').count()
-        my_resolved_tasks_count = TicketTask.objects.filter(assigned_to=user, status__in=['resolved', 'closed']).count()
-        
-        it_department = get_it_department()
-        if it_department:
-            assigned_tickets = Ticket.objects.filter(
-                Q(assigned_to=user) & (Q(target_department__isnull=True) | Q(target_department=it_department))
-            ).order_by('-created_at')[:5]
-            recent_replies = Reply.objects.filter(
-                Q(ticket__assigned_to=user) & (Q(ticket__target_department__isnull=True) | Q(ticket__target_department=it_department))
-            ).order_by('-created_at')[:3]
-        else:
-            assigned_tickets = Ticket.objects.filter(assigned_to=user).order_by('-created_at')[:5]
-            recent_replies = Reply.objects.filter(ticket__assigned_to=user).order_by('-created_at')[:3]
-        # Get technician's own created tickets
-        my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
-        
-        # Statistics for IT department tickets only
-        if it_department:
-            it_assigned_tickets = Ticket.objects.filter(
-                Q(assigned_to=user) & (Q(target_department__isnull=True) | Q(target_department=it_department))
-            )
-            total_assigned = it_assigned_tickets.count()
-            open_assigned = it_assigned_tickets.filter(status='open').count()
-            in_progress = it_assigned_tickets.filter(status='in_progress').count()
-            resolved_tickets = it_assigned_tickets.filter(status='resolved').count()
-        else:
-            total_assigned = Ticket.objects.filter(assigned_to=user).count()
-            open_assigned = Ticket.objects.filter(assigned_to=user, status='open').count()
-            in_progress = Ticket.objects.filter(assigned_to=user, status='in_progress').count()
-            resolved_tickets = Ticket.objects.filter(assigned_to=user, status='resolved').count()
-        
-        context = {
-            'tickets': assigned_tickets,  # Use 'tickets' to match template
-            'assigned_tickets': assigned_tickets,
-            'my_tickets': my_tickets,
-            'recent_replies': recent_replies,
-            'total_tickets': total_assigned,
-            'open_tickets': open_assigned,
-            'resolved_tickets': resolved_tickets,
-            'in_progress_tickets': in_progress,
-            'total_assigned': total_assigned,
-            'open_assigned': open_assigned,
-            'in_progress': in_progress,
-            'total_my_tickets': Ticket.objects.filter(created_by=user).count(),
-            'open_my_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
-            'resolved_my_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
-            'my_tasks': my_tasks,
-            'my_tasks_count': my_tasks_count,
-            'my_open_tasks_count': my_open_tasks_count,
-            'my_resolved_tasks_count': my_resolved_tasks_count,
-        }
-        
-    elif is_admin_superuser(user):
-        # Administrator dashboard - can see all tickets and manage everything
-        from .services import get_it_manager_ticket_ordering
-        all_tickets = Ticket.objects.exclude(category='access', access_approval_status='pending').order_by(*get_it_manager_ticket_ordering())[:15]
-        my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
-        recent_replies = Reply.objects.all().order_by('-created_at')[:3]
-        unread_notifications = Notification.objects.filter(recipient=user, is_read=False).order_by('-created_at')
-        
-        # Statistics for all tickets
-        all_tickets_stats = Ticket.objects.all()
-        
-        context = {
-            'tickets': all_tickets,
-            'all_tickets': all_tickets,
-            'my_tickets': my_tickets,
-            'recent_replies': recent_replies,
-            'total_tickets': all_tickets_stats.count(),
-            'open_tickets': all_tickets_stats.filter(status='open').count(),
-            'resolved_tickets': all_tickets_stats.filter(status='resolved').count(),
-            'in_progress_tickets': all_tickets_stats.filter(status='in_progress').count(),
-            'total_my_tickets': Ticket.objects.filter(created_by=user).count(),
-            'open_my_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
-            'resolved_my_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
-            'unread_notifications': unread_notifications[:5],
-            'unread_count': unread_notifications.count(),
-            'is_administrator': True,
-        }
-        
-    else:  # IT Manager
-        # IT Manager dashboard - only IT department tickets
-        from .services import get_it_manager_ticket_ordering
-        it_department = get_it_department()
-        
-        # Only show tickets that:
-        # 1. Have no target_department (old tickets, default to IT)
-        # 2. Have target_department = IT department
-        # 3. Are created by IT manager themselves
-        if it_department:
-            all_tickets = Ticket.objects.filter(
-                Q(target_department__isnull=True) |  # Old tickets without target_department
-                Q(target_department=it_department) |  # Tickets for IT department
-                Q(created_by=user)  # IT manager's own tickets
-            ).exclude(category='access', access_approval_status='pending').order_by(*get_it_manager_ticket_ordering())[:15]
+                recent_replies = Reply.objects.filter(
+                    Q(ticket__assigned_to=user) & (Q(ticket__target_department__isnull=True) | Q(ticket__target_department=it_department))
+                ).order_by('-created_at')[:3]
+            else:
+                assigned_tickets = Ticket.objects.filter(assigned_to=user).order_by('-created_at')[:5]
+                recent_replies = Reply.objects.filter(ticket__assigned_to=user).order_by('-created_at')[:3]
+            # Get technician's own created tickets
+            my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
             
             # Statistics for IT department tickets only
-            it_tickets = Ticket.objects.filter(
-                Q(target_department__isnull=True) | Q(target_department=it_department)
-            )
-        else:
-            # Fallback: if no IT department found, show all tickets (backward compatibility)
+            if it_department:
+                it_assigned_tickets = Ticket.objects.filter(
+                    Q(assigned_to=user) & (Q(target_department__isnull=True) | Q(target_department=it_department))
+                )
+                total_assigned = it_assigned_tickets.count()
+                open_assigned = it_assigned_tickets.filter(status='open').count()
+                in_progress = it_assigned_tickets.filter(status='in_progress').count()
+                resolved_tickets = it_assigned_tickets.filter(status='resolved').count()
+            else:
+                total_assigned = Ticket.objects.filter(assigned_to=user).count()
+                open_assigned = Ticket.objects.filter(assigned_to=user, status='open').count()
+                in_progress = Ticket.objects.filter(assigned_to=user, status='in_progress').count()
+                resolved_tickets = Ticket.objects.filter(assigned_to=user, status='resolved').count()
+            
+            context = {
+                'tickets': assigned_tickets,  # Use 'tickets' to match template
+                'assigned_tickets': assigned_tickets,
+                'my_tickets': my_tickets,
+                'recent_replies': recent_replies,
+                'total_tickets': total_assigned,
+                'open_tickets': open_assigned,
+                'resolved_tickets': resolved_tickets,
+                'in_progress_tickets': in_progress,
+                'total_assigned': total_assigned,
+                'open_assigned': open_assigned,
+                'in_progress': in_progress,
+                'total_my_tickets': Ticket.objects.filter(created_by=user).count(),
+                'open_my_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
+                'resolved_my_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
+                'my_tasks': my_tasks,
+                'my_tasks_count': my_tasks_count,
+                'my_open_tasks_count': my_open_tasks_count,
+                'my_resolved_tasks_count': my_resolved_tasks_count,
+                'can_create_tasks': can_create_tasks,
+            }
+        
+        elif is_admin_superuser(user):
+            # Administrator dashboard - can see all tickets and manage everything
+            from .services import get_it_manager_ticket_ordering
             all_tickets = Ticket.objects.exclude(category='access', access_approval_status='pending').order_by(*get_it_manager_ticket_ordering())[:15]
-            it_tickets = Ticket.objects.all()
-        
-        # Get IT manager's own created tickets
-        my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
-        
-        # Get replies for IT department tickets only
-        if it_department:
-            recent_replies = Reply.objects.filter(
-                Q(ticket__target_department__isnull=True) | Q(ticket__target_department=it_department)
-            ).order_by('-created_at')[:3]
-        else:
+            my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
             recent_replies = Reply.objects.all().order_by('-created_at')[:3]
+            unread_notifications = Notification.objects.filter(recipient=user, is_read=False).order_by('-created_at')
+            
+            # Statistics for all tickets
+            all_tickets_stats = Ticket.objects.all()
+            
+            context = {
+                'tickets': all_tickets,
+                'all_tickets': all_tickets,
+                'my_tickets': my_tickets,
+                'recent_replies': recent_replies,
+                'total_tickets': all_tickets_stats.count(),
+                'open_tickets': all_tickets_stats.filter(status='open').count(),
+                'resolved_tickets': all_tickets_stats.filter(status='resolved').count(),
+                'in_progress_tickets': all_tickets_stats.filter(status='in_progress').count(),
+                'total_my_tickets': Ticket.objects.filter(created_by=user).count(),
+                'open_my_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
+                'resolved_my_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
+                'unread_notifications': unread_notifications[:5],
+                'unread_count': unread_notifications.count(),
+                'is_administrator': True,
+                'can_create_tasks': can_create_tasks,
+            }
         
-        # Notifications (admin-only phase)
-        unread_notifications = Notification.objects.filter(recipient=user, is_read=False).order_by('-created_at')
+        else:  # IT Manager
+            # IT Manager dashboard - only IT department tickets
+            from .services import get_it_manager_ticket_ordering
+            it_department = get_it_department()
+            
+            # Only show tickets that:
+            # 1. Have no target_department (old tickets, default to IT)
+            # 2. Have target_department = IT department
+            # 3. Are created by IT manager themselves
+            if it_department:
+                all_tickets = Ticket.objects.filter(
+                    Q(target_department__isnull=True) |  # Old tickets without target_department
+                    Q(target_department=it_department) |  # Tickets for IT department
+                    Q(created_by=user)  # IT manager's own tickets
+                ).exclude(category='access', access_approval_status='pending').order_by(*get_it_manager_ticket_ordering())[:15]
+                
+                # Statistics for IT department tickets only
+                it_tickets = Ticket.objects.filter(
+                    Q(target_department__isnull=True) | Q(target_department=it_department)
+                )
+            else:
+                # Fallback: if no IT department found, show all tickets (backward compatibility)
+                all_tickets = Ticket.objects.exclude(category='access', access_approval_status='pending').order_by(*get_it_manager_ticket_ordering())[:15]
+                it_tickets = Ticket.objects.all()
+            
+            # Get IT manager's own created tickets
+            my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
+            
+            # Get replies for IT department tickets only
+            if it_department:
+                recent_replies = Reply.objects.filter(
+                    Q(ticket__target_department__isnull=True) | Q(ticket__target_department=it_department)
+                ).order_by('-created_at')[:3]
+            else:
+                recent_replies = Reply.objects.all().order_by('-created_at')[:3]
+            
+            # Notifications (admin-only phase)
+            unread_notifications = Notification.objects.filter(recipient=user, is_read=False).order_by('-created_at')
 
-        # Get ticket tasks for IT manager
-        my_created_tasks = TicketTask.objects.filter(created_by=user).order_by('-created_at')[:5]
-        all_tasks_count = TicketTask.objects.filter(created_by=user).count()
-        open_tasks_count = TicketTask.objects.filter(created_by=user, status='open').count()
-        resolved_tasks_count = TicketTask.objects.filter(created_by=user, status__in=['resolved', 'closed']).count()
+            # Get ticket tasks for IT manager
+            # Temporarily defer 'deadline' field until migration is applied
+            my_created_tasks = TicketTask.objects.filter(created_by=user).defer('deadline').order_by('-created_at')[:5]
+            all_tasks_count = TicketTask.objects.filter(created_by=user).defer('deadline').count()
+            open_tasks_count = TicketTask.objects.filter(created_by=user, status='open').defer('deadline').count()
+            resolved_tasks_count = TicketTask.objects.filter(created_by=user, status__in=['resolved', 'closed']).defer('deadline').count()
+            
+            context = {
+                'tickets': all_tickets,  # Use 'tickets' to match template
+                'all_tickets': all_tickets,
+                'my_tickets': my_tickets,
+                'recent_replies': recent_replies,
+                'unread_notifications': unread_notifications,
+                'total_tickets': it_tickets.count() if it_department else Ticket.objects.count(),
+                'open_tickets': it_tickets.filter(status='open').count() if it_department else Ticket.objects.filter(status='open').count(),
+                'resolved_tickets': it_tickets.filter(status='resolved').count() if it_department else Ticket.objects.filter(status='resolved').count(),
+                'in_progress_tickets': it_tickets.filter(status='in_progress').count() if it_department else Ticket.objects.filter(status='in_progress').count(),
+                'urgent_tickets': it_tickets.filter(priority='urgent').count() if it_department else Ticket.objects.filter(priority='urgent').count(),
+                'technicians': User.objects.filter(role='technician').count(),
+                'total_my_tickets': Ticket.objects.filter(created_by=user).count(),
+                'open_my_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
+                'resolved_my_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
+                'my_created_tasks': my_created_tasks,
+                'all_tasks_count': all_tasks_count,
+                'open_tasks_count': open_tasks_count,
+                'resolved_tasks_count': resolved_tasks_count,
+                'can_create_tasks': can_create_tasks,
+            }
         
-        context = {
-            'tickets': all_tickets,  # Use 'tickets' to match template
-            'all_tickets': all_tickets,
-            'my_tickets': my_tickets,
-            'recent_replies': recent_replies,
-            'unread_notifications': unread_notifications,
-            'total_tickets': it_tickets.count() if it_department else Ticket.objects.count(),
-            'open_tickets': it_tickets.filter(status='open').count() if it_department else Ticket.objects.filter(status='open').count(),
-            'resolved_tickets': it_tickets.filter(status='resolved').count() if it_department else Ticket.objects.filter(status='resolved').count(),
-            'in_progress_tickets': it_tickets.filter(status='in_progress').count() if it_department else Ticket.objects.filter(status='in_progress').count(),
-            'urgent_tickets': it_tickets.filter(priority='urgent').count() if it_department else Ticket.objects.filter(priority='urgent').count(),
-            'technicians': User.objects.filter(role='technician').count(),
-            'total_my_tickets': Ticket.objects.filter(created_by=user).count(),
-            'open_my_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
-            'resolved_my_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
-            'my_created_tasks': my_created_tasks,
-            'all_tasks_count': all_tasks_count,
-            'open_tasks_count': open_tasks_count,
-            'resolved_tasks_count': resolved_tasks_count,
-        }
-    
-    return render(request, 'tickets/dashboard.html', context)
+        # Ensure context exists before proceeding
+        if 'context' not in locals():
+            raise ValueError("Context variable not defined - this should not happen. User role: {}, Department role: {}".format(
+                getattr(user, 'role', 'unknown'),
+                getattr(user, 'department_role', 'unknown')
+            ))
+        
+        try:
+            log_debug('DASHBOARD', 'tickets/views.py:665', 'Context created successfully', {
+                'context_keys': list(context.keys()),
+                'context_type': type(context).__name__,
+                'user_role': getattr(user, 'role', None),
+                'department_role': getattr(user, 'department_role', None)
+            })
+        except Exception:
+            pass  # Don't fail if logging fails
+        
+        try:
+            return render(request, 'tickets/dashboard.html', context)
+        except Exception as render_error:
+            # If template rendering fails, log it and return error
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Dashboard template render error: {render_error}", exc_info=True)
+            try:
+                log_debug('DASHBOARD', 'tickets/views.py:678', 'Template render error', {
+                    'error_type': type(render_error).__name__,
+                    'error_message': str(render_error)
+                })
+            except Exception:
+                pass
+            raise  # Re-raise to be caught by outer exception handler
+        
+    except Exception as e:
+        import logging
+        error_traceback = traceback.format_exc()
+        logger = logging.getLogger(__name__)
+        
+        # Get user info for debugging
+        user_info = {}
+        try:
+            user_info = {
+                'user_id': getattr(request.user, 'id', None) if request.user.is_authenticated else None,
+                'user_role': getattr(request.user, 'role', None) if request.user.is_authenticated else None,
+                'department_role': getattr(request.user, 'department_role', None) if request.user.is_authenticated else None,
+                'is_authenticated': request.user.is_authenticated
+            }
+        except Exception:
+            user_info = {'error': 'Could not get user info'}
+        
+        # Log to Django logger (this should always work)
+        logger.error(f"Dashboard error: {e}", exc_info=True)
+        logger.error(f"Dashboard error - User info: {user_info}")
+        logger.error(f"Dashboard error - Traceback: {error_traceback}")
+        
+        # Try to log to debug file (may fail silently)
+        try:
+            log_debug('DASHBOARD', 'tickets/views.py:695', 'Dashboard exception caught', {
+                'error_type': type(e).__name__,
+                'error_message': str(e),
+                'user_info': user_info,
+                'traceback': error_traceback[:1000] if error_traceback else None
+            })
+        except Exception:
+            pass  # Don't fail if logging fails
+        
+        # CRITICAL: Do NOT redirect to login if user is already authenticated
+        # This would cause an infinite redirect loop:
+        # Dashboard error -> redirect to login -> user authenticated -> redirect to dashboard -> repeat
+        # Instead, return an error page directly
+        from django.contrib import messages
+        from django.http import HttpResponseServerError
+        
+        # Show error message to user
+        messages.error(request, _('خطا در بارگذاری داشبورد. لطفاً با مدیر سیستم تماس بگیرید.'))
+        
+        # Return a proper error response with detailed error info (for debugging)
+        # In production, you might want to hide the actual error message
+        error_html = f"""
+        <html dir="rtl" lang="fa">
+        <head>
+            <meta charset="UTF-8">
+            <title>خطا در بارگذاری داشبورد</title>
+            <style>
+                body {{ font-family: Tahoma, Arial, sans-serif; padding: 2rem; background: #f5f5f5; }}
+                .error-box {{ background: white; padding: 2rem; border-radius: 8px; max-width: 800px; margin: 0 auto; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+                h1 {{ color: #dc3545; }}
+                .error-details {{ background: #f8f9fa; padding: 1rem; border-radius: 4px; margin: 1rem 0; font-family: monospace; font-size: 0.9em; }}
+            </style>
+        </head>
+        <body>
+            <div class="error-box">
+                <h1>خطا در بارگذاری داشبورد</h1>
+                <p>متأسفانه خطایی در بارگذاری داشبورد رخ داده است.</p>
+                <p>لطفاً با مدیر سیستم تماس بگیرید.</p>
+                <div class="error-details">
+                    <strong>نوع خطا:</strong> {type(e).__name__}<br>
+                    <strong>پیام خطا:</strong> {str(e)}<br>
+                    <strong>نقش کاربر:</strong> {user_info.get('user_role', 'نامشخص')}<br>
+                    <strong>نقش بخش:</strong> {user_info.get('department_role', 'نامشخص')}
+                </div>
+                <p><a href="/login/">بازگشت به صفحه ورود</a></p>
+            </div>
+        </body>
+        </html>
+        """
+        return HttpResponseServerError(error_html)
 
 @login_required
 def view_all_replies(request):
@@ -1608,6 +1821,36 @@ def ticket_delete(request, ticket_id):
 #         form = UserProfileForm(instance=request.user)
 #     
 #     return render(request, 'tickets/profile.html', {'form': form})
+
+@login_required
+def superadmin_profile(request):
+    """SuperAdmin profile view for editing national_id and employee_code"""
+    from .admin_security import is_admin_superuser
+    if not is_admin_superuser(request.user):
+        messages.error(request, _('دسترسی رد شد. فقط مدیر سیستم میتواند این بخش را دریافت کند.'))
+        return redirect('tickets:dashboard')
+    
+    if request.method == 'POST':
+        from .forms import SuperAdminProfileForm
+        form = SuperAdminProfileForm(request.POST, instance=request.user)
+        if form.is_valid():
+            # Save the form
+            user = form.save()
+            # Update the admin_security constants to reflect the new values
+            # Note: This is a critical security operation - the user must be aware of the implications
+            messages.success(request, _('پروفایل با موفقیت بروزرسانی شد. لطفاً توجه داشته باشید که تغییر کد ملی و کد پرسنلی ممکن است بر ورود به سیستم تأثیر بگذارد.'))
+            return redirect('tickets:superadmin_profile')
+        else:
+            messages.error(request, _('خطا در بروزرسانی پروفایل. لطفاً اطلاعات را بررسی کنید.'))
+    else:
+        from .forms import SuperAdminProfileForm
+        form = SuperAdminProfileForm(instance=request.user)
+    
+    context = {
+        'form': form,
+    }
+    
+    return render(request, 'tickets/superadmin_profile.html', context)
 
 @login_required
 def it_manager_profile(request):
@@ -3503,10 +3746,13 @@ def supervisor_assignment(request):
                         continue
                     
                     department.supervisor = supervisor
-                    department.save()
+                    department.save(update_fields=['supervisor'])
                     
-                    # Track in the ManyToMany helper field as well
+                    # Track in the ManyToMany helper field as well (this creates the M2M relationship)
                     supervisor.supervised_departments.add(department)
+                    
+                    # Refresh supervisor from database to ensure relationships are up-to-date
+                    supervisor.refresh_from_db()
                 
                 if departments:
                     dept_names = ', '.join([d.name for d in departments])
@@ -3525,9 +3771,10 @@ def supervisor_assignment(request):
         form = SupervisorAssignmentForm()
     
     # Get all supervisors and their departments (senior employees)
+    # Include both M2M supervised_departments and FK supervisor relationships
     supervisors = User.objects.filter(
         role='employee',
-        department_role='senior',
+        department_role__in=['senior', 'manager'],
         is_active=True
     ).prefetch_related('supervised_departments').order_by('first_name', 'last_name')
     
@@ -3673,13 +3920,22 @@ def remove_supervisor_from_department(request, department_id):
     department = get_object_or_404(Department, id=department_id)
     
     if request.method == 'POST':
-        supervisor = department.supervisor
+        # Find supervisor through FK relationship
+        supervisor_fk = department.supervisor
+        
+        # Find supervisor through M2M relationship
+        supervisor_m2m = department.supervisors.filter(is_active=True).first()
+        
+        # Use FK supervisor if available, otherwise use M2M supervisor
+        supervisor = supervisor_fk or supervisor_m2m
+        
         if supervisor:
-            # Remove from ManyToMany
+            # Remove from ManyToMany (works even if not present)
             supervisor.supervised_departments.remove(department)
-            # Clear ForeignKey
-            department.supervisor = None
-            department.save()
+            # Clear ForeignKey if it points to this supervisor
+            if department.supervisor == supervisor:
+                department.supervisor = None
+                department.save()
             messages.success(request, _('سرپرست "{}" از بخش "{}" حذف شد.').format(
                 supervisor.get_full_name(), department.name
             ))
@@ -3698,9 +3954,11 @@ def supervisor_ticket_responder_management(request):
     """Supervisor view for managing ticket responder assignment"""
     user = request.user
     
-    # Only allow senior employees (supervisors) with at least one supervised department that can receive tickets
-    supervised_depts = user.get_supervised_departments() if user.department_role == 'senior' else []
-    if user.role != 'employee' or user.department_role != 'senior' or not supervised_depts:
+    # Only allow supervisors (senior/manager) with at least one supervised department that can receive tickets
+    is_supervisor = (user.role == 'employee' and user.department_role in ['senior', 'manager'])
+    supervised_depts = user.get_supervised_departments() if is_supervisor else []
+    
+    if not is_supervisor or not supervised_depts:
         messages.error(request, _('دسترسی رد شد. فقط سرپرست بخش می‌تواند این بخش را دریافت کند.'))
         return redirect('tickets:dashboard')
     
@@ -3713,9 +3971,13 @@ def supervisor_ticket_responder_management(request):
     if request.method == 'POST':
         department_id = request.POST.get('department_id')
         ticket_responder_id = request.POST.get('ticket_responder')
+        task_creator_id = request.POST.get('task_creator')
         
         if not department_id:
             messages.error(request, _('بخش انتخاب نشده است.'))
+            # Redirect back with GET parameter if we had one
+            if request.GET.get('department_id'):
+                return redirect(f"{reverse('tickets:supervisor_ticket_responder_management')}?department_id={request.GET.get('department_id')}")
             return redirect('tickets:supervisor_ticket_responder_management')
         
         # Validate that the selected department is one of the user's supervised departments
@@ -3728,6 +3990,7 @@ def supervisor_ticket_responder_management(request):
             messages.error(request, _('بخش انتخاب شده معتبر نیست.'))
             return redirect('tickets:supervisor_ticket_responder_management')
         
+        # --- Update ticket responder (can respond to tickets) ---
         if ticket_responder_id:
             try:
                 # Validate that the selected user belongs to one of the supervised departments and is not a supervisor
@@ -3740,7 +4003,7 @@ def supervisor_ticket_responder_management(request):
                 )
                 # Exclude admin superuser and supervisors
                 if is_admin_superuser(ticket_responder) or ticket_responder.department_role == 'senior':
-                    messages.error(request, _('نمی‌توانید این کاربر را انتخاب کنید.'))
+                    messages.error(request, _('نمی‌توانید این کاربر را به‌عنوان پاسخ‌دهنده انتخاب کنید.'))
                     return redirect('tickets:supervisor_ticket_responder_management')
                 
                 department.ticket_responder = ticket_responder
@@ -3749,33 +4012,85 @@ def supervisor_ticket_responder_management(request):
                     ticket_responder.first_name, ticket_responder.last_name
                 ))
             except User.DoesNotExist:
-                messages.error(request, _('کاربر انتخاب شده معتبر نیست.'))
+                messages.error(request, _('کاربر انتخاب شده برای پاسخ‌دهنده معتبر نیست.'))
         else:
             # Clear ticket responder
             department.ticket_responder = None
             department.save(update_fields=['ticket_responder'])
             messages.success(request, _('پاسخ‌دهنده تیکت حذف شد. تیکت‌ها به شما (سرپرست) ارسال می‌شوند.'))
+
+        # --- Update task creator (can create tasks for this department) ---
+        if task_creator_id:
+            try:
+                supervised_dept_ids = [d.id for d in supervised_depts]
+                task_creator = User.objects.get(
+                    id=task_creator_id,
+                    department__in=supervised_dept_ids,
+                    role='employee',
+                    is_active=True
+                )
+                # Exclude admin superuser and supervisors
+                if is_admin_superuser(task_creator) or task_creator.department_role == 'senior':
+                    messages.error(request, _('نمی‌توانید این کاربر را به‌عنوان ایجادکننده تسک انتخاب کنید.'))
+                    return redirect('tickets:supervisor_ticket_responder_management')
+                
+                department.task_creator = task_creator
+                department.save(update_fields=['task_creator'])
+                messages.success(request, _('ایجادکننده تسک با موفقیت تعیین شد: {} {}').format(
+                    task_creator.first_name, task_creator.last_name
+                ))
+            except User.DoesNotExist:
+                messages.error(request, _('کاربر انتخاب شده برای ایجادکننده تسک معتبر نیست.'))
+        else:
+            # Clear task creator
+            department.task_creator = None
+            department.save(update_fields=['task_creator'])
         
         return redirect('tickets:supervisor_ticket_responder_management')
     
-    # Get all employees from all supervised departments (excluding admin superuser and supervisor)
+    # Get selected department from GET parameter (for display)
+    selected_dept_id = request.GET.get('department_id')
+    selected_department = None
+    if selected_dept_id:
+        try:
+            selected_department = next((d for d in supervised_depts if d.id == int(selected_dept_id)), None)
+        except (ValueError, TypeError):
+            pass
+    
+    # If no department selected and there are departments that can receive, use the first one
+    if not selected_department and departments_that_can_receive:
+        selected_department = departments_that_can_receive[0]
+    elif not selected_department and supervised_depts:
+        selected_department = supervised_depts[0]
+    
+    # Get employees from selected department (or all if no selection)
     from .admin_security import get_admin_superuser_queryset_filter
     admin_filter = get_admin_superuser_queryset_filter()
-    supervised_dept_ids = [d.id for d in supervised_depts]
-    employees = User.objects.filter(
-        department__in=supervised_dept_ids,
-        role='employee',
-        is_active=True
-    ).filter(admin_filter).exclude(
-        id=user.id  # Exclude the supervisor themselves
-    ).exclude(
-        department_role='senior'  # Also exclude any other seniors
-    ).order_by('first_name', 'last_name')
+    
+    if selected_department:
+        employees = User.objects.filter(
+            department=selected_department,
+            role='employee',
+            is_active=True
+        ).filter(admin_filter).exclude(
+            id=user.id  # Exclude the supervisor themselves
+        ).exclude(
+            department_role__in=['senior', 'manager']  # Exclude supervisors
+        ).order_by('first_name', 'last_name')
+        current_responder = selected_department.ticket_responder
+        current_task_creator = selected_department.task_creator
+    else:
+        employees = User.objects.none()
+        current_responder = None
+        current_task_creator = None
     
     context = {
         'supervised_departments': supervised_depts,
         'departments_that_can_receive': departments_that_can_receive,
+        'selected_department': selected_department,
         'employees': employees,
+        'current_responder': current_responder,
+        'current_task_creator': current_task_creator,
         'ticket_responders': {d.id: d.ticket_responder for d in supervised_depts if d.can_receive_tickets},
     }
     
@@ -4515,11 +4830,21 @@ def get_warehouse_sub_elements(request, warehouse_id):
 
 @login_required
 def ticket_task_list(request):
-    """List all ticket tasks (IT Manager only)"""
+    """List all ticket tasks created by the current user (IT Manager, Supervisor, or delegated task creator)"""
     user = request.user
     
-    # Only IT managers can access this view
-    if user.role != 'it_manager':
+    # Allow IT managers OR supervisors (senior/manager department_role) OR department task creators to access this view
+    is_it_manager = user.role == 'it_manager'
+    is_supervisor = (user.role == 'employee' and user.department_role in ['senior', 'manager'])
+    is_task_creator = False
+
+    try:
+        if user.role == 'employee' and user.department and user.department.task_creator_id == user.id:
+            is_task_creator = True
+    except Exception:
+        is_task_creator = False
+    
+    if not (is_it_manager or is_supervisor or is_task_creator):
         messages.error(request, _('شما اجازه دسترسی به این صفحه را ندارید.'))
         return redirect('tickets:dashboard')
     
@@ -4527,8 +4852,34 @@ def ticket_task_list(request):
     status_filter = request.GET.get('status', '')
     priority_filter = request.GET.get('priority', '')
     
-    # Get all tasks created by this IT manager
-    tasks = TicketTask.objects.filter(created_by=user)
+    # Build task queryset based on user role
+    # Temporarily defer 'deadline' field until migration is applied
+    if is_supervisor:
+        # For supervisors: show tasks created by them OR tasks created by task creators in their supervised departments
+        supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+        supervised_dept_ids = [dept.id for dept in supervised_depts] if supervised_depts else []
+        
+        # Get task creators in supervised departments
+        task_creators_in_supervised_depts = User.objects.filter(
+            department__in=supervised_dept_ids,
+            department__task_creator__isnull=False,
+            is_active=True
+        ).values_list('id', flat=True)
+        
+        # Tasks created by supervisor OR tasks created by task creators in supervised departments
+        if task_creators_in_supervised_depts:
+            tasks = TicketTask.objects.filter(
+                Q(created_by=user) | Q(created_by__in=task_creators_in_supervised_depts)
+            ).defer('deadline')
+        else:
+            # No task creators in supervised departments, only show supervisor's own tasks
+            tasks = TicketTask.objects.filter(created_by=user).defer('deadline')
+    elif is_task_creator:
+        # For task creators: show only tasks they created
+        tasks = TicketTask.objects.filter(created_by=user).defer('deadline')
+    else:
+        # For IT managers: show all tasks (or tasks they created - keeping current behavior)
+        tasks = TicketTask.objects.filter(created_by=user).defer('deadline')
     
     # Apply filters
     if status_filter:
@@ -4561,24 +4912,132 @@ def ticket_task_list(request):
 
 @login_required
 def ticket_task_create(request):
-    """Create a new ticket task (IT Manager only)"""
-    user = request.user
+    """Create a new ticket task (IT Manager or Supervisor)"""
+    # #region agent log - Hypothesis B, E: Entry point
+    import json
+    import os
+    from datetime import datetime
+    log_path = r'c:\Users\User\Desktop\pticket-main\.cursor\debug.log'
+    def log_debug(hypothesis_id, location, message, data):
+        try:
+            os.makedirs(os.path.dirname(log_path), exist_ok=True)
+            entry = {
+                'id': f'log_{int(datetime.now().timestamp() * 1000)}',
+                'timestamp': int(datetime.now().timestamp() * 1000),
+                'location': location,
+                'message': message,
+                'data': data,
+                'sessionId': 'debug-session',
+                'runId': 'run1',
+                'hypothesisId': hypothesis_id
+            }
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+        except Exception: pass
+    # #endregion
     
-    # Only IT managers can create tasks
-    if user.role != 'it_manager':
+    user = request.user
+    log_debug('B', 'tickets/views.py:4636', 'ticket_task_create entry', {
+        'user_id': user.id,
+        'user_role': user.role,
+        'department_role': getattr(user, 'department_role', None),
+        'user_pk': user.pk
+    })
+    
+    # Allow IT managers OR supervisors (senior/manager department_role) OR department task creators to create tasks
+    is_it_manager = user.role == 'it_manager'
+    is_supervisor = (user.role == 'employee' and user.department_role in ['senior', 'manager'])
+    is_task_creator = False
+
+    try:
+        if user.role == 'employee' and user.department and user.department.task_creator_id == user.id:
+            is_task_creator = True
+    except Exception:
+        is_task_creator = False
+    log_debug('B', 'tickets/views.py:4648', 'Supervisor check result', {
+        'is_supervisor': is_supervisor,
+        'is_it_manager': is_it_manager,
+        'user_role': user.role,
+        'department_role': getattr(user, 'department_role', None)
+    })
+    
+    if not (is_it_manager or is_supervisor or is_task_creator):
         messages.error(request, _('شما اجازه ایجاد تسک را ندارید.'))
         return redirect('tickets:dashboard')
     
+    # CRITICAL: Refresh user from database to ensure we have latest relationships
+    # This ensures get_supervised_departments() returns up-to-date data
+    log_debug('E', 'tickets/views.py:4655', 'Before refresh_from_db', {
+        'user_role': user.role,
+        'department_role': getattr(user, 'department_role', None)
+    })
+    user.refresh_from_db()
+    log_debug('E', 'tickets/views.py:4658', 'After refresh_from_db', {
+        'user_role': user.role,
+        'department_role': getattr(user, 'department_role', None),
+        'has_get_supervised_departments': hasattr(user, 'get_supervised_departments')
+    })
+    
+    # #region agent log - Hypothesis A: Get supervised departments
+    if is_supervisor and hasattr(user, 'get_supervised_departments'):
+        supervised_depts_test = user.get_supervised_departments()
+        log_debug('A', 'tickets/views.py:4665', 'Supervised departments from view', {
+            'supervised_depts_count': len(supervised_depts_test),
+            'supervised_dept_ids': [d.id for d in supervised_depts_test],
+            'supervised_dept_names': [d.name for d in supervised_depts_test]
+        })
+    # #endregion
+    
     if request.method == 'POST':
+        # DEBUG: Log incoming POST data
+        log_debug('E', 'tickets/views.py:ticket_task_create', 'POST data received', {
+            'post_data': dict(request.POST),
+            'deadline_date': request.POST.get('deadline_date', 'NOT PROVIDED'),
+            'deadline_date_type': type(request.POST.get('deadline_date', None)).__name__
+        })
+        
         form = TicketTaskForm(request.POST, user=user)
+        # Store user in form for validation
+        form._user = user
+        
+        log_debug('E', 'tickets/views.py:ticket_task_create', 'Form created', {
+            'form_data': form.data if hasattr(form, 'data') else 'N/A',
+            'deadline_date_in_data': form.data.get('deadline_date', 'NOT FOUND') if hasattr(form, 'data') else 'N/A'
+        })
+        
         if form.is_valid():
+            log_debug('E', 'tickets/views.py:ticket_task_create', 'Form is valid', {
+                'cleaned_data': form.cleaned_data,
+                'deadline_date_in_cleaned': form.cleaned_data.get('deadline_date', 'NOT FOUND')
+            })
+            
             task = form.save(commit=False)
             task.created_by = user
+            
+            log_debug('E', 'tickets/views.py:ticket_task_create', 'Task before final save', {
+                'task_deadline': task.deadline,
+                'task_deadline_type': type(task.deadline).__name__ if task.deadline else 'None'
+            })
+            
             task.save()
+            
+            log_debug('E', 'tickets/views.py:ticket_task_create', 'Task after save', {
+                'task_id': task.id,
+                'task_deadline': task.deadline,
+                'task_deadline_type': type(task.deadline).__name__ if task.deadline else 'None'
+            })
+            
             messages.success(request, _('تسک با موفقیت ایجاد شد.'))
             return redirect('tickets:ticket_task_detail', task_id=task.id)
+        else:
+            log_debug('E', 'tickets/views.py:ticket_task_create', 'Form is INVALID', {
+                'form_errors': form.errors,
+                'deadline_date_errors': form.errors.get('deadline_date', [])
+            })
     else:
         form = TicketTaskForm(user=user)
+        # Store user in form for validation
+        form._user = user
     
     return render(request, 'tickets/ticket_task_form.html', {
         'form': form,
@@ -4590,23 +5049,106 @@ def ticket_task_create(request):
 def ticket_task_detail(request, task_id):
     """View details of a ticket task"""
     user = request.user
-    task = get_object_or_404(TicketTask, id=task_id)
     
-    # Check permissions: IT manager who created it, or assigned user
-    if task.created_by != user and task.assigned_to != user:
+    # CRITICAL: Refresh user from database to ensure we have latest data
+    user.refresh_from_db()
+    
+    # Load task with all fields (including deadline if migration is applied)
+    # If migration not applied, this will fail, but that's expected
+    try:
+        task = get_object_or_404(TicketTask, id=task_id)
+    except Exception:
+        # Fallback: try without deadline field if migration not applied
+        task = get_object_or_404(TicketTask.objects.defer('deadline'), id=task_id)
+    
+    # CRITICAL: Refresh task from database to ensure we have latest relationships
+    task.refresh_from_db()
+    
+    # Check permissions: ANY creator can view their own tasks, assigned user, or supervisor of task creator's department
+    # Use both ID and object comparison for maximum reliability
+    is_creator = False
+    if hasattr(task, 'created_by_id') and task.created_by_id:
+        is_creator = (task.created_by_id == user.id)
+    elif task.created_by:
+        is_creator = (task.created_by.id == user.id)
+    
+    is_assigned = False
+    if hasattr(task, 'assigned_to_id') and task.assigned_to_id:
+        is_assigned = (task.assigned_to_id == user.id)
+    elif task.assigned_to:
+        is_assigned = (task.assigned_to.id == user.id)
+    
+    # IMPORTANT: Any user who created the task should be able to view it, regardless of their current permissions
+    # This handles cases where a user had task creation permissions when they created the task,
+    # but those permissions were later revoked
+    
+    is_it_manager_creator = (is_creator and user.role == 'it_manager')
+    is_supervisor_creator = (is_creator and user.role == 'employee' and user.department_role in ['senior', 'manager'])
+    
+    # Check if user is currently a task creator (regular employee with task creation permissions)
+    # Note: This is for determining edit/delete permissions, not view permissions
+    is_task_creator = False
+    try:
+        if is_creator and user.role == 'employee' and user.department and user.department.task_creator_id == user.id:
+            is_task_creator = True
+    except Exception:
+        pass
+    
+    # Check if user is a supervisor viewing a task created by ANY employee in their supervised departments
+    # CRITICAL: Supervisor access is based on department supervision, NOT on creator's current permissions
+    # A supervisor should be able to view ALL tasks created by employees in their supervised departments,
+    # regardless of whether the creator currently has task creation permissions or not
+    is_supervisor_viewing_task_creator_task = False
+    try:
+        if not is_creator and not is_assigned and user.role == 'employee' and user.department_role in ['senior', 'manager']:
+            # User is a supervisor, check if task was created by ANY employee in their supervised departments
+            task_creator_user = task.created_by
+            if task_creator_user and task_creator_user.role == 'employee':
+                # Get supervisor's supervised departments
+                supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+                supervised_dept_ids = [dept.id for dept in supervised_depts] if supervised_depts else []
+                
+                # CRITICAL FIX: Supervisor can view tasks from ANY employee in their supervised departments
+                # Check both: creator's department AND task's department (in case department changed)
+                # No need to check if creator currently has task creation permissions - that's irrelevant
+                task_creator_dept_in_supervised = False
+                task_dept_in_supervised = False
+                
+                if task_creator_user.department and task_creator_user.department.id in supervised_dept_ids:
+                    task_creator_dept_in_supervised = True
+                
+                if task.department and task.department.id in supervised_dept_ids:
+                    task_dept_in_supervised = True
+                
+                # Supervisor can view if creator's department OR task's department is supervised
+                if task_creator_dept_in_supervised or task_dept_in_supervised:
+                    is_supervisor_viewing_task_creator_task = True
+    except Exception:
+        pass
+    
+    # CRITICAL: Allow ANY creator to view their tasks, regardless of current permissions
+    # Also allow assigned users and supervisors viewing task creator tasks
+    if not (is_creator or is_assigned or is_supervisor_viewing_task_creator_task):
         messages.error(request, _('شما اجازه مشاهده این تسک را ندارید.'))
         return redirect('tickets:dashboard')
     
     # Get all replies for this task
     replies = task.replies.all().order_by('created_at')
     
-    # Check if user can update status (only IT manager who created it)
-    can_update_status = (task.created_by == user and user.role == 'it_manager')
+    # Check if user is a supervisor (for managing tasks created by task creators)
+    is_supervisor = (user.role == 'employee' and user.department_role in ['senior', 'manager'])
+    
+    # Check if user can update status (creator who is IT manager, supervisor, or task creator, OR supervisor viewing task creator's task)
+    can_update_status = is_it_manager_creator or is_supervisor_creator or is_task_creator or (is_supervisor_viewing_task_creator_task and is_supervisor)
+    
+    # Check if user can edit/delete (creator who is IT manager, supervisor, or task creator, OR supervisor viewing task creator's task)
+    can_edit_delete = is_it_manager_creator or is_supervisor_creator or is_task_creator or (is_supervisor_viewing_task_creator_task and is_supervisor)
     
     context = {
         'task': task,
         'replies': replies,
         'can_update_status': can_update_status,
+        'can_edit_delete': can_edit_delete,
         'task_status_choices': TicketTask.STATUS_CHOICES,
         'task_priority_choices': TicketTask.PRIORITY_CHOICES,
     }
@@ -4619,10 +5161,48 @@ def ticket_task_detail(request, task_id):
 def ticket_task_update_status(request, task_id):
     """Update status and priority of a ticket task (AJAX endpoint)"""
     user = request.user
-    task = get_object_or_404(TicketTask, id=task_id)
+    # Temporarily defer 'deadline' field until migration is applied
+    task = get_object_or_404(TicketTask.objects.defer('deadline'), id=task_id)
     
-    # Only IT manager who created the task can update it
-    if task.created_by != user or user.role != 'it_manager':
+    # Only creator (IT manager, supervisor, or task creator) can update task status
+    is_it_manager_creator = (task.created_by == user and user.role == 'it_manager')
+    is_supervisor_creator = (task.created_by == user and user.role == 'employee' and user.department_role in ['senior', 'manager'])
+    
+    # Check if user is a task creator
+    is_task_creator = False
+    try:
+        if task.created_by == user and user.role == 'employee' and user.department and user.department.task_creator_id == user.id:
+            is_task_creator = True
+    except Exception:
+        pass
+    
+    # Check if user is a supervisor viewing a task created by ANY employee in their supervised departments
+    # CRITICAL: Supervisor access is based on department supervision, NOT on creator's current permissions
+    is_supervisor_viewing_task_creator_task = False
+    try:
+        if user.role == 'employee' and user.department_role in ['senior', 'manager']:
+            task_creator_user = task.created_by
+            if task_creator_user and task_creator_user.role == 'employee':
+                supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+                supervised_dept_ids = [dept.id for dept in supervised_depts] if supervised_depts else []
+                
+                # Check both: creator's department AND task's department
+                task_creator_dept_in_supervised = False
+                task_dept_in_supervised = False
+                
+                if task_creator_user.department and task_creator_user.department.id in supervised_dept_ids:
+                    task_creator_dept_in_supervised = True
+                
+                if task.department and task.department.id in supervised_dept_ids:
+                    task_dept_in_supervised = True
+                
+                # Supervisor can manage if creator's department OR task's department is supervised
+                if task_creator_dept_in_supervised or task_dept_in_supervised:
+                    is_supervisor_viewing_task_creator_task = True
+    except Exception:
+        pass
+    
+    if not (is_it_manager_creator or is_supervisor_creator or is_task_creator or is_supervisor_viewing_task_creator_task):
         return JsonResponse({
             'success': False,
             'error': _('شما اجازه بروزرسانی این تسک را ندارید.')
@@ -4655,13 +5235,186 @@ def ticket_task_update_status(request, task_id):
 
 
 @login_required
+def ticket_task_edit(request, task_id):
+    """Edit a ticket task (only creator can edit)"""
+    user = request.user
+    
+    # CRITICAL: Refresh user from database to ensure we have latest relationships
+    user.refresh_from_db()
+    
+    # Temporarily defer 'deadline' field until migration is applied
+    task = get_object_or_404(TicketTask.objects.defer('deadline'), id=task_id)
+    
+    # Only creator (IT manager, supervisor, or task creator) can edit, OR supervisor managing task creator's task
+    is_it_manager_creator = (task.created_by == user and user.role == 'it_manager')
+    is_supervisor_creator = (task.created_by == user and user.role == 'employee' and user.department_role in ['senior', 'manager'])
+    
+    # Check if user is a task creator
+    is_task_creator = False
+    try:
+        if task.created_by == user and user.role == 'employee' and user.department and user.department.task_creator_id == user.id:
+            is_task_creator = True
+    except Exception:
+        pass
+    
+    # Check if user is a supervisor viewing a task created by ANY employee in their supervised departments
+    # CRITICAL: Supervisor access is based on department supervision, NOT on creator's current permissions
+    is_supervisor_viewing_task_creator_task = False
+    try:
+        if user.role == 'employee' and user.department_role in ['senior', 'manager']:
+            task_creator_user = task.created_by
+            if task_creator_user and task_creator_user.role == 'employee':
+                supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+                supervised_dept_ids = [dept.id for dept in supervised_depts] if supervised_depts else []
+                
+                # Check both: creator's department AND task's department
+                task_creator_dept_in_supervised = False
+                task_dept_in_supervised = False
+                
+                if task_creator_user.department and task_creator_user.department.id in supervised_dept_ids:
+                    task_creator_dept_in_supervised = True
+                
+                if task.department and task.department.id in supervised_dept_ids:
+                    task_dept_in_supervised = True
+                
+                # Supervisor can manage if creator's department OR task's department is supervised
+                if task_creator_dept_in_supervised or task_dept_in_supervised:
+                    is_supervisor_viewing_task_creator_task = True
+    except Exception:
+        pass
+    
+    if not (is_it_manager_creator or is_supervisor_creator or is_task_creator or is_supervisor_viewing_task_creator_task):
+        messages.error(request, _('شما اجازه ویرایش این تسک را ندارید.'))
+        return redirect('tickets:ticket_task_detail', task_id=task.id)
+    
+    if request.method == 'POST':
+        form = TicketTaskForm(request.POST, instance=task, user=user)
+        form._user = user
+        if form.is_valid():
+            task = form.save(commit=False)
+            # created_by should not change, keep original
+            task.save()
+            messages.success(request, _('تسک با موفقیت بروزرسانی شد.'))
+            return redirect('tickets:ticket_task_detail', task_id=task.id)
+    else:
+        form = TicketTaskForm(instance=task, user=user)
+        form._user = user
+    
+    return render(request, 'tickets/ticket_task_form.html', {
+        'form': form,
+        'task': task,
+        'title': _('ویرایش تسک')
+    })
+
+
+@login_required
+def ticket_task_delete(request, task_id):
+    """Delete a ticket task (only creator can delete)"""
+    user = request.user
+    # Temporarily defer 'deadline' field until migration is applied
+    task = get_object_or_404(TicketTask.objects.defer('deadline'), id=task_id)
+    
+    # Only creator (IT manager, supervisor, or task creator) can delete, OR supervisor managing task creator's task
+    is_it_manager_creator = (task.created_by == user and user.role == 'it_manager')
+    is_supervisor_creator = (task.created_by == user and user.role == 'employee' and user.department_role in ['senior', 'manager'])
+    
+    # Check if user is a task creator
+    is_task_creator = False
+    try:
+        if task.created_by == user and user.role == 'employee' and user.department and user.department.task_creator_id == user.id:
+            is_task_creator = True
+    except Exception:
+        pass
+    
+    # Check if user is a supervisor viewing a task created by ANY employee in their supervised departments
+    # CRITICAL: Supervisor access is based on department supervision, NOT on creator's current permissions
+    is_supervisor_viewing_task_creator_task = False
+    try:
+        if user.role == 'employee' and user.department_role in ['senior', 'manager']:
+            task_creator_user = task.created_by
+            if task_creator_user and task_creator_user.role == 'employee':
+                supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+                supervised_dept_ids = [dept.id for dept in supervised_depts] if supervised_depts else []
+                
+                # Check both: creator's department AND task's department
+                task_creator_dept_in_supervised = False
+                task_dept_in_supervised = False
+                
+                if task_creator_user.department and task_creator_user.department.id in supervised_dept_ids:
+                    task_creator_dept_in_supervised = True
+                
+                if task.department and task.department.id in supervised_dept_ids:
+                    task_dept_in_supervised = True
+                
+                # Supervisor can manage if creator's department OR task's department is supervised
+                if task_creator_dept_in_supervised or task_dept_in_supervised:
+                    is_supervisor_viewing_task_creator_task = True
+    except Exception:
+        pass
+    
+    if not (is_it_manager_creator or is_supervisor_creator or is_task_creator or is_supervisor_viewing_task_creator_task):
+        messages.error(request, _('شما اجازه حذف این تسک را ندارید.'))
+        return redirect('tickets:ticket_task_detail', task_id=task.id)
+    
+    if request.method == 'POST':
+        task.delete()
+        messages.success(request, _('تسک با موفقیت حذف شد.'))
+        return redirect('tickets:ticket_task_list')
+    
+    return render(request, 'tickets/ticket_task_delete_confirm.html', {
+        'task': task
+    })
+
+
+@login_required
 def ticket_task_reply(request, task_id):
     """Reply to a ticket task"""
     user = request.user
-    task = get_object_or_404(TicketTask, id=task_id)
+    # Temporarily defer 'deadline' field until migration is applied
+    task = get_object_or_404(TicketTask.objects.defer('deadline'), id=task_id)
     
-    # Assigned user or IT manager who created the task can reply
-    if task.assigned_to != user and (task.created_by != user or user.role != 'it_manager'):
+    # Assigned user or creator (IT manager, supervisor, or task creator) can reply, OR supervisor managing task creator's task
+    # Use ID comparison for more reliable checking
+    is_creator = (task.created_by_id == user.id) if task.created_by_id else False
+    is_assigned = (task.assigned_to_id == user.id) if task.assigned_to_id else False
+    is_it_manager_creator = (is_creator and user.role == 'it_manager')
+    is_supervisor_creator = (is_creator and user.role == 'employee' and user.department_role in ['senior', 'manager'])
+    
+    # Check if user is a task creator
+    is_task_creator = False
+    try:
+        if is_creator and user.role == 'employee' and user.department and user.department.task_creator_id == user.id:
+            is_task_creator = True
+    except Exception:
+        pass
+    
+    # Check if user is a supervisor viewing a task created by ANY employee in their supervised departments
+    # CRITICAL: Supervisor access is based on department supervision, NOT on creator's current permissions
+    is_supervisor_viewing_task_creator_task = False
+    try:
+        if not is_creator and not is_assigned and user.role == 'employee' and user.department_role in ['senior', 'manager']:
+            task_creator_user = task.created_by
+            if task_creator_user and task_creator_user.role == 'employee':
+                supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+                supervised_dept_ids = [dept.id for dept in supervised_depts] if supervised_depts else []
+                
+                # Check both: creator's department AND task's department
+                task_creator_dept_in_supervised = False
+                task_dept_in_supervised = False
+                
+                if task_creator_user.department and task_creator_user.department.id in supervised_dept_ids:
+                    task_creator_dept_in_supervised = True
+                
+                if task.department and task.department.id in supervised_dept_ids:
+                    task_dept_in_supervised = True
+                
+                # Supervisor can manage if creator's department OR task's department is supervised
+                if task_creator_dept_in_supervised or task_dept_in_supervised:
+                    is_supervisor_viewing_task_creator_task = True
+    except Exception:
+        pass
+    
+    if not (is_assigned or is_it_manager_creator or is_supervisor_creator or is_task_creator or is_supervisor_viewing_task_creator_task):
         messages.error(request, _('شما اجازه پاسخ به این تسک را ندارید.'))
         return redirect('tickets:dashboard')
     
@@ -4691,51 +5444,300 @@ def ticket_task_reply(request, task_id):
 
 @login_required
 def my_ticket_tasks(request):
-    """View tasks assigned to current user"""
+    """View tasks assigned to current user OR created by current user (if task creator)"""
     user = request.user
     
     # Get filter parameters
     status_filter = request.GET.get('status', '')
     
-    # Get all tasks assigned to this user
-    tasks = TicketTask.objects.filter(assigned_to=user)
+    # Check if user is a task creator
+    is_task_creator_for_tasks = False
+    try:
+        if user.role == 'employee' and user.department and user.department.task_creator_id == user.id:
+            is_task_creator_for_tasks = True
+    except Exception:
+        pass
     
-    # Apply status filter
-    if status_filter:
-        tasks = tasks.filter(status=status_filter)
-    
-    # Order by creation date (newest first)
-    tasks = tasks.order_by('-created_at')
-    
-    # Pagination
-    paginator = Paginator(tasks, 20)
-    page_number = request.GET.get('page')
-    tasks_page = paginator.get_page(page_number)
-    
-    # Get status choices for filter
-    task_status_choices = TicketTask.STATUS_CHOICES
-    
-    context = {
-        'tasks': tasks_page,
-        'status_filter': status_filter,
-        'task_status_choices': task_status_choices,
-    }
+    # For task creators: separate into two sections
+    if is_task_creator_for_tasks:
+        # My Tasks: tasks assigned to this user (from team leader)
+        my_tasks_queryset = TicketTask.objects.filter(assigned_to=user).defer('deadline')
+        
+        # Department Tasks: tasks created by this user (for others)
+        department_tasks_queryset = TicketTask.objects.filter(created_by=user).defer('deadline')
+        
+        # Apply status filter to both
+        if status_filter:
+            my_tasks_queryset = my_tasks_queryset.filter(status=status_filter)
+            department_tasks_queryset = department_tasks_queryset.filter(status=status_filter)
+        
+        # Order by creation date (newest first)
+        my_tasks_queryset = my_tasks_queryset.order_by('-created_at')
+        department_tasks_queryset = department_tasks_queryset.order_by('-created_at')
+        
+        # Pagination for both sections
+        my_tasks_paginator = Paginator(my_tasks_queryset, 20)
+        department_tasks_paginator = Paginator(department_tasks_queryset, 20)
+        page_number = request.GET.get('page', 1)
+        section = request.GET.get('section', 'my_tasks')  # 'my_tasks' or 'department_tasks'
+        
+        # Get paginated pages for both sections
+        my_tasks_page = my_tasks_paginator.get_page(page_number if section == 'my_tasks' else 1)
+        department_tasks_page = department_tasks_paginator.get_page(page_number if section == 'department_tasks' else 1)
+        
+        # Get status choices for filter
+        task_status_choices = TicketTask.STATUS_CHOICES
+        
+        context = {
+            'is_task_creator': True,
+            'my_tasks': my_tasks_page,
+            'department_tasks': department_tasks_page,
+            'current_section': section,
+            'status_filter': status_filter,
+            'task_status_choices': task_status_choices,
+        }
+    else:
+        # Regular employees only see tasks assigned to them
+        tasks = TicketTask.objects.filter(assigned_to=user).defer('deadline')
+        
+        # Apply status filter
+        if status_filter:
+            tasks = tasks.filter(status=status_filter)
+        
+        # Order by creation date (newest first)
+        tasks = tasks.order_by('-created_at')
+        
+        # Pagination
+        paginator = Paginator(tasks, 20)
+        page_number = request.GET.get('page')
+        tasks_page = paginator.get_page(page_number)
+        
+        # Get status choices for filter
+        task_status_choices = TicketTask.STATUS_CHOICES
+        
+        context = {
+            'is_task_creator': False,
+            'tasks': tasks_page,
+            'status_filter': status_filter,
+            'task_status_choices': task_status_choices,
+        }
     
     return render(request, 'tickets/my_ticket_tasks.html', context)
 
 
 @login_required
+def calendar_api_view(request):
+    """API endpoint to get calendar data for a specific year/month"""
+    year = request.GET.get('year')
+    month = request.GET.get('month')
+    
+    if not year or not month:
+        return JsonResponse({
+            'success': False,
+            'error': _('سال و ماه الزامی است')
+        }, status=400)
+    
+    try:
+        year = int(year)
+        month = int(month)
+        
+        # Validate month range
+        if month < 1 or month > 12:
+            return JsonResponse({
+                'success': False,
+                'error': _('ماه باید بین 1 تا 12 باشد')
+            }, status=400)
+        
+        # Get calendar data from service layer
+        from .calendar_services.calendar_service import get_or_fetch_month_data
+        
+        calendar_data = get_or_fetch_month_data(year, month)
+        
+        return JsonResponse({
+            'success': True,
+            'year': year,
+            'month': month,
+            'days': calendar_data
+        })
+        
+    except ValueError:
+        return JsonResponse({
+            'success': False,
+            'error': _('سال و ماه باید عدد باشند')
+        }, status=400)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error fetching calendar data: {e}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': _('خطا در دریافت اطلاعات تقویم')
+        }, status=500)
+
+
+@login_required
+def get_current_jalali_date_api(request):
+    """API endpoint to get the current Jalali date from server"""
+    try:
+        from .calendar_services.jalali_calendar import JalaliCalendarService
+        current_date = JalaliCalendarService.get_current_jalali_date()
+        return JsonResponse({
+            'success': True,
+            'year': current_date['year'],
+            'month': current_date['month'],
+            'day': current_date['day'],
+            'hour': current_date['hour'],
+            'minute': current_date['minute']
+        })
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error getting current Jalali date: {e}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': _('خطا در دریافت تاریخ فعلی')
+        }, status=500)
+
+
+@login_required
 def get_employees_for_department(request, department_id):
     """API endpoint to get employees for a department (for task assignment)"""
+    # #region agent log - Hypothesis D: API endpoint entry
+    import json
+    import os
+    from datetime import datetime
+    log_path = r'c:\Users\User\Desktop\pticket-main\.cursor\debug.log'
+    def log_debug(hypothesis_id, location, message, data):
+        try:
+            os.makedirs(os.path.dirname(log_path), exist_ok=True)
+            entry = {
+                'id': f'log_{int(datetime.now().timestamp() * 1000)}',
+                'timestamp': int(datetime.now().timestamp() * 1000),
+                'location': location,
+                'message': message,
+                'data': data,
+                'sessionId': 'debug-session',
+                'runId': 'run1',
+                'hypothesisId': hypothesis_id
+            }
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+        except Exception: pass
+    log_debug('D', 'tickets/views.py:4890', 'get_employees_for_department entry', {
+        'user_id': request.user.id,
+        'department_id': department_id,
+        'user_role': request.user.role
+    })
+    # #endregion
+    
     try:
+        user = request.user
+        
+        # CRITICAL: Refresh user from database to ensure we have latest relationships
+        user.refresh_from_db()
+        
         department = get_object_or_404(Department, id=department_id, is_active=True)
         
-        # Get all employees from this department
+        # Check if user is a supervisor
+        is_supervisor = (user.role == 'employee' and user.department_role in ['senior', 'manager'])
+        is_it_manager = user.role == 'it_manager'
+        
+        # Task creator: check if user is a task creator for ANY department
+        task_creator_departments = Department.objects.filter(
+            task_creator=user,
+            is_active=True,
+            department_type='employee'
+        ) if user.role == 'employee' else Department.objects.none()
+        is_task_creator = user.role == 'employee' and task_creator_departments.exists()
+        
+        log_debug('D', 'tickets/views.py:4908', 'API supervisor/task_creator check', {
+            'is_supervisor': is_supervisor,
+            'is_it_manager': is_it_manager,
+            'is_task_creator': is_task_creator,
+            'task_creator_dept_ids': list(task_creator_departments.values_list('id', flat=True)),
+            'requested_dept_id': department.id
+        })
+        
+        # Check authorization: user must be supervisor, task creator, or IT manager
+        if not (is_supervisor or is_task_creator or is_it_manager):
+            # User is not authorized to access employees
+            log_debug('D', 'tickets/views.py:unauthorized', 'User not authorized to access employees', {
+                'user_role': user.role,
+                'department_role': getattr(user, 'department_role', None)
+            })
+            return JsonResponse({
+                'success': False,
+                'error': 'Unauthorized access'
+            }, status=403)
+        
+        # For supervisors: verify they manage this department
+        if is_supervisor:
+            # CRITICAL: Call get_supervised_departments() which queries database directly
+            supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+            supervised_dept_ids = [dept.id for dept in supervised_depts]
+            log_debug('D', 'tickets/views.py:4916', 'API supervised departments check', {
+                'supervised_dept_ids': supervised_dept_ids,
+                'requested_dept_id': department.id,
+                'dept_in_supervised': department.id in supervised_dept_ids
+            })
+            
+            if department.id not in supervised_dept_ids:
+                # Supervisor doesn't manage this department - return empty list
+                log_debug('D', 'tickets/views.py:4923', 'Department not supervised - returning empty', {})
+                return JsonResponse({
+                    'success': True,
+                    'employees': []
+                })
+        
+        # For task creators: verify department is one of their task_creator departments
+        if is_task_creator:
+            allowed_dept_ids = list(task_creator_departments.values_list('id', flat=True))
+            log_debug('D', 'tickets/views.py:task_creator_api', 'Task creator department check', {
+                'allowed_dept_ids': allowed_dept_ids,
+                'requested_dept_id': department.id,
+                'dept_in_allowed': department.id in allowed_dept_ids
+            })
+            if department.id not in allowed_dept_ids:
+                log_debug('D', 'tickets/views.py:task_creator_api_empty', 'Department not allowed for task creator - returning empty', {
+                    'allowed_dept_ids': allowed_dept_ids,
+                    'requested_dept_id': department.id
+                })
+                return JsonResponse({
+                    'success': True,
+                    'employees': []
+                })
+        
+        # Get employees from this department (filtered by permissions above)
         employees = User.objects.filter(
             department=department,
             is_active=True,
             role='employee'
-        ).order_by('first_name', 'last_name')
+        )
+
+        # Exclude department heads (supervisors) - users with senior/manager role
+        employees = employees.exclude(department_role__in=['senior', 'manager'])
+        
+        # Exclude the FK supervisor of this department if exists
+        if department.supervisor:
+            employees = employees.exclude(id=department.supervisor.id)
+        
+        # Exclude users who supervise this department via M2M relationship
+        supervisors_of_dept = User.objects.filter(
+            supervised_departments=department,
+            is_active=True
+        ).values_list('id', flat=True)
+        if supervisors_of_dept:
+            employees = employees.exclude(id__in=supervisors_of_dept)
+
+        # Supervisors and task creators must not be able to assign tasks to themselves
+        if (is_supervisor or is_task_creator) and user and user.id:
+            employees = employees.exclude(id=user.id)
+
+        employees = employees.order_by('first_name', 'last_name')
+        log_debug('D', 'tickets/views.py:4934', 'API employees query result', {
+            'employee_count': employees.count(),
+            'employee_ids': list(employees.values_list('id', flat=True))
+        })
         
         employees_data = []
         for employee in employees:

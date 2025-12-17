@@ -549,6 +549,11 @@
                                 <i class="fas fa-globe me-2"></i>{% trans "تمام تیکت‌ها" %}
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if '/ticket-tasks/' in request.path %}active{% endif %}" href="{% url 'tickets:ticket_task_list' %}">
+                                <i class="fas fa-tasks me-2"></i>{% trans "تسک تیکت" %}
+                            </a>
+                        </li>
                     {% elif user.role == 'employee' and user.department_role == 'senior' %}
                         <li class="nav-item">
                             <a class="nav-link {% if request.path == '/tickets/' and not request.GET.department %}active{% endif %}" href="{% url 'tickets:ticket_list' %}">
@@ -558,6 +563,11 @@
                         <li class="nav-item">
                             <a class="nav-link {% if request.path == '/tickets/' and request.GET.department %}active{% endif %}" href="{% url 'tickets:ticket_list' %}?department=1">
                                 <i class="fas fa-building me-2"></i>{% trans "تیکت‌های بخش" %}
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if '/ticket-tasks/' in request.path %}active{% endif %}" href="{% url 'tickets:ticket_task_list' %}">
+                                <i class="fas fa-tasks me-2"></i>{% trans "تسک تیکت" %}
                             </a>
                         </li>
                         {% if user.department and user.department.can_receive_tickets %}
@@ -593,13 +603,22 @@
                         </a>
                     </li>
                     {% endif %}
-                    {% if user.role != 'it_manager' and not user|is_admin_superuser_filter %}
-                    <!-- Ticket Task Menu for non-IT admin users -->
+                    {% if user.role != 'it_manager' and not user|is_admin_superuser_filter and user.role == 'employee' and user.department_role == 'employee' %}
+                    <!-- Ticket Task Menu for regular employees only (assigned tasks only) -->
+                    <!-- Note: Supervisors (senior/manager) already have task menu in their specific sections above -->
                     <li class="nav-item">
-                        <a class="nav-link {% if '/my-tasks/' in request.path or '/ticket-tasks/' in request.path %}active{% endif %}" href="{% url 'tickets:my_ticket_tasks' %}">
+                        <a class="nav-link {% if '/my-tasks/' in request.path %}active{% endif %}" href="{% url 'tickets:my_ticket_tasks' %}">
                             <i class="fas fa-tasks me-2"></i>{% trans "تسک تیکت" %}
                         </a>
                     </li>
+                    {% if user.department and user.department.task_creator_id == user.id %}
+                    <!-- Create Task Menu for task creators -->
+                    <li class="nav-item">
+                        <a class="nav-link {% if '/ticket-tasks/create/' in request.path %}active{% endif %}" href="{% url 'tickets:ticket_task_create' %}">
+                            <i class="fas fa-plus-circle me-2"></i>{% trans "ایجاد تسک" %}
+                        </a>
+                    </li>
+                    {% endif %}
                     {% endif %}
                     {% if user|is_admin_superuser_filter %}
                     <!-- Administrator Menu -->
@@ -677,7 +696,12 @@
                             <i class="fas fa-user me-2"></i>{{ user.get_full_name }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            {% if user.role == 'it_manager' %}
+                            {% if user|is_admin_superuser_filter %}
+                            <li><a class="dropdown-item" href="{% url 'tickets:superadmin_profile' %}">
+                                <i class="fas fa-user-shield me-2"></i>{% trans "پروفایل" %}
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            {% elif user.role == 'it_manager' %}
                             <li><a class="dropdown-item" href="{% url 'tickets:it_manager_profile' %}">
                                 <i class="fas fa-user-cog me-2"></i>{% trans "پروفایل" %}
                             </a></li>

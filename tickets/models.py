@@ -56,13 +56,34 @@ class Department(models.Model):
     is_active = models.BooleanField(_('فعال'), default=True)
     can_receive_tickets = models.BooleanField(_('می‌تواند تیکت دریافت کند'), default=False, 
                                              help_text=_('اگر فعال باشد، این بخش می‌تواند تیکت‌ها را مستقیماً از کاربران دریافت کند'))
-    supervisor = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True,
-                                  related_name='departments_as_supervisor', verbose_name=_('سرپرست'),
-                                  help_text=_('کاربری که سرپرست این بخش است (فقط یک سرپرست برای هر بخش)'),
-                                  limit_choices_to={'department_role': 'senior', 'role': 'employee'})
-    ticket_responder = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True,
-                                        related_name='departments_as_responder', verbose_name=_('پاسخ‌دهنده تیکت'),
-                                        help_text=_('کارمندی که می‌تواند به تیکت‌های دریافتی این بخش پاسخ دهد و وضعیت آن‌ها را تغییر دهد'))
+    supervisor = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='departments_as_supervisor',
+        verbose_name=_('سرپرست'),
+        help_text=_('کاربری که سرپرست این بخش است (فقط یک سرپرست برای هر بخش)'),
+        limit_choices_to={'department_role': 'senior', 'role': 'employee'}
+    )
+    ticket_responder = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='departments_as_responder',
+        verbose_name=_('پاسخ‌دهنده تیکت'),
+        help_text=_('کارمندی که می‌تواند به تیکت‌های دریافتی این بخش پاسخ دهد و وضعیت آن‌ها را تغییر دهد')
+    )
+    task_creator = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='departments_as_task_creator',
+        verbose_name=_('ایجادکننده تسک'),
+        help_text=_('کارمندی که می‌تواند برای این بخش تسک ایجاد کرده و به سایر کارمندان این بخش تخصیص دهد')
+    )
     branch = models.ForeignKey('Branch', on_delete=models.SET_NULL, null=True, blank=True, 
                               related_name='departments', verbose_name=_('شعبه'),
                               help_text=_('شعبه این بخش (الزامی)'))
@@ -164,31 +185,171 @@ class User(AbstractUser):
             return False
     
     def get_supervised_departments(self):
-        """Get all departments this user supervises"""
-        # Only check for seniors
-        if self.department_role != 'senior':
+        """Get all departments this user supervises
+        
+        CRITICAL: This method queries the database directly to ensure we always
+        get fresh data, even if the user object is stale or cached.
+        """
+        # #region agent log - Hypothesis A: Method entry
+        import json
+        import os
+        from datetime import datetime
+        log_path = r'c:\Users\User\Desktop\pticket-main\.cursor\debug.log'
+        def log_debug(hypothesis_id, location, message, data):
+            try:
+                os.makedirs(os.path.dirname(log_path), exist_ok=True)
+                entry = {
+                    'id': f'log_{int(datetime.now().timestamp() * 1000)}',
+                    'timestamp': int(datetime.now().timestamp() * 1000),
+                    'location': location,
+                    'message': message,
+                    'data': data,
+                    'sessionId': 'debug-session',
+                    'runId': 'run1',
+                    'hypothesisId': hypothesis_id
+                }
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+            except Exception: pass
+        try:
+            log_debug('A', 'tickets/models.py:166', 'get_supervised_departments entry', {
+                'user_id': getattr(self, 'id', None),
+                'user_pk': self.pk if hasattr(self, 'pk') else None,
+                'department_role': getattr(self, 'department_role', None)
+            })
+        except Exception:
+            pass  # Don't fail if logging fails
+        # #endregion
+        
+        # Check for both seniors and managers
+        department_role = getattr(self, 'department_role', None)
+        if department_role not in ['senior', 'manager']:
+            try:
+                log_debug('A', 'tickets/models.py:201', 'Not senior/manager - returning empty', {
+                    'department_role': department_role
+                })
+            except Exception:
+                pass
             return []
         
         try:
             supervised = []
-            # Get departments from ManyToMany relationship (if it exists)
-            if hasattr(self, 'supervised_departments'):
+            
+            # CRITICAL FIX: Query M2M relationship directly from database
+            # Don't rely on cached user object relationships
+            if hasattr(self, 'supervised_departments') and self.pk:
                 try:
-                    supervised = list(self.supervised_departments.filter(is_active=True))
-                except (AttributeError, ValueError):
-                    supervised = []
+                    # Query M2M table directly to ensure fresh data
+                    from django.db import connection
+                    m2m_table = User.supervised_departments.through._meta.db_table
+                    try:
+                        log_debug('A', 'tickets/models.py:217', 'Querying M2M table', {
+                            'm2m_table': m2m_table,
+                            'user_id': self.pk
+                        })
+                    except Exception:
+                        pass
+                    with connection.cursor() as cursor:
+                        cursor.execute(
+                            f"SELECT department_id FROM {m2m_table} WHERE user_id = %s",
+                            [self.pk]
+                        )
+                        m2m_dept_ids = [row[0] for row in cursor.fetchall()]
+                    try:
+                        log_debug('A', 'tickets/models.py:227', 'M2M query result', {
+                            'm2m_dept_ids': m2m_dept_ids,
+                            'm2m_count': len(m2m_dept_ids)
+                        })
+                    except Exception:
+                        pass
+                    
+                    if m2m_dept_ids:
+                        # Get department objects from database
+                        m2m_depts = Department.objects.filter(
+                            id__in=m2m_dept_ids,
+                            is_active=True
+                        )
+                        try:
+                            log_debug('A', 'tickets/models.py:238', 'M2M departments found', {
+                                'm2m_depts_count': m2m_depts.count(),
+                                'm2m_dept_names': list(m2m_depts.values_list('name', flat=True))
+                            })
+                        except Exception:
+                            pass
+                        supervised.extend(m2m_depts)
+                except (AttributeError, ValueError, Exception) as e:
+                    # Fallback to standard M2M access if direct query fails
+                    try:
+                        m2m_depts = self.supervised_departments.all()
+                        supervised.extend([d for d in m2m_depts if d.is_active])
+                    except:
+                        pass
+            
             # Also check if any department has this user as supervisor via ForeignKey
+            # This queries the database directly, so it's always fresh
             try:
-                supervised.extend(Department.objects.filter(supervisor=self, is_active=True))
+                fk_depts = Department.objects.filter(
+                    supervisor_id=self.pk,
+                    is_active=True
+                )
+                try:
+                    log_debug('A', 'tickets/models.py:262', 'FK departments query result', {
+                        'fk_depts_count': fk_depts.count(),
+                        'fk_dept_ids': list(fk_depts.values_list('id', flat=True)),
+                        'fk_dept_names': list(fk_depts.values_list('name', flat=True))
+                    })
+                except Exception:
+                    pass
+                supervised.extend(fk_depts)
             except (AttributeError, ValueError):
                 pass
-            # Remove duplicates
-            return list(set(supervised))
+            
+            # Include the user's own department FK if set (legacy/old workflow assignment)
+            # Refresh from database to ensure we have the latest value
+            try:
+                if self.pk:
+                    # Refresh department FK from database
+                    from django.db import connection
+                    with connection.cursor() as cursor:
+                        cursor.execute(
+                            "SELECT department_id FROM tickets_user WHERE id = %s",
+                            [self.pk]
+                        )
+                        row = cursor.fetchone()
+                        if row and row[0]:
+                            dept_id = row[0]
+                            try:
+                                dept = Department.objects.get(id=dept_id, is_active=True)
+                                if dept not in supervised:
+                                    supervised.append(dept)
+                            except Department.DoesNotExist:
+                                pass
+            except (AttributeError, ValueError, Exception):
+                pass
+            
+            # Remove duplicates (preserve order by converting to dict keys then back to list)
+            seen = set()
+            result = []
+            for dept in supervised:
+                if dept.id not in seen:
+                    seen.add(dept.id)
+                    result.append(dept)
+            try:
+                log_debug('A', 'tickets/models.py:305', 'Final supervised departments result', {
+                    'result_count': len(result),
+                    'result_ids': [d.id for d in result],
+                    'result_names': [d.name for d in result]
+                })
+            except Exception:
+                pass
+            return result
         except Exception as e:
             # Return empty list if there's any error (e.g., during migration or if relationship doesn't exist yet)
             import logging
             logger = logging.getLogger(__name__)
             logger.warning(f"Error getting supervised departments for user {self.id}: {e}")
+            import traceback
+            logger.warning(traceback.format_exc())
             return []
     
     def get_department_and_role_display(self):
@@ -343,6 +504,7 @@ class TicketTask(models.Model):
     created_at = models.DateTimeField(_('تاریخ ایجاد'), auto_now_add=True)
     updated_at = models.DateTimeField(_('تاریخ بروزرسانی'), auto_now=True)
     resolved_at = models.DateTimeField(_('تاریخ انجام'), null=True, blank=True)
+    deadline = models.DateTimeField(_('مهلت انجام'), null=True, blank=True, help_text=_('تاریخ و زمان مهلت انجام تسک'))
     
     def __str__(self):
         return f"Task #{self.id} - {self.title} ({self.get_status_display()})"
@@ -576,4 +738,29 @@ class ElementSpecification(models.Model):
         unique_together = [['element', 'key']]  # Each element can only have one specification per key
     
     def __str__(self):
-        return f"{self.element.name} - {self.key}: {self.value}" 
+        return f"{self.element.name} - {self.key}: {self.value}"
+
+
+class CalendarDay(models.Model):
+    """Model to cache Jalali calendar data from external API"""
+    year = models.IntegerField(_('سال'), db_index=True)
+    month = models.IntegerField(_('ماه'), db_index=True)
+    day = models.IntegerField(_('روز'), db_index=True)
+    solar_date = models.CharField(_('تاریخ شمسی'), max_length=20, help_text=_('فرمت: YYYY/MM/DD'))
+    gregorian_date = models.CharField(_('تاریخ میلادی'), max_length=20, help_text=_('فرمت: YYYY-MM-DD'))
+    is_holiday = models.BooleanField(_('تعطیل رسمی'), default=False)
+    events_json = models.JSONField(_('رویدادها'), default=list, help_text=_('آرایه رویدادهای فارسی برای این روز'))
+    created_at = models.DateTimeField(_('تاریخ ایجاد'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('تاریخ بروزرسانی'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _("روز تقویم")
+        verbose_name_plural = _("روزهای تقویم")
+        unique_together = [['year', 'month', 'day']]
+        indexes = [
+            models.Index(fields=['year', 'month']),
+        ]
+        ordering = ['year', 'month', 'day']
+    
+    def __str__(self):
+        return f"{self.year}/{self.month:02d}/{self.day:02d}" 

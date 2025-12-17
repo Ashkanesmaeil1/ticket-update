@@ -1,0 +1,494 @@
+/**
+ * Modern Jalali Calendar Picker Styles
+ * Clean, responsive design with smooth transitions
+ */
+
+/* Modal Overlay */
+.calendar-modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1050;
+    animation: fadeIn 0.2s ease-in-out;
+}
+
+.calendar-modal-overlay.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Modal Container */
+.calendar-modal {
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-width: 600px;
+    width: 100%;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(30px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Modal Header */
+.calendar-modal-header {
+    padding: 20px;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.calendar-modal-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.calendar-modal-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+
+.calendar-modal-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Navigation Controls */
+.calendar-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.calendar-nav-btn {
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.calendar-nav-btn:hover {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+}
+
+.calendar-nav-btn:active {
+    transform: scale(0.98);
+}
+
+.calendar-nav-month-year {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #111827;
+    text-align: center;
+    flex: 1;
+}
+
+/* Calendar Grid */
+.calendar-body {
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.calendar-weekday {
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #6b7280;
+    padding: 8px 4px;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+}
+
+.calendar-day {
+    aspect-ratio: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.9375rem;
+    transition: all 0.2s;
+    position: relative;
+    background: #ffffff;
+    border: 1px solid transparent;
+    min-height: 35px;
+}
+
+.calendar-day:hover {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+}
+
+.calendar-day.other-month {
+    color: #d1d5db;
+    cursor: default;
+}
+
+.calendar-day.other-month:hover {
+    background: #ffffff;
+    border-color: transparent;
+}
+
+.calendar-day.today {
+    background: #dbeafe;
+    border-color: #3b82f6;
+    color: #1e40af;
+    font-weight: 600;
+}
+
+.calendar-day.holiday {
+    background: #fee2e2;
+    border-color: #ef4444;
+    color: #991b1b;
+    font-weight: 600;
+}
+
+.calendar-day.selected {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: #ffffff !important;
+    border-color: #667eea !important;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.calendar-day.selected.holiday {
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%) !important;
+    color: #ffffff !important;
+    border-color: #dc2626 !important;
+}
+
+/* Ensure selected day text is always visible even if background is overridden */
+.calendar-day.selected * {
+    color: #ffffff !important;
+}
+
+/* Day Details Panel */
+.calendar-details {
+    padding: 20px;
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+    min-height: 120px;
+    overflow: visible;
+}
+
+.calendar-details-empty {
+    text-align: center;
+    color: #9ca3af;
+    font-size: 0.875rem;
+    padding: 20px;
+}
+
+.calendar-details-content {
+    display: none;
+    overflow: visible;
+}
+
+.calendar-details-content.show {
+    display: block;
+    overflow: visible;
+}
+
+.calendar-details-date {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 12px;
+}
+
+.calendar-details-holiday {
+    display: inline-block;
+    background: #fee2e2;
+    color: #991b1b;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 12px;
+}
+
+.calendar-details-events {
+    margin-top: 12px;
+    overflow: visible;
+}
+
+.calendar-details-events-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #6b7280;
+    margin-bottom: 8px;
+}
+
+.calendar-details-events-list {
+    max-height: 140px !important; /* Approximately 3 events visible (each ~45px with padding/margin) */
+    height: auto;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding-right: 8px;
+    margin-right: -4px;
+    position: relative;
+    display: block;
+    box-sizing: border-box;
+}
+
+/* Custom scrollbar styling for event list */
+.calendar-details-events-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.calendar-details-events-list::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+
+.calendar-details-events-list::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 4px;
+}
+
+.calendar-details-events-list::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+
+.calendar-details-event {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    font-size: 0.875rem;
+    color: #374151;
+}
+
+/* Footer Actions */
+.calendar-modal-footer {
+    padding: 16px 20px;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    background: #ffffff;
+}
+
+.calendar-btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 0.9375rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+}
+
+.calendar-btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.calendar-btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.calendar-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.calendar-btn-secondary {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.calendar-btn-secondary:hover {
+    background: #e5e7eb;
+}
+
+/* Loading State */
+.calendar-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: #6b7280;
+}
+
+.calendar-loading::after {
+    content: '';
+    width: 20px;
+    height: 20px;
+    border: 2px solid #e5e7eb;
+    border-top-color: #667eea;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    margin-right: 8px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Time Input Section */
+.calendar-time-section {
+    padding: 16px 20px;
+    border-top: 1px solid #e5e7eb;
+    background: #ffffff;
+    direction: rtl;
+}
+
+.calendar-time-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 12px;
+    display: block;
+}
+
+.custom-time-picker {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    direction: rtl; /* RTL layout: Hour on right (first), Minute on left (last) - reading order: [Hour] : [Minute] */
+    justify-content: flex-start;
+}
+
+.time-input-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.time-input-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6b7280;
+    margin: 0;
+    text-align: center;
+}
+
+.time-hour-input,
+.time-minute-input {
+    width: 70px;
+    padding: 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-align: center;
+    transition: border-color 0.2s;
+    direction: ltr; /* Numbers displayed LTR even in RTL layout */
+    background: #ffffff;
+}
+
+.time-hour-input:focus,
+.time-minute-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.time-separator {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #374151;
+    align-self: flex-end;
+    margin-bottom: 12px;
+    line-height: 1;
+}
+
+.time-hour-input::-webkit-inner-spin-button,
+.time-hour-input::-webkit-outer-spin-button,
+.time-minute-input::-webkit-inner-spin-button,
+.time-minute-input::-webkit-outer-spin-button {
+    opacity: 1;
+    cursor: pointer;
+}
+
+/* Legacy time input (hidden) - for compatibility */
+.calendar-time-input {
+    display: none;
+}
+
+/* Responsive Design */
+@media (max-width: 640px) {
+    .calendar-modal {
+        max-width: 100%;
+        border-radius: 0;
+        max-height: 100vh;
+    }
+    
+    .calendar-day {
+        font-size: 0.875rem;
+    }
+    
+    .calendar-nav-month-year {
+        font-size: 1rem;
+    }
+}
+

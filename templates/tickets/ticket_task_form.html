@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load static %}
 
 {% block title %}{{ title }} - {% trans "سیستم تیکت" %}{% endblock %}
 
@@ -125,7 +126,7 @@
 
         <!-- Form Content -->
         <div class="form-content">
-            <form method="post">
+            <form method="post" id="ticket-task-form">
                 {% csrf_token %}
                 
                 <div class="mb-4">
@@ -169,6 +170,62 @@
                     <div class="text-danger">{{ form.assigned_to.errors }}</div>
                     {% endif %}
                     <small class="form-text">{% trans "ابتدا بخش را انتخاب کنید" %}</small>
+                </div>
+
+                <!-- Deadline Section -->
+                <div class="mb-4">
+                    <label for="{{ form.deadline_date.id_for_label }}" class="form-label">
+                        <i class="fas fa-clock me-2"></i>
+                        {% trans "تاریخ و زمان مهلت انجام" %}
+                    </label>
+                    <div class="deadline-date-wrapper" style="position: relative; width: 100%;">
+                        <input type="text" name="deadline_date" id="deadline-date-input" class="form-control" placeholder="{% trans 'برای انتخاب تاریخ و زمان کلیک کنید' %}" readonly autocomplete="off" {% if form.deadline_date.field.required %}required{% endif %} value="{{ form.deadline_date.value|default:'' }}" style="padding-left: 2.5rem; padding-right: 0.75rem;">
+                        <i class="fas fa-calendar-alt" id="calendar-icon-inside-input" style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280; pointer-events: none; z-index: 5;"></i>
+                    </div>
+                    <style>
+                        /* Single icon inside input - persistent styling */
+                        #deadline-date-input {
+                            background: #fff !important;
+                            background-image: none !important;
+                            padding-left: 2.5rem !important;
+                            padding-right: 0.75rem !important;
+                            position: relative !important;
+                        }
+                        /* Ensure icon stays visible */
+                        #calendar-icon-inside-input {
+                            display: inline-block !important;
+                            visibility: visible !important;
+                            opacity: 1 !important;
+                            position: absolute !important;
+                            left: 0.75rem !important;
+                            top: 50% !important;
+                            transform: translateY(-50%) !important;
+                            color: #6b7280 !important;
+                            pointer-events: none !important;
+                            z-index: 5 !important;
+                        }
+                        /* Prevent any pseudo-elements from interfering */
+                        #deadline-date-input::before,
+                        #deadline-date-input::after {
+                            display: none !important;
+                            content: '' !important;
+                        }
+                        /* Hide any other calendar icons that might appear */
+                        .deadline-date-wrapper .fa-calendar-alt:not(#calendar-icon-inside-input),
+                        .deadline-date-wrapper .fa-calendar:not(#calendar-icon-inside-input),
+                        .deadline-date-wrapper button,
+                        .deadline-date-wrapper .btn {
+                            display: none !important;
+                        }
+                    </style>
+                    {% if form.deadline_date.errors %}
+                    <div class="text-danger">{{ form.deadline_date.errors }}</div>
+                    {% endif %}
+                    {% if form.deadline_date.field.required %}
+                    <small class="form-text text-danger">{% trans "⚠️ فیلد اجباری" %}</small>
+                    {% else %}
+                    <small class="form-text text-muted">{% trans "برای انتخاب تاریخ و زمان کلیک کنید" %}</small>
+                    {% endif %}
                 </div>
 
                 <div class="d-flex justify-content-between mt-4">
@@ -220,5 +277,207 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+</script>
+<link rel="stylesheet" href="{% static 'css/calendar_picker.css' %}?v=30">
+<script src="{% static 'js/calendar_picker.js' %}?v=30"></script>
+<script>
+// Initialize Modern Jalali Calendar Picker
+(function() {
+    let pickerInstance = null;
+    let initializationAttempted = false; // Prevent multiple initializations
+    
+    function initCalendarPicker() {
+        // Prevent multiple initializations
+        if (initializationAttempted) {
+            console.log('Calendar picker already initialized, skipping...');
+            return;
+        }
+        
+        console.log('=== Calendar Picker Initialization ===');
+        console.log('Document ready state:', document.readyState);
+        
+        // Wait a bit to ensure all scripts are loaded
+        setTimeout(function() {
+            // Try multiple ways to find the input element
+            let deadlineDateInput = document.getElementById('deadline-date-input');
+            
+            console.log('Searching for deadline date input...');
+            console.log('By ID (deadline-date-input):', deadlineDateInput);
+            
+            // If not found by ID, try by name attribute
+            if (!deadlineDateInput) {
+                deadlineDateInput = document.querySelector('input[name="deadline_date"]');
+                console.log('By name (deadline_date):', deadlineDateInput);
+            }
+            
+            // If still not found, try by class and placeholder
+            if (!deadlineDateInput) {
+                const allInputs = document.querySelectorAll('input[type="text"]');
+                console.log('All text inputs:', allInputs);
+                for (let input of allInputs) {
+                    if (input.placeholder && (input.placeholder.includes('تاریخ') || input.placeholder.includes('1403'))) {
+                        deadlineDateInput = input;
+                        console.log('Found by placeholder:', input);
+                        break;
+                    }
+                }
+            }
+            
+            const deadlineTimeInput = document.getElementById('deadline-time-input') || 
+                                      document.querySelector('input[name="deadline_time"]');
+            
+            console.log('Final deadline date input:', deadlineDateInput);
+            console.log('Final deadline time input:', deadlineTimeInput);
+            console.log('JalaliCalendarPicker available:', typeof JalaliCalendarPicker !== 'undefined');
+            
+            if (!deadlineDateInput) {
+                console.error('❌ ERROR: Could not find deadline date input element!');
+                console.log('All input elements on page:');
+                document.querySelectorAll('input').forEach((input, idx) => {
+                    console.log(`  Input ${idx}:`, {
+                        id: input.id,
+                        name: input.name,
+                        type: input.type,
+                        placeholder: input.placeholder,
+                        className: input.className
+                    });
+                });
+                return;
+            }
+            
+            if (typeof JalaliCalendarPicker === 'undefined') {
+                console.error('❌ ERROR: JalaliCalendarPicker class is not defined!');
+                console.log('Check if calendar_picker.js is loaded correctly');
+                console.log('Scripts loaded:', Array.from(document.querySelectorAll('script[src]')).map(s => s.src));
+                return;
+            }
+            
+            try {
+                console.log('✅ Creating JalaliCalendarPicker instance...');
+                pickerInstance = new JalaliCalendarPicker(deadlineDateInput, {
+                    apiUrl: '{% url "tickets:calendar_api" %}',
+                    onSelect: function(dateStr, timeStr) {
+                        console.log('✅ Date and time selected:', dateStr, 'Time:', timeStr);
+                        // Combined date and time string is already set in the input field
+                    }
+                });
+                console.log('✅ Calendar picker initialized successfully!');
+                initializationAttempted = true; // Mark as initialized
+                
+                // Add form submission interceptor to debug deadline_date value
+                const taskForm = document.getElementById('ticket-task-form') || document.querySelector('form[method="post"]');
+                if (taskForm) {
+                    taskForm.addEventListener('submit', function(e) {
+                        console.log('=== FORM SUBMISSION DEBUG ===');
+                        const deadlineInput = document.getElementById('deadline-date-input');
+                        if (deadlineInput) {
+                            console.log('deadline_date input value:', deadlineInput.value);
+                            console.log('deadline_date input name:', deadlineInput.name);
+                            console.log('deadline_date input type:', deadlineInput.type);
+                            console.log('deadline_date input readonly:', deadlineInput.readOnly);
+                            
+                            // CRITICAL FIX: Ensure readonly inputs are included in form submission
+                            // Some browsers exclude readonly inputs, so we explicitly ensure the value is included
+                            if (deadlineInput.value && deadlineInput.value.trim()) {
+                                // Remove any existing hidden input with the same name
+                                const existingHidden = taskForm.querySelector('input[name="deadline_date"][type="hidden"]');
+                                if (existingHidden) {
+                                    existingHidden.remove();
+                                }
+                                
+                                // Create hidden input to ensure value is definitely submitted
+                                const hiddenInput = document.createElement('input');
+                                hiddenInput.type = 'hidden';
+                                hiddenInput.name = 'deadline_date';
+                                hiddenInput.value = deadlineInput.value;
+                                taskForm.appendChild(hiddenInput);
+                                console.log('✅ Created hidden input with value:', hiddenInput.value);
+                            } else {
+                                console.error('❌ CRITICAL: deadline_date input has no value!');
+                            }
+                        }
+                        
+                        // Create FormData to see all form values
+                        const formData = new FormData(taskForm);
+                        console.log('All form data:');
+                        for (let [key, value] of formData.entries()) {
+                            console.log(`  ${key}: ${value}`);
+                        }
+                        
+                        // Check deadline_date specifically
+                        const deadlineValue = formData.get('deadline_date');
+                        console.log('deadline_date from FormData:', deadlineValue);
+                        console.log('deadline_date type:', typeof deadlineValue);
+                        
+                        if (!deadlineValue || deadlineValue.trim() === '') {
+                            console.error('❌ CRITICAL ERROR: deadline_date is empty in form submission!');
+                            console.error('This means the selected date is being lost!');
+                            // Don't prevent submission, let backend handle validation
+                        } else {
+                            console.log('✅ deadline_date has value:', deadlineValue);
+                        }
+                        console.log('=== FORM SUBMISSION DEBUG END ===');
+                    });
+                }
+                
+                // Input field and wrapper are the triggers - no separate button needed
+                // Ensure icon inside input stays visible
+                setTimeout(function() {
+                    const iconInside = document.getElementById('calendar-icon-inside-input');
+                    if (iconInside) {
+                        iconInside.style.display = 'inline-block';
+                        iconInside.style.visibility = 'visible';
+                        iconInside.style.opacity = '1';
+                    }
+                    
+                    // Remove any buttons that might exist
+                    const wrapper = deadlineDateInput.closest('.deadline-date-wrapper');
+                    if (wrapper) {
+                        const buttons = wrapper.querySelectorAll('button, .btn');
+                        buttons.forEach(btn => btn.remove());
+                        
+                        // Ensure only one icon exists (the one with id="calendar-icon-inside-input")
+                        const allIcons = wrapper.querySelectorAll('i.fa-calendar-alt, i.fa-calendar');
+                        allIcons.forEach(icon => {
+                            if (icon.id !== 'calendar-icon-inside-input') {
+                                icon.remove();
+                            }
+                        });
+                    }
+                }, 100);
+                
+                // Time selection is now handled inside the modal and combined with date
+                // No separate time input field exists anymore
+            } catch (error) {
+                console.error('❌ ERROR initializing calendar picker:', error);
+                console.error('Error name:', error.name);
+                console.error('Error message:', error.message);
+                console.error('Stack trace:', error.stack);
+            }
+        }, 100);
+    }
+    
+    // Try multiple initialization strategies
+    if (document.readyState === 'loading') {
+        console.log('DOM is loading, waiting for DOMContentLoaded...');
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOMContentLoaded fired');
+            initCalendarPicker();
+        });
+    } else {
+        console.log('DOM already loaded, initializing immediately...');
+        initCalendarPicker();
+    }
+    
+    // Also try on window load as fallback
+    window.addEventListener('load', function() {
+        console.log('Window load event fired');
+        // Only initialize if not already initialized
+        if (!pickerInstance && !document.getElementById('calendar-modal-overlay')) {
+            console.log('Retrying calendar initialization on window load...');
+            initCalendarPicker();
+        }
+    });
+})();
 </script>
 {% endblock %}
