@@ -1,0 +1,264 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "ثبت حرکت موجودی" %} - {{ warehouse.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dwms-container {
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 1rem;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .form-card {
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .form-header {
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #e5e7eb;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: #374151;
+        font-weight: 600;
+    }
+
+    .form-control, .form-select {
+        width: 100%;
+        padding: 0.75rem;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-family: inherit;
+        transition: border-color 0.2s;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+    }
+
+    .form-control:focus, .form-select:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .form-control::placeholder {
+        color: #9ca3af;
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 2rem;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        min-height: 44px;
+        -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+        touch-action: manipulation;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .btn:active {
+        transform: scale(0.97);
+    }
+
+    .btn-primary {
+        background: #667eea;
+        color: white;
+    }
+
+    .btn-secondary {
+        background: #6b7280;
+        color: white;
+    }
+
+    .btn-warning {
+        background: #f59e0b;
+        color: white;
+    }
+
+    .location-warning {
+        display: flex;
+        gap: 1rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background: #fef2f2;
+        border: 2px solid #fecaca;
+        border-radius: 12px;
+        align-items: flex-start;
+    }
+
+    .warning-icon {
+        font-size: 1.5rem;
+        color: #dc2626;
+        flex-shrink: 0;
+    }
+
+    .warning-content {
+        flex: 1;
+    }
+
+    .warning-content strong {
+        display: block;
+        color: #991b1b;
+        margin-bottom: 0.5rem;
+        font-size: 1rem;
+    }
+
+    .warning-content p {
+        margin: 0.5rem 0;
+        color: #7f1d1d;
+        font-size: 0.9rem;
+    }
+
+    .warning-content .btn {
+        margin-top: 0.75rem;
+        width: 100%;
+        justify-content: center;
+    }
+
+    @media (max-width: 768px) {
+        .form-card {
+            padding: 1.5rem;
+        }
+
+        .form-actions {
+            flex-direction: column;
+        }
+
+        .form-actions .btn {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .location-warning {
+            flex-direction: column;
+            text-align: center;
+        }
+
+        .warning-icon {
+            align-self: center;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dwms-container">
+    <div class="form-card">
+        <div class="form-header">
+            <h1><i class="fas fa-exchange-alt"></i> {% trans "ثبت حرکت موجودی" %}</h1>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="{{ form.item.id_for_label }}">{{ form.item.label }}</label>
+                {{ form.item }}
+                {% if form.item.errors %}
+                <div style="color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem;">
+                    {{ form.item.errors }}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.location.id_for_label }}">{{ form.location.label }}</label>
+                {% if not has_locations %}
+                <div class="location-warning">
+                    <div class="warning-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="warning-content">
+                        <strong>{% trans "هیچ محل نگهداری‌ای تعریف نشده است" %}</strong>
+                        <p>{% trans "برای ثبت موجودی، ابتدا باید حداقل یک محل نگهداری ایجاد کنید." %}</p>
+                        <a href="{% url 'dwms:location_create' department.id %}" class="btn btn-warning">
+                            <i class="fas fa-plus"></i> {% trans "ایجاد محل نگهداری جدید" %}
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+                {{ form.location }}
+                {% if form.location.errors %}
+                <div style="color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem;">
+                    {{ form.location.errors }}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.movement_type.id_for_label }}">{{ form.movement_type.label }}</label>
+                {{ form.movement_type }}
+                {% if form.movement_type.errors %}
+                <div style="color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem;">
+                    {{ form.movement_type.errors }}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.quantity.id_for_label }}">{{ form.quantity.label }}</label>
+                {{ form.quantity }}
+                {% if form.quantity.errors %}
+                <div style="color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem;">
+                    {{ form.quantity.errors }}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.reason.id_for_label }}">{{ form.reason.label }}</label>
+                {{ form.reason }}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
+                {{ form.notes }}
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> {% trans "ثبت" %}
+                </button>
+                {% if item %}
+                <a href="{% url 'dwms:item_detail' department.id item.id %}" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> {% trans "لغو" %}
+                </a>
+                {% else %}
+                <a href="{% url 'dwms:item_list' department.id %}" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> {% trans "لغو" %}
+                </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+

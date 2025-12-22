@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+
+{% block title %}{% trans "تاریخچه حرکات" %} - {{ warehouse.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dwms-container {
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 1rem;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .filters-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .filters-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    .movements-table {
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    th, td {
+        padding: 1rem;
+        text-align: right;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    th {
+        background: #f9fafb;
+        font-weight: 600;
+        color: #374151;
+    }
+
+    .badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+
+    .badge-in {
+        background: #10b981;
+        color: white;
+    }
+
+    .badge-out {
+        background: #ef4444;
+        color: white;
+    }
+
+    .badge-adjustment {
+        background: #f59e0b;
+        color: white;
+    }
+
+    @media (max-width: 768px) {
+        .movements-table {
+            overflow-x: auto;
+        }
+        
+        table {
+            min-width: 800px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dwms-container">
+    <h1 style="margin-bottom: 1.5rem;"><i class="fas fa-history"></i> {% trans "تاریخچه حرکات" %}</h1>
+
+    <div class="filters-card">
+        <form method="get" class="filters-grid">
+            <div>
+                <label>{% trans "کالا" %}</label>
+                <select name="item" class="form-select">
+                    <option value="">{% trans "همه" %}</option>
+                    {% for item in items %}
+                    <option value="{{ item.id }}" {% if item_filter == item.id|stringformat:"s" %}selected{% endif %}>
+                        {{ item.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label>{% trans "نوع حرکت" %}</label>
+                <select name="movement_type" class="form-select">
+                    <option value="">{% trans "همه" %}</option>
+                    <option value="IN" {% if movement_type_filter == "IN" %}selected{% endif %}>{% trans "ورود" %}</option>
+                    <option value="OUT" {% if movement_type_filter == "OUT" %}selected{% endif %}>{% trans "خروج" %}</option>
+                    <option value="ADJUSTMENT" {% if movement_type_filter == "ADJUSTMENT" %}selected{% endif %}>{% trans "اصلاح" %}</option>
+                </select>
+            </div>
+            <div>
+                <label>{% trans "از تاریخ" %}</label>
+                <input type="date" name="date_from" value="{{ date_from }}" class="form-control">
+            </div>
+            <div>
+                <label>{% trans "تا تاریخ" %}</label>
+                <input type="date" name="date_to" value="{{ date_to }}" class="form-control">
+            </div>
+            <div style="display: flex; align-items: flex-end;">
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <i class="fas fa-filter"></i> {% trans "فیلتر" %}
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="movements-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>{% trans "تاریخ" %}</th>
+                    <th>{% trans "کالا" %}</th>
+                    <th>{% trans "نوع" %}</th>
+                    <th>{% trans "مقدار" %}</th>
+                    <th>{% trans "محل" %}</th>
+                    <th>{% trans "انجام شده توسط" %}</th>
+                    <th>{% trans "دلیل" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for movement in page_obj %}
+                <tr>
+                    <td>{{ movement.movement_date|persian_date }}</td>
+                    <td>{{ movement.item.name }}</td>
+                    <td>
+                        {% if movement.movement_type == 'IN' %}
+                        <span class="badge badge-in">{% trans "ورود" %}</span>
+                        {% elif movement.movement_type == 'OUT' %}
+                        <span class="badge badge-out">{% trans "خروج" %}</span>
+                        {% else %}
+                        <span class="badge badge-adjustment">{% trans "اصلاح" %}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ movement.quantity }} {{ movement.item.unit }}</td>
+                    <td>{{ movement.location.name }}</td>
+                    <td>{{ movement.performed_by.get_full_name|default:"-" }}</td>
+                    <td>{{ movement.get_reason_display }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 2rem; color: #6b7280;">
+                        {% trans "هیچ حرکتی یافت نشد" %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <div style="margin-top: 1.5rem; display: flex; justify-content: center; gap: 0.5rem;">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if item_filter %}&item={{ item_filter }}{% endif %}{% if movement_type_filter %}&movement_type={{ movement_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-right"></i> {% trans "قبلی" %}
+        </a>
+        {% endif %}
+        <span style="padding: 0.75rem 1.5rem; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+            {% trans "صفحه" %} {{ page_obj.number }} {% trans "از" %} {{ page_obj.paginator.num_pages }}
+        </span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if item_filter %}&item={{ item_filter }}{% endif %}{% if movement_type_filter %}&movement_type={{ movement_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="btn btn-secondary">
+            {% trans "بعدی" %} <i class="fas fa-arrow-left"></i>
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

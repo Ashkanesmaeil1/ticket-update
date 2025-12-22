@@ -1,0 +1,191 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+
+{% block title %}{% trans "بازگشت امانت" %} - {{ warehouse.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dwms-container {
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 1rem;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .form-card {
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .form-header {
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #e5e7eb;
+    }
+
+    .lend-summary {
+        background: #f9fafb;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .lend-summary h3 {
+        margin: 0 0 1rem 0;
+        color: #374151;
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        color: #6b7280;
+        font-size: 0.9rem;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: #374151;
+        font-weight: 600;
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 2rem;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-primary {
+        background: #10b981;
+        color: white;
+    }
+
+    .btn-secondary {
+        background: #6b7280;
+        color: white;
+    }
+
+    .overdue-warning {
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        color: #991b1b;
+    }
+
+    @media (max-width: 768px) {
+        .form-card {
+            padding: 1.25rem;
+        }
+
+        .form-actions {
+            flex-direction: column;
+        }
+
+        .form-actions .btn {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .summary-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dwms-container">
+    <div class="form-card">
+        <div class="form-header">
+            <h1><i class="fas fa-undo"></i> {% trans "بازگشت امانت" %}</h1>
+        </div>
+
+        <div class="lend-summary">
+            <h3>{{ lend_record.item.name }}</h3>
+            <div class="summary-grid">
+                <div>
+                    <strong>{% trans "امانت‌گیرنده:" %}</strong><br>
+                    {{ lend_record.borrower.get_full_name }}
+                </div>
+                <div>
+                    <strong>{% trans "مقدار:" %}</strong><br>
+                    {{ lend_record.quantity }} {{ lend_record.item.unit }}
+                </div>
+                <div>
+                    <strong>{% trans "تاریخ امانت:" %}</strong><br>
+                    {{ lend_record.issue_date|persian_date }}
+                </div>
+                <div>
+                    <strong>{% trans "موعد بازگشت:" %}</strong><br>
+                    {{ lend_record.due_date|persian_date }}
+                </div>
+            </div>
+        </div>
+
+        {% if lend_record.is_overdue %}
+        <div class="overdue-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>{% trans "توجه:" %}</strong> {% trans "این امانت از موعد بازگشت گذشته است." %}
+        </div>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="location">{% trans "محل بازگشت" %} <span style="color: #ef4444;">*</span></label>
+                <select name="location" id="location" class="form-select" required>
+                    <option value="">{% trans "انتخاب محل..." %}</option>
+                    {% for location in locations %}
+                    <option value="{{ location.id }}">{{ location.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="notes">{% trans "یادداشت (اختیاری)" %}</label>
+                <textarea name="notes" id="notes" class="form-control" rows="3" placeholder="{% trans 'یادداشت در مورد بازگشت...' %}"></textarea>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-check"></i> {% trans "تأیید بازگشت" %}
+                </button>
+                <a href="{% url 'dwms:lend_list' department.id %}" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> {% trans "لغو" %}
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+

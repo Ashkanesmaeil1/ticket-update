@@ -169,6 +169,7 @@ def create_email_template(action_type, ticket, user, additional_info=None):
         'delete': 'حذف تیکت',
         'access_approved': 'تایید دسترسی شبکه',
         'access_rejected': 'رد دسترسی شبکه',
+        'view': 'مشاهده تیکت',
     }
     
     # Action type mapping for email content
@@ -181,6 +182,7 @@ def create_email_template(action_type, ticket, user, additional_info=None):
         'delete': 'حذف تیکت',
         'access_approved': 'تایید درخواست دسترسی شبکه',
         'access_rejected': 'رد درخواست دسترسی شبکه',
+        'view': 'مشاهده تیکت',
     }
     
     action_persian = action_map.get(action_type, action_type)
@@ -217,6 +219,8 @@ def create_email_template(action_type, ticket, user, additional_info=None):
         additional_info_title = "اطلاعات حذف"
     elif action_type == 'access_approved':
         additional_info_title = "جزئیات تایید دسترسی"
+    elif action_type == 'view':
+        additional_info_title = "اطلاعات مشاهده"
     
     # Base template with logo and styling
     html_template = f"""
@@ -783,6 +787,7 @@ def notify_employee(action_type, ticket, user, additional_info=None, employee_em
             'assignment': 'تخصیص تیکت',
             'update': 'ویرایش تیکت',
             'delete': 'حذف تیکت',
+            'view': 'مشاهده تیکت',
         }
         subject_text = action_subject_map.get(action_type, action_type)
         

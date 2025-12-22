@@ -179,6 +179,7 @@ INSTALLED_APPS = [
     'crispy_forms',
     'crispy_bootstrap5',
     'tickets',
+    'dwms',
 ]
 
 MIDDLEWARE = [
@@ -205,6 +206,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'tickets.context_processors.warehouse_access',
             ],
         },
     },

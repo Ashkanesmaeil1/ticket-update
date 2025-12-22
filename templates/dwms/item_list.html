@@ -1,0 +1,264 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+
+{% block title %}{% trans "لیست کالاها" %} - {{ warehouse.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dwms-container {
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    .page-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 16px;
+        margin-bottom: 1.5rem;
+    }
+
+    .page-header h1 {
+        margin: 0;
+        font-size: 1.5rem;
+    }
+
+    .filters-card {
+        background: white;
+        padding: 1rem;
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .item-card {
+        background: white;
+        padding: 1rem;
+        border-radius: 12px;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+    }
+
+    .item-card:active {
+        transform: scale(0.98);
+    }
+
+    .item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 0.75rem;
+    }
+
+    .item-name {
+        font-size: 1.125rem;
+        font-weight: 700;
+        color: #374151;
+        margin: 0;
+    }
+
+    .stock-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .stock-badge.ok {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+    .stock-badge.low {
+        background: #fff7ed;
+        color: #f59e0b;
+    }
+
+    .stock-badge.critical {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .item-meta {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.875rem;
+        color: #6b7280;
+        margin-bottom: 0.75rem;
+    }
+
+    .item-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .btn-action {
+        flex: 1;
+        padding: 0.5rem;
+        text-align: center;
+        border-radius: 8px;
+        text-decoration: none;
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+
+    .btn-view {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+
+    .btn-edit {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .fab {
+        position: fixed;
+        bottom: 2rem;
+        left: 2rem;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        text-decoration: none;
+        font-size: 1.5rem;
+        z-index: 1000;
+    }
+
+    @media (min-width: 768px) {
+        .dwms-container {
+            max-width: 1200px;
+            padding: 2rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dwms-container">
+    <div class="page-header">
+        <h1><i class="fas fa-boxes"></i> {% trans "لیست کالاها" %}</h1>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-card">
+        <form method="get" class="row g-3">
+            <div class="col-12 col-md-4">
+                <input type="text" name="search" class="form-control" 
+                       placeholder="{% trans 'جستجو...' %}" 
+                       value="{{ search_query }}">
+            </div>
+            <div class="col-12 col-md-3">
+                <select name="category" class="form-select">
+                    <option value="">{% trans "همه دسته‌بندی‌ها" %}</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}" {% if category_filter == cat.id|stringformat:"s" %}selected{% endif %}>
+                        {{ cat.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-md-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="low_stock" id="low_stock" 
+                           {% if low_stock_only %}checked{% endif %}>
+                    <label class="form-check-label" for="low_stock">
+                        {% trans "فقط کمبود موجودی" %}
+                    </label>
+                </div>
+            </div>
+            <div class="col-12 col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-search"></i> {% trans "فیلتر" %}
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Items List -->
+    {% if page_obj %}
+        {% for item_data in page_obj %}
+        <div class="item-card">
+            <div class="item-header">
+                <h3 class="item-name">{{ item_data.item.name }}</h3>
+                <span class="stock-badge {% if item_data.is_low_stock %}{% if item_data.total_stock == 0 %}critical{% else %}low{% endif %}{% else %}ok{% endif %}">
+                    {% if item_data.is_low_stock %}
+                        {% if item_data.total_stock == 0 %}
+                            {% trans "بدون موجودی" %}
+                        {% else %}
+                            {% trans "کمبود" %}
+                        {% endif %}
+                    {% else %}
+                        {% trans "کافی" %}
+                    {% endif %}
+                </span>
+            </div>
+            <div class="item-meta">
+                <span><i class="fas fa-cube"></i> {{ item_data.total_stock }} {{ item_data.item.unit }}</span>
+                {% if item_data.item.category %}
+                <span><i class="fas fa-tag"></i> {{ item_data.item.category.name }}</span>
+                {% endif %}
+                {% if item_data.item.sku %}
+                <span><i class="fas fa-barcode"></i> {{ item_data.item.sku }}</span>
+                {% endif %}
+            </div>
+            <div class="item-actions">
+                <a href="{% url 'dwms:item_detail' department.id item_data.item.id %}" class="btn-action btn-view">
+                    <i class="fas fa-eye"></i> {% trans "مشاهده" %}
+                </a>
+                <a href="{% url 'dwms:movement_create_item' department.id item_data.item.id %}" class="btn-action btn-edit">
+                    <i class="fas fa-edit"></i> {% trans "حرکت" %}
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+        <nav aria-label="{% trans 'صفحه‌بندی' %}">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}{% if low_stock_only %}&low_stock=on{% endif %}">
+                        {% trans "قبلی" %}
+                    </a>
+                </li>
+                {% endif %}
+                <li class="page-item active">
+                    <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+                </li>
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}{% if low_stock_only %}&low_stock=on{% endif %}">
+                        {% trans "بعدی" %}
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-inbox" style="font-size: 4rem; opacity: 0.3;"></i>
+            <p class="mt-3">{% trans "هیچ کالایی یافت نشد" %}</p>
+            <a href="{% url 'dwms:item_create' department.id %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> {% trans "افزودن کالا" %}
+            </a>
+        </div>
+    {% endif %}
+
+    <!-- Floating Action Button -->
+    <a href="{% url 'dwms:item_create' department.id %}" class="fab">
+        <i class="fas fa-plus"></i>
+    </a>
+</div>
+{% endblock %}
+

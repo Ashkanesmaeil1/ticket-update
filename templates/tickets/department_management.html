@@ -722,6 +722,35 @@
                                 </div>
                             {% endif %}
                         </div>
+                        
+                        <!-- Warehouse Toggle Section (accessible regardless of branch) -->
+                        <div class="branch-info-section" style="margin-top: 1rem; margin-bottom: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 12px;">
+                            <div style="font-weight: 600; margin-bottom: 0.5rem; color: var(--text);">
+                                <i class="fas fa-warehouse" style="margin-left: 0.5rem;"></i>
+                                {% trans "ماژول انبار" %}
+                            </div>
+                            <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #dee2e6;">
+                                <form method="post" action="{% url 'tickets:department_toggle_warehouse' department.id %}" style="display: inline;">
+                                    {% csrf_token %}
+                                    <div class="form-check form-switch" style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <input class="form-check-input" type="checkbox" 
+                                               id="has_warehouse_{{ department.id }}" 
+                                               {% if department.has_warehouse %}checked{% endif %}
+                                               onchange="this.form.submit()"
+                                               style="cursor: pointer; width: 2.5rem; height: 1.25rem;">
+                                        <label class="form-check-label" for="has_warehouse_{{ department.id }}" style="cursor: pointer; font-weight: 600; color: var(--text);">
+                                            {% trans "انبار" %}
+                                        </label>
+                                    </div>
+                                </form>
+                                {% if department.has_warehouse %}
+                                    <div style="font-size: 0.85rem; color: var(--success); margin-top: 0.5rem;">
+                                        <i class="fas fa-check-circle"></i>
+                                        {% trans "ماژول انبار برای این بخش فعال است. فقط سرپرست بخش می‌تواند به انبار دسترسی داشته باشد." %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
 
                         <div class="dept-actions">
                             <a href="{% url 'tickets:department_edit' department.id %}" class="btn-action btn-edit">
@@ -848,6 +877,35 @@
                                     {% trans "شعبه پیکربندی نشده" %}
                                 </div>
                             {% endif %}
+                        </div>
+                        
+                        <!-- Warehouse Toggle Section (accessible regardless of branch) -->
+                        <div class="branch-info-section" style="margin-top: 1rem; margin-bottom: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 12px;">
+                            <div style="font-weight: 600; margin-bottom: 0.5rem; color: var(--text);">
+                                <i class="fas fa-warehouse" style="margin-left: 0.5rem;"></i>
+                                {% trans "ماژول انبار" %}
+                            </div>
+                            <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #dee2e6;">
+                                <form method="post" action="{% url 'tickets:department_toggle_warehouse' department.id %}" style="display: inline;">
+                                    {% csrf_token %}
+                                    <div class="form-check form-switch" style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <input class="form-check-input" type="checkbox" 
+                                               id="has_warehouse_{{ department.id }}" 
+                                               {% if department.has_warehouse %}checked{% endif %}
+                                               onchange="this.form.submit()"
+                                               style="cursor: pointer; width: 2.5rem; height: 1.25rem;">
+                                        <label class="form-check-label" for="has_warehouse_{{ department.id }}" style="cursor: pointer; font-weight: 600; color: var(--text);">
+                                            {% trans "انبار" %}
+                                        </label>
+                                    </div>
+                                </form>
+                                {% if department.has_warehouse %}
+                                    <div style="font-size: 0.85rem; color: var(--success); margin-top: 0.5rem;">
+                                        <i class="fas fa-check-circle"></i>
+                                        {% trans "ماژول انبار برای این بخش فعال است. فقط سرپرست بخش می‌تواند به انبار دسترسی داشته باشد." %}
+                                    </div>
+                                {% endif %}
+                            </div>
                         </div>
 
                         <div class="dept-actions">
@@ -976,6 +1034,35 @@
                                 </div>
                             {% endif %}
                         </div>
+                        
+                        <!-- Warehouse Toggle Section (accessible regardless of branch) -->
+                        <div class="branch-info-section" style="margin-top: 1rem; margin-bottom: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 12px;">
+                            <div style="font-weight: 600; margin-bottom: 0.5rem; color: var(--text);">
+                                <i class="fas fa-warehouse" style="margin-left: 0.5rem;"></i>
+                                {% trans "ماژول انبار" %}
+                            </div>
+                            <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #dee2e6;">
+                                <form method="post" action="{% url 'tickets:department_toggle_warehouse' department.id %}" style="display: inline;">
+                                    {% csrf_token %}
+                                    <div class="form-check form-switch" style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <input class="form-check-input" type="checkbox" 
+                                               id="has_warehouse_{{ department.id }}" 
+                                               {% if department.has_warehouse %}checked{% endif %}
+                                               onchange="this.form.submit()"
+                                               style="cursor: pointer; width: 2.5rem; height: 1.25rem;">
+                                        <label class="form-check-label" for="has_warehouse_{{ department.id }}" style="cursor: pointer; font-weight: 600; color: var(--text);">
+                                            {% trans "انبار" %}
+                                        </label>
+                                    </div>
+                                </form>
+                                {% if department.has_warehouse %}
+                                    <div style="font-size: 0.85rem; color: var(--success); margin-top: 0.5rem;">
+                                        <i class="fas fa-check-circle"></i>
+                                        {% trans "ماژول انبار برای این بخش فعال است. فقط سرپرست بخش می‌تواند به انبار دسترسی داشته باشد." %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
 
                         <div class="dept-actions">
                             <a href="{% url 'tickets:department_edit' department.id %}" class="btn-action btn-edit">
@@ -1001,10 +1088,6 @@
                     </a>
                 </div>
                 {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block extra_js %}

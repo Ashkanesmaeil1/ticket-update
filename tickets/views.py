@@ -16,7 +16,7 @@ from django.contrib.auth.decorators import user_passes_test
 from django.utils.translation import gettext_lazy as _
 from django.template.response import TemplateResponse
 
-from .models import User, Ticket, Reply, Department, Branch, InventoryElement, ElementSpecification, Notification, TicketTask, TaskReply
+from .models import User, Ticket, Reply, Department, Branch, InventoryElement, ElementSpecification, Notification, TicketTask, TaskReply, TicketActivityLog
 from .services import notify_department_supervisor
 from .admin_security import get_admin_superuser_queryset_filter, is_admin_superuser
 
@@ -63,6 +63,93 @@ def get_warehouse_element():
     )
     
     return warehouse
+
+
+def get_department_warehouse(department):
+    """
+    Helper function to get or create a warehouse element for a specific department.
+    
+    - Each department with warehouse enabled gets its own warehouse element
+    - Warehouse is represented as an InventoryElement with name = department name + " انبار"
+    - It is created automatically if it does not exist
+    - It is always active and is a top-level element (no parent)
+    - It is assigned to the department supervisor
+    """
+    if not department or not department.has_warehouse:
+        return None
+    
+    warehouse_name = f"{department.name} انبار"
+    
+    # Try to find existing department warehouse element
+    warehouse = InventoryElement.objects.filter(
+        name=warehouse_name,
+        parent_element__isnull=True,
+        element_type='انبار'
+    ).first()
+    
+    if warehouse:
+        # Ensure it's active and has no parent
+        warehouse.is_active = True
+        warehouse.parent_element = None
+        # Update assigned_to to current supervisor if changed
+        if department.supervisor and warehouse.assigned_to != department.supervisor:
+            warehouse.assigned_to = department.supervisor
+        warehouse.save(update_fields=['is_active', 'parent_element', 'assigned_to'])
+        return warehouse
+    
+    # Create department warehouse element - assign to department supervisor
+    supervisor = department.supervisor
+    if not supervisor:
+        # If no supervisor, assign to first active user in department
+        supervisor = department.users.filter(is_active=True).first()
+        if not supervisor:
+            raise ValueError(_('بخش "{}" هیچ سرپرست یا کاربر فعالی ندارد.').format(department.name))
+    
+    warehouse = InventoryElement.objects.create(
+        name=warehouse_name,
+        element_type='انبار',
+        description=_('انبار بخش {} - تمام عناصر موجودی این بخش می‌توانند زیرمجموعه این انبار باشند').format(department.name),
+        assigned_to=supervisor,
+        parent_element=None,
+        is_active=True,
+        created_by=supervisor
+    )
+    
+    return warehouse
+
+
+def is_department_warehouse_element(element):
+    """
+    Check if an inventory element belongs to a department warehouse.
+    Returns (is_department_warehouse, department) tuple.
+    
+    This function checks:
+    1. If the element itself is a department warehouse
+    2. If any parent in the hierarchy is a department warehouse
+    """
+    if not element:
+        return False, None
+    
+    # Check if element itself is a department warehouse
+    if element.name.endswith(' انبار') and element.element_type == 'انبار':
+        dept_name = element.name.replace(' انبار', '').strip()
+        department = Department.objects.filter(name=dept_name, has_warehouse=True).first()
+        if department:
+            return True, department
+    
+    # Check parent recursively (up the entire hierarchy)
+    parent = element.parent_element
+    visited = set()  # Prevent infinite loops
+    while parent and parent.id not in visited:
+        visited.add(parent.id)
+        if parent.name.endswith(' انبار') and parent.element_type == 'انبار':
+            dept_name = parent.name.replace(' انبار', '').strip()
+            department = Department.objects.filter(name=dept_name, has_warehouse=True).first()
+            if department:
+                return True, department
+        parent = parent.parent_element
+    
+    return False, None
 
 
 def get_it_department():
@@ -476,6 +563,17 @@ def dashboard(request):
                 # Calculate statistics for all supervised departments
                 supervised_dept_ids = [d.id for d in supervised_depts] if supervised_depts else ([user.department.id] if user.department else [])
                 
+                # Check if user has warehouse access (supervisor of any department with warehouse enabled)
+                has_warehouse_access = False
+                warehouse_departments = []
+                if supervised_depts:
+                    warehouse_departments = [d for d in supervised_depts if d.has_warehouse]
+                    has_warehouse_access = len(warehouse_departments) > 0
+                elif user.department:
+                    has_warehouse_access = user.department.has_warehouse
+                    if has_warehouse_access:
+                        warehouse_departments = [user.department]
+                
                 context = {
                     'department_tickets': department_tickets,
                     'received_tickets': received_tickets,
@@ -495,6 +593,8 @@ def dashboard(request):
                     'received_open_tickets': received_open_tickets,
                     'received_resolved_tickets': received_resolved_tickets,
                     'can_receive_tickets': bool(departments_that_can_receive) if supervised_depts else can_receive,
+                    'has_warehouse_access': has_warehouse_access,
+                    'warehouse_departments': warehouse_departments,
                     'task_total_tickets': Ticket.objects.filter(assigned_to=user).count(),
                     'task_open_tickets': Ticket.objects.filter(assigned_to=user, status='open').count(),
                     'task_resolved_tickets': Ticket.objects.filter(assigned_to=user, status='resolved').count(),
@@ -1323,10 +1423,12 @@ def ticket_detail(request, ticket_id):
         else:
             # This is a reply form submission
             reply_form = ReplyForm(request.POST, request.FILES)
+            reply_form.user = user  # Set user for activity logging
             if reply_form.is_valid():
                 reply = reply_form.save(commit=False)
                 reply.ticket = ticket
                 reply.author = user
+                reply._activity_user = user  # Also set directly for signal
                 
                 # Handle private reply logic
                 if reply.is_private and user.role == 'it_manager':
@@ -1401,6 +1503,54 @@ def ticket_detail(request, ticket_id):
         request.user.is_supervisor_of(ticket.created_by.department)):
         can_approve_access = True
     
+    # Track first view by assigned person, ticket responder, technician, or IT manager (only for open tickets)
+    if ticket.status == 'open' and ticket.created_by and ticket.created_by != user:
+        # Check if user is the assigned person, ticket responder, technician, or IT manager
+        is_assigned_person = (ticket.assigned_to == user)
+        is_ticket_responder = (user.department and 
+                              user.department.can_receive_tickets and 
+                              user.department.ticket_responder == user and 
+                              ticket.target_department == user.department)
+        is_technician_or_it_manager = (user.role in ['technician', 'it_manager'])
+        
+        if is_assigned_person or is_ticket_responder or is_technician_or_it_manager:
+            # Check if this is the first time this user is viewing the ticket
+            has_viewed = TicketActivityLog.objects.filter(
+                ticket=ticket,
+                user=user,
+                action='viewed'
+            ).exists()
+            
+            if not has_viewed:
+                # Log the view
+                TicketActivityLog.objects.create(
+                    ticket=ticket,
+                    user=user,
+                    action='viewed',
+                    description=_('تیکت برای اولین بار مشاهده شد'),
+                    new_value=user.get_full_name() or user.username
+                )
+                
+                # Send email to ticket creator
+                try:
+                    from .services import notify_employee
+                    viewer_name = user.get_full_name() or user.username
+                    if user.department:
+                        viewer_display = f"{user.department.name} ({viewer_name})"
+                    else:
+                        viewer_display = viewer_name
+                    
+                    notify_employee(
+                        action_type='view',
+                        ticket=ticket,
+                        user=user,
+                        additional_info=f"تیکت شما توسط {viewer_display} مشاهده شد."
+                    )
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"Error sending view notification email: {e}", exc_info=True)
+    
     context = {
         'ticket': ticket,
         'replies': replies,
@@ -1427,6 +1577,7 @@ def ticket_create(request):
             if form.is_valid():
                 ticket = form.save(commit=False)
                 ticket.created_by = request.user
+                ticket._activity_user = request.user  # Set for activity logging
                 
                 # Set branch and target_department from form
                 ticket.branch = form.cleaned_data.get('branch')
@@ -1572,6 +1723,9 @@ def ticket_update(request, ticket_id):
             form.request = request  # Store request for messages
 
         if form.is_valid():
+            # Set user for activity logging
+            if hasattr(form, 'instance'):
+                form.instance._activity_user = user
             form.save()
 
             # Send specific notifications based on what changed
@@ -1987,6 +2141,9 @@ def update_ticket_status(request, ticket_id):
     original_status = ticket.status
     original_assignment = ticket.assigned_to
     
+    # Set user for activity logging
+    ticket._activity_user = user
+    
     # Handle status update
     if status in dict(Ticket.STATUS_CHOICES):
         ticket.status = status
@@ -2070,6 +2227,151 @@ def update_ticket_status(request, ticket_id):
     
     ticket.save()
     return JsonResponse({'success': True, 'status': ticket.status})
+
+@login_required
+def get_ticket_activity_logs(request, ticket_id):
+    """API endpoint to fetch activity logs for a ticket"""
+    import logging
+    logger = logging.getLogger(__name__)
+    user = request.user
+    
+    # Check if user has permission to view this ticket
+    try:
+        if user.role == 'employee':
+            if user.department_role == 'manager':
+                ticket = get_object_or_404(Ticket, id=ticket_id)
+            elif user.department_role == 'senior':
+                supervised_depts = user.get_supervised_departments()
+                supervised_dept_ids = [d.id for d in supervised_depts] if supervised_depts else ([user.department.id] if user.department else [])
+                
+                if supervised_dept_ids:
+                    ticket = get_object_or_404(
+                        Ticket.objects.filter(
+                            Q(created_by__department__in=supervised_dept_ids, created_by__isnull=False) | 
+                            Q(target_department__in=supervised_dept_ids)
+                        ),
+                        id=ticket_id
+                    )
+                else:
+                    ticket = get_object_or_404(Ticket, id=ticket_id, created_by=user)
+            elif user.department and user.department.can_receive_tickets and user.department.ticket_responder == user:
+                ticket = get_object_or_404(
+                    Ticket.objects.filter(
+                        Q(created_by=user) | 
+                        Q(target_department=user.department) | 
+                        Q(assigned_to=user)
+                    ),
+                    id=ticket_id
+                )
+            else:
+                ticket = get_object_or_404(
+                    Ticket.objects.filter(
+                        Q(created_by=user) | Q(assigned_to=user)
+                    ),
+                    id=ticket_id
+                )
+        elif user.role == 'technician':
+            it_department = get_it_department()
+            if it_department:
+                ticket = get_object_or_404(
+                    Ticket.objects.filter(
+                        Q(assigned_to=user) & (Q(target_department__isnull=True) | Q(target_department=it_department))
+                    ).exclude(category='access', access_approval_status='pending'),
+                    id=ticket_id
+                )
+            else:
+                ticket = get_object_or_404(Ticket.objects.exclude(category='access', access_approval_status='pending'), id=ticket_id, assigned_to=user)
+        else:  # IT Manager
+            it_department = get_it_department()
+            if it_department:
+                ticket = get_object_or_404(
+                    Ticket.objects.filter(
+                        Q(target_department__isnull=True) | Q(target_department=it_department) | Q(created_by=user)
+                    ).exclude(category='access', access_approval_status='pending'),
+                    id=ticket_id
+                )
+            else:
+                ticket = get_object_or_404(Ticket.objects.exclude(category='access', access_approval_status='pending'), id=ticket_id)
+    except Exception as e:
+        logger.error(f"Error checking ticket permissions for activity logs: {e}", exc_info=True)
+        return JsonResponse({'error': 'دسترسی رد شد', 'details': str(e)}, status=403)
+    
+    # Get activity logs for this ticket
+    try:
+        import jdatetime
+        from django.utils import timezone
+        import zoneinfo
+        
+        logs = TicketActivityLog.objects.filter(ticket=ticket).order_by('-created_at')
+        
+        # Convert to JSON-serializable format
+        logs_data = []
+        for log in logs:
+            # Format user name as "Department name (person's name)"
+            try:
+                if log.user:
+                    # Refresh user from database to ensure we have latest data
+                    try:
+                        log.user.refresh_from_db()
+                    except Exception:
+                        pass
+                    
+                    user_full_name = log.user.get_full_name()
+                    if not user_full_name or user_full_name.strip() == '':
+                        user_full_name = log.user.username or _('نامشخص')
+                    
+                    # Get department name
+                    if log.user.department:
+                        department_name = log.user.department.name
+                        user_name = f"{department_name} ({user_full_name})"
+                    else:
+                        user_name = user_full_name
+                else:
+                    user_name = _('سیستم')
+            except Exception as e:
+                logger.error(f"Error formatting user name for log {log.id}: {e}", exc_info=True)
+                user_name = _('سیستم')
+            
+            # Convert date to Persian (Jalali) format
+            try:
+                # Convert to Tehran timezone if timezone-aware
+                created_at = log.created_at
+                if timezone.is_aware(created_at):
+                    tehran_tz = zoneinfo.ZoneInfo('Asia/Tehran')
+                    created_at = created_at.astimezone(tehran_tz)
+                
+                # Convert to Persian calendar (same logic as persian_date filter)
+                persian_date = jdatetime.datetime.fromgregorian(datetime=created_at)
+                created_at_persian = persian_date.strftime('%Y/%m/%d %H:%M')
+            except Exception as e:
+                logger.error(f"Error converting date to Persian for log {log.id}: {e}", exc_info=True)
+                # Fallback to Gregorian date if conversion fails
+                created_at_persian = log.created_at.strftime('%Y/%m/%d %H:%M')
+            
+            logs_data.append({
+                'id': log.id,
+                'action': log.action,
+                'action_display': log.get_action_display(),
+                'description': log.description,
+                'old_value': log.old_value or '',
+                'new_value': log.new_value or '',
+                'user_name': user_name,
+                'created_at': log.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'created_at_persian': created_at_persian,
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'logs': logs_data,
+            'total': len(logs_data)
+        })
+    except Exception as e:
+        logger.error(f"Error fetching activity logs: {e}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': 'خطا در دریافت تاریخچه',
+            'details': str(e)
+        }, status=500)
 
 @login_required
 def search_tickets(request):
@@ -3665,6 +3967,82 @@ def department_toggle_tickets(request, department_id):
     return redirect('tickets:department_management')
 
 @login_required
+@require_POST
+def department_toggle_warehouse(request, department_id):
+    """Toggle has_warehouse for a department"""
+    if not is_admin_superuser(request.user):
+        messages.error(request, _('دسترسی رد شد. فقط مدیر سیستم میتواند این بخش را دریافت کند.'))
+        return redirect('tickets:dashboard')
+    
+    department = get_object_or_404(Department, id=department_id)
+    
+    # Toggle the has_warehouse status
+    was_enabled = department.has_warehouse
+    department.has_warehouse = not department.has_warehouse
+    department.save(update_fields=['has_warehouse'])
+    
+    if department.has_warehouse and not was_enabled:
+        # Warehouse is being enabled - create the warehouse element
+        try:
+            warehouse = get_department_warehouse(department)
+            if warehouse:
+                messages.success(request, _('ماژول انبار برای بخش "{}" فعال شد. انبار با موفقیت ایجاد شد و سرپرست این بخش می‌تواند به آن دسترسی داشته باشد.').format(department.name))
+            else:
+                messages.warning(request, _('ماژول انبار برای بخش "{}" فعال شد، اما ایجاد انبار با مشکل مواجه شد. لطفاً مطمئن شوید که بخش دارای سرپرست است.').format(department.name))
+        except Exception as e:
+            messages.error(request, _('خطا در ایجاد انبار: {}').format(str(e)))
+    elif not department.has_warehouse and was_enabled:
+        # Warehouse is being disabled - deactivate the warehouse element (don't delete, just deactivate)
+        try:
+            warehouse = get_department_warehouse(department)
+            if warehouse:
+                warehouse.is_active = False
+                warehouse.save(update_fields=['is_active'])
+            messages.info(request, _('ماژول انبار برای بخش "{}" غیرفعال شد.').format(department.name))
+        except Exception:
+            messages.info(request, _('ماژول انبار برای بخش "{}" غیرفعال شد.').format(department.name))
+    
+    return redirect('tickets:department_management')
+
+@login_required
+def warehouse_management(request):
+    """Warehouse management view - only accessible to supervisors of departments with warehouse enabled"""
+    user = request.user
+    
+    # Check if user is a supervisor
+    if user.role != 'employee' or user.department_role not in ['senior', 'manager']:
+        messages.error(request, _('شما اجازه دسترسی به این بخش را ندارید.'))
+        return redirect('tickets:dashboard')
+    
+    # Get supervised departments with warehouse enabled
+    supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+    warehouse_departments = [d for d in supervised_depts if d.has_warehouse] if supervised_depts else []
+    
+    # Also check if user's own department has warehouse (for single department supervisors)
+    if user.department and user.department.has_warehouse and user.department not in warehouse_departments:
+        warehouse_departments.append(user.department)
+    
+    if not warehouse_departments:
+        messages.error(request, _('شما به هیچ انباری دسترسی ندارید. لطفاً با مدیر سیستم تماس بگیرید.'))
+        return redirect('tickets:dashboard')
+    
+    # If multiple departments, show selection. If single, show inventory directly
+    if len(warehouse_departments) == 1:
+        # Single department - redirect to its warehouse inventory
+        department = warehouse_departments[0]
+        warehouse = get_department_warehouse(department)
+        if warehouse:
+            return redirect('tickets:department_warehouse_inventory', department_id=department.id)
+    
+    # Multiple departments - show selection page
+    context = {
+        'warehouse_departments': warehouse_departments,
+        'user': user,
+    }
+    
+    return render(request, 'tickets/warehouse_management.html', context)
+
+@login_required
 def department_delete(request, department_id):
     """Delete a department"""
     if not is_admin_superuser(request.user):
@@ -4570,6 +4948,338 @@ def inventory_element_detail(request, element_id):
     
     return render(request, 'tickets/inventory_element_detail.html', context)
 
+# ==================== Department Warehouse Inventory Management Views ====================
+
+@login_required
+def department_warehouse_inventory(request, department_id):
+    """List inventory elements for a department warehouse - only accessible to department supervisor"""
+    user = request.user
+    
+    # Check if user is a supervisor
+    if user.role != 'employee' or user.department_role not in ['senior', 'manager']:
+        messages.error(request, _('شما اجازه دسترسی به این بخش را ندارید.'))
+        return redirect('tickets:dashboard')
+    
+    # Get department and verify access
+    department = get_object_or_404(Department, id=department_id, has_warehouse=True)
+    
+    # Verify user is supervisor of this department
+    supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+    if department not in supervised_depts and user.department != department:
+        messages.error(request, _('شما اجازه دسترسی به انبار این بخش را ندارید.'))
+        return redirect('tickets:dashboard')
+    
+    # Get or create department warehouse
+    warehouse = get_department_warehouse(department)
+    if not warehouse:
+        messages.error(request, _('انبار این بخش یافت نشد. لطفاً با مدیر سیستم تماس بگیرید.'))
+        return redirect('tickets:warehouse_management')
+    
+    # Get filter parameters
+    element_type_filter = request.GET.get('element_type', '')
+    search_query = request.GET.get('search', '')
+    show_inactive = request.GET.get('show_inactive', '') == 'on'
+    
+    # Base queryset - elements in this department's warehouse (warehouse itself or sub-elements)
+    elements = InventoryElement.objects.filter(
+        Q(id=warehouse.id) | Q(parent_element=warehouse)
+    )
+    
+    # Apply filters
+    if not show_inactive:
+        elements = elements.filter(is_active=True)
+    
+    if element_type_filter:
+        elements = elements.filter(element_type__icontains=element_type_filter)
+    
+    if search_query:
+        elements = elements.filter(
+            Q(name__icontains=search_query) |
+            Q(description__icontains=search_query) |
+            Q(element_type__icontains=search_query)
+        )
+    
+    # Order by name
+    elements = elements.select_related('assigned_to', 'parent_element').order_by('name')
+    
+    # Get unique element types for filter
+    element_types = InventoryElement.objects.filter(
+        Q(id=warehouse.id) | Q(parent_element=warehouse)
+    ).values_list('element_type', flat=True).distinct().order_by('element_type')
+    
+    # Separate warehouse from other elements
+    warehouse_elements = [warehouse]
+    other_elements = [e for e in elements if e.id != warehouse.id]
+    
+    # Pagination
+    paginator = Paginator(other_elements, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'page_obj': page_obj,
+        'elements': page_obj,
+        'warehouse': warehouse,
+        'warehouse_elements': warehouse_elements,
+        'department': department,
+        'element_types': element_types,
+        'element_type_filter': element_type_filter,
+        'search_query': search_query,
+        'show_inactive': show_inactive,
+    }
+    
+    return render(request, 'tickets/department_warehouse_inventory.html', context)
+
+@login_required
+def department_warehouse_element_create(request, department_id):
+    """Create a new inventory element in department warehouse"""
+    user = request.user
+    
+    # Check if user is a supervisor
+    if user.role != 'employee' or user.department_role not in ['senior', 'manager']:
+        messages.error(request, _('شما اجازه دسترسی به این بخش را ندارید.'))
+        return redirect('tickets:dashboard')
+    
+    # Get department and verify access
+    department = get_object_or_404(Department, id=department_id, has_warehouse=True)
+    
+    # Verify user is supervisor of this department
+    supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+    if department not in supervised_depts and user.department != department:
+        messages.error(request, _('شما اجازه دسترسی به انبار این بخش را ندارید.'))
+        return redirect('tickets:dashboard')
+    
+    # Get department warehouse
+    warehouse = get_department_warehouse(department)
+    if not warehouse:
+        messages.error(request, _('انبار این بخش یافت نشد.'))
+        return redirect('tickets:warehouse_management')
+    
+    if request.method == 'POST':
+        form = InventoryElementForm(request.POST, user=user)
+        if form.is_valid():
+            element = form.save(commit=False)
+            element.created_by = user
+            # Set parent to department warehouse
+            element.parent_element = warehouse
+            # Assign to warehouse's assigned user (department supervisor) by default
+            if not element.assigned_to:
+                element.assigned_to = warehouse.assigned_to
+            element.save()
+            messages.success(request, _('عنصر موجودی با موفقیت ایجاد شد.'))
+            return redirect('tickets:department_warehouse_element_detail', department_id=department_id, element_id=element.id)
+    else:
+        form = InventoryElementForm(user=user)
+        # Pre-set parent to warehouse
+        form.fields['parent_element'].initial = warehouse
+        # Limit parent_element choices to elements in this warehouse
+        form.fields['parent_element'].queryset = InventoryElement.objects.filter(
+            Q(id=warehouse.id) | Q(parent_element=warehouse)
+        ).order_by('name')
+    
+    return render(request, 'tickets/inventory_element_form.html', {
+        'form': form,
+        'warehouse': warehouse,
+        'department': department,
+        'is_warehouse': False,
+        'action': _('ایجاد'),
+        'title': _('ایجاد عنصر موجودی جدید'),
+        'back_url': reverse('tickets:department_warehouse_inventory', args=[department_id]),
+    })
+
+@login_required
+def department_warehouse_element_detail(request, department_id, element_id):
+    """View details of an inventory element in department warehouse"""
+    user = request.user
+    
+    # Check if user is a supervisor
+    if user.role != 'employee' or user.department_role not in ['senior', 'manager']:
+        messages.error(request, _('شما اجازه دسترسی به این بخش را ندارید.'))
+        return redirect('tickets:dashboard')
+    
+    # Get department and verify access
+    department = get_object_or_404(Department, id=department_id, has_warehouse=True)
+    
+    # Verify user is supervisor of this department
+    supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+    if department not in supervised_depts and user.department != department:
+        messages.error(request, _('شما اجازه دسترسی به انبار این بخش را ندارید.'))
+        return redirect('tickets:dashboard')
+    
+    # Get department warehouse
+    warehouse = get_department_warehouse(department)
+    if not warehouse:
+        messages.error(request, _('انبار این بخش یافت نشد.'))
+        return redirect('tickets:warehouse_management')
+    
+    # Get element and verify it belongs to this warehouse
+    element = get_object_or_404(InventoryElement, id=element_id)
+    
+    # Verify element is in this warehouse (warehouse itself or sub-element)
+    if element.id != warehouse.id and element.parent_element != warehouse:
+        # Check if it's a sub-element of warehouse (recursive check)
+        is_sub_element = False
+        parent = element.parent_element
+        while parent:
+            if parent.id == warehouse.id:
+                is_sub_element = True
+                break
+            parent = parent.parent_element
+        
+        if not is_sub_element:
+            messages.error(request, _('این عنصر به انبار این بخش تعلق ندارد.'))
+            return redirect('tickets:department_warehouse_inventory', department_id=department_id)
+    
+    specifications = element.specifications.all().order_by('key')
+    sub_elements = element.sub_elements.filter(is_active=True).order_by('name')
+    is_warehouse = (element.id == warehouse.id)
+    
+    context = {
+        'element': element,
+        'specifications': specifications,
+        'sub_elements': sub_elements,
+        'is_warehouse': is_warehouse,
+        'department': department,
+        'warehouse': warehouse,
+        'back_url': reverse('tickets:department_warehouse_inventory', args=[department_id]),
+    }
+    
+    return render(request, 'tickets/inventory_element_detail.html', context)
+
+@login_required
+def department_warehouse_element_edit(request, department_id, element_id):
+    """Edit an existing inventory element in department warehouse"""
+    user = request.user
+    
+    # Check if user is a supervisor
+    if user.role != 'employee' or user.department_role not in ['senior', 'manager']:
+        messages.error(request, _('شما اجازه دسترسی به این بخش را ندارید.'))
+        return redirect('tickets:dashboard')
+    
+    # Get department and verify access
+    department = get_object_or_404(Department, id=department_id, has_warehouse=True)
+    
+    # Verify user is supervisor of this department
+    supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+    if department not in supervised_depts and user.department != department:
+        messages.error(request, _('شما اجازه دسترسی به انبار این بخش را ندارید.'))
+        return redirect('tickets:dashboard')
+    
+    # Get department warehouse
+    warehouse = get_department_warehouse(department)
+    if not warehouse:
+        messages.error(request, _('انبار این بخش یافت نشد.'))
+        return redirect('tickets:warehouse_management')
+    
+    # Get element and verify it belongs to this warehouse
+    element = get_object_or_404(InventoryElement, id=element_id)
+    
+    # Verify element is in this warehouse
+    if element.id != warehouse.id and element.parent_element != warehouse:
+        messages.error(request, _('این عنصر به انبار این بخش تعلق ندارد.'))
+        return redirect('tickets:department_warehouse_inventory', department_id=department_id)
+    
+    is_warehouse = (element.id == warehouse.id)
+    
+    if request.method == 'POST':
+        form = InventoryElementForm(request.POST, instance=element, user=user, element_id=element_id)
+        if form.is_valid():
+            # If editing warehouse, ensure it remains assigned to supervisor and has no parent
+            if is_warehouse:
+                saved_element = form.save(commit=False)
+                saved_element.assigned_to = warehouse.assigned_to
+                saved_element.parent_element = None
+                saved_element.is_active = True
+                saved_element.save()
+            else:
+                saved_element = form.save(commit=False)
+                # Ensure parent is warehouse or a sub-element of warehouse
+                if saved_element.parent_element:
+                    # Check if parent is a sub-element of warehouse
+                    parent = saved_element.parent_element
+                    is_valid_parent = False
+                    while parent:
+                        if parent.id == warehouse.id:
+                            is_valid_parent = True
+                            break
+                        parent = parent.parent_element
+                    if not is_valid_parent:
+                        saved_element.parent_element = warehouse
+                else:
+                    saved_element.parent_element = warehouse
+                saved_element.save()
+            messages.success(request, _('عنصر موجودی با موفقیت بروزرسانی شد.'))
+            return redirect('tickets:department_warehouse_element_detail', department_id=department_id, element_id=saved_element.id)
+    else:
+        form = InventoryElementForm(instance=element, user=user, element_id=element_id)
+        # Limit parent_element choices to elements in this warehouse
+        if not is_warehouse:
+            form.fields['parent_element'].queryset = InventoryElement.objects.filter(
+                Q(id=warehouse.id) | Q(parent_element=warehouse)
+            ).order_by('name')
+    
+    return render(request, 'tickets/inventory_element_form.html', {
+        'form': form,
+        'warehouse': warehouse,
+        'department': department,
+        'is_warehouse': is_warehouse,
+        'action': _('ویرایش'),
+        'title': _('ویرایش عنصر موجودی'),
+        'back_url': reverse('tickets:department_warehouse_element_detail', args=[department_id, element_id]),
+    })
+
+@login_required
+def department_warehouse_element_delete(request, department_id, element_id):
+    """Delete an inventory element from department warehouse"""
+    user = request.user
+    
+    # Check if user is a supervisor
+    if user.role != 'employee' or user.department_role not in ['senior', 'manager']:
+        messages.error(request, _('شما اجازه دسترسی به این بخش را ندارید.'))
+        return redirect('tickets:dashboard')
+    
+    # Get department and verify access
+    department = get_object_or_404(Department, id=department_id, has_warehouse=True)
+    
+    # Verify user is supervisor of this department
+    supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+    if department not in supervised_depts and user.department != department:
+        messages.error(request, _('شما اجازه دسترسی به انبار این بخش را ندارید.'))
+        return redirect('tickets:dashboard')
+    
+    # Get department warehouse
+    warehouse = get_department_warehouse(department)
+    if not warehouse:
+        messages.error(request, _('انبار این بخش یافت نشد.'))
+        return redirect('tickets:warehouse_management')
+    
+    # Get element and verify it belongs to this warehouse
+    element = get_object_or_404(InventoryElement, id=element_id)
+    
+    # Cannot delete warehouse itself
+    if element.id == warehouse.id:
+        messages.error(request, _('نمی‌توان انبار را حذف کرد.'))
+        return redirect('tickets:department_warehouse_inventory', department_id=department_id)
+    
+    # Verify element is in this warehouse
+    if element.parent_element != warehouse:
+        messages.error(request, _('این عنصر به انبار این بخش تعلق ندارد.'))
+        return redirect('tickets:department_warehouse_inventory', department_id=department_id)
+    
+    if request.method == 'POST':
+        element_name = element.name
+        element.delete()
+        messages.success(request, _('عنصر "{}" با موفقیت حذف شد.').format(element_name))
+        return redirect('tickets:department_warehouse_inventory', department_id=department_id)
+    
+    context = {
+        'element': element,
+        'department': department,
+        'back_url': reverse('tickets:department_warehouse_inventory', args=[department_id]),
+    }
+    
+    return render(request, 'tickets/inventory_element_confirm_delete.html', context)
+
 @login_required
 def inventory_element_edit(request, element_id):
     """Edit an existing inventory element"""
@@ -4646,11 +5356,28 @@ def inventory_element_delete(request, element_id):
 @login_required
 def inventory_specification_create(request, element_id):
     """Create a new specification for an element"""
-    if request.user.role != 'it_manager':
-        messages.error(request, _('دسترسی رد شد. فقط مدیر IT میتواند مشخصات عناصر را ایجاد کند.'))
-        return redirect('tickets:dashboard')
-    
+    user = request.user
     element = get_object_or_404(InventoryElement, id=element_id)
+    
+    # Check if this is a department warehouse element
+    is_department_warehouse, department = is_department_warehouse_element(element)
+    
+    # Access control
+    if is_department_warehouse and department:
+        # Check if user is supervisor of this department
+        if user.role != 'employee' or user.department_role not in ['senior', 'manager']:
+            messages.error(request, _('دسترسی رد شد. فقط سرپرست بخش می‌تواند مشخصات عناصر را ایجاد کند.'))
+            return redirect('tickets:dashboard')
+        
+        supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+        if department not in supervised_depts and user.department != department:
+            messages.error(request, _('شما اجازه دسترسی به انبار این بخش را ندارید.'))
+            return redirect('tickets:dashboard')
+    else:
+        # IT manager warehouse - only IT managers can access
+        if user.role != 'it_manager':
+            messages.error(request, _('دسترسی رد شد. فقط مدیر IT میتواند مشخصات عناصر را ایجاد کند.'))
+            return redirect('tickets:dashboard')
     
     if request.method == 'POST':
         form = ElementSpecificationForm(request.POST, element=element)
@@ -4659,60 +5386,119 @@ def inventory_specification_create(request, element_id):
             specification.element = element
             specification.save()
             messages.success(request, _('مشخصه با موفقیت اضافه شد.'))
-            return redirect('tickets:inventory_element_detail', element_id=element.id)
+            if is_department_warehouse and department:
+                return redirect('tickets:department_warehouse_element_detail', department_id=department.id, element_id=element.id)
+            else:
+                return redirect('tickets:inventory_element_detail', element_id=element.id)
     else:
         form = ElementSpecificationForm(element=element)
     
-    return render(request, 'tickets/inventory_specification_form.html', {
+    context = {
         'form': form,
         'element': element,
         'action': _('ایجاد'),
-        'title': _('افزودن مشخصه جدید')
-    })
+        'title': _('افزودن مشخصه جدید'),
+    }
+    
+    if is_department_warehouse and department:
+        context['department'] = department
+        context['back_url'] = reverse('tickets:department_warehouse_element_detail', args=[department.id, element.id])
+    else:
+        context['back_url'] = reverse('tickets:inventory_element_detail', args=[element.id])
+    
+    return render(request, 'tickets/inventory_specification_form.html', context)
 
 @login_required
 def inventory_specification_edit(request, element_id, specification_id):
     """Edit an existing specification"""
-    if request.user.role != 'it_manager':
-        messages.error(request, _('دسترسی رد شد. فقط مدیر IT میتواند مشخصات عناصر را ویرایش کند.'))
-        return redirect('tickets:dashboard')
-    
+    user = request.user
     element = get_object_or_404(InventoryElement, id=element_id)
     specification = get_object_or_404(ElementSpecification, id=specification_id, element=element)
+    
+    # Check if this is a department warehouse element
+    is_department_warehouse, department = is_department_warehouse_element(element)
+    
+    # Access control
+    if is_department_warehouse and department:
+        # Check if user is supervisor of this department
+        if user.role != 'employee' or user.department_role not in ['senior', 'manager']:
+            messages.error(request, _('دسترسی رد شد. فقط سرپرست بخش می‌تواند مشخصات عناصر را ویرایش کند.'))
+            return redirect('tickets:dashboard')
+        
+        supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+        if department not in supervised_depts and user.department != department:
+            messages.error(request, _('شما اجازه دسترسی به انبار این بخش را ندارید.'))
+            return redirect('tickets:dashboard')
+    else:
+        # IT manager warehouse - only IT managers can access
+        if user.role != 'it_manager':
+            messages.error(request, _('دسترسی رد شد. فقط مدیر IT میتواند مشخصات عناصر را ویرایش کند.'))
+            return redirect('tickets:dashboard')
     
     if request.method == 'POST':
         form = ElementSpecificationForm(request.POST, instance=specification, element=element)
         if form.is_valid():
             form.save()
             messages.success(request, _('مشخصه با موفقیت بروزرسانی شد.'))
-            return redirect('tickets:inventory_element_detail', element_id=element.id)
+            if is_department_warehouse and department:
+                return redirect('tickets:department_warehouse_element_detail', department_id=department.id, element_id=element.id)
+            else:
+                return redirect('tickets:inventory_element_detail', element_id=element.id)
     else:
         form = ElementSpecificationForm(instance=specification, element=element)
     
-    return render(request, 'tickets/inventory_specification_form.html', {
+    context = {
         'form': form,
         'element': element,
         'specification': specification,
         'action': _('ویرایش'),
-        'title': _('ویرایش مشخصه')
-    })
+        'title': _('ویرایش مشخصه'),
+    }
+    
+    if is_department_warehouse and department:
+        context['department'] = department
+        context['back_url'] = reverse('tickets:department_warehouse_element_detail', args=[department.id, element.id])
+    else:
+        context['back_url'] = reverse('tickets:inventory_element_detail', args=[element.id])
+    
+    return render(request, 'tickets/inventory_specification_form.html', context)
 
 @login_required
 @require_POST
 def inventory_specification_delete(request, element_id, specification_id):
     """Delete a specification"""
-    if request.user.role != 'it_manager':
-        messages.error(request, _('دسترسی رد شد. فقط مدیر IT میتواند مشخصات عناصر را حذف کند.'))
-        return redirect('tickets:dashboard')
-    
+    user = request.user
     element = get_object_or_404(InventoryElement, id=element_id)
     specification = get_object_or_404(ElementSpecification, id=specification_id, element=element)
+    
+    # Check if this is a department warehouse element
+    is_department_warehouse, department = is_department_warehouse_element(element)
+    
+    # Access control
+    if is_department_warehouse and department:
+        # Check if user is supervisor of this department
+        if user.role != 'employee' or user.department_role not in ['senior', 'manager']:
+            messages.error(request, _('دسترسی رد شد. فقط سرپرست بخش می‌تواند مشخصات عناصر را حذف کند.'))
+            return redirect('tickets:dashboard')
+        
+        supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+        if department not in supervised_depts and user.department != department:
+            messages.error(request, _('شما اجازه دسترسی به انبار این بخش را ندارید.'))
+            return redirect('tickets:dashboard')
+    else:
+        # IT manager warehouse - only IT managers can access
+        if user.role != 'it_manager':
+            messages.error(request, _('دسترسی رد شد. فقط مدیر IT میتواند مشخصات عناصر را حذف کند.'))
+            return redirect('tickets:dashboard')
     
     spec_key = specification.key
     specification.delete()
     messages.success(request, _('مشخصه "{}" با موفقیت حذف شد.').format(spec_key))
     
-    return redirect('tickets:inventory_element_detail', element_id=element.id)
+    if is_department_warehouse and department:
+        return redirect('tickets:department_warehouse_element_detail', department_id=department.id, element_id=element.id)
+    else:
+        return redirect('tickets:inventory_element_detail', element_id=element.id)
 
 @login_required
 def get_parent_elements_for_user(request, user_id):

@@ -1,0 +1,322 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+
+{% block title %}{% trans "سوابق امانت" %} - {{ warehouse.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dwms-container {
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 1rem;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .dwms-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 16px;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .action-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .btn-primary {
+        background: #667eea;
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .filters-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .filters-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    .lend-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        border-right: 4px solid #667eea;
+    }
+
+    .lend-card.overdue {
+        border-right-color: #ef4444;
+        background: #fef2f2;
+    }
+
+    .lend-card.returned {
+        border-right-color: #10b981;
+        opacity: 0.8;
+    }
+
+    .lend-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .lend-header h3 {
+        margin: 0;
+        color: #374151;
+        font-size: 1.25rem;
+    }
+
+    .badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+
+    .badge-out {
+        background: #f59e0b;
+        color: white;
+    }
+
+    .badge-returned {
+        background: #10b981;
+        color: white;
+    }
+
+    .badge-overdue {
+        background: #ef4444;
+        color: white;
+    }
+
+    .lend-info {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin: 1rem 0;
+        color: #6b7280;
+        font-size: 0.9rem;
+    }
+
+    .lend-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .btn-action {
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        text-decoration: none;
+        font-size: 0.9rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-return {
+        background: #10b981;
+        color: white;
+    }
+
+    .btn-view {
+        background: #667eea;
+        color: white;
+    }
+
+    @media (max-width: 768px) {
+        .lend-info {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dwms-container">
+    <div class="dwms-header">
+        <h1><i class="fas fa-hand-holding"></i> {% trans "سوابق امانت" %}</h1>
+        <p>{{ warehouse.name }}</p>
+    </div>
+
+    <div class="action-bar">
+        {% if department and department.id %}
+        <a href="{% url 'dwms:lend_create' department.id %}" class="btn-primary" onclick="if(!this.href || this.href === '#') { alert('{% trans "خطا در بارگذاری اطلاعات بخش" %}'); return false; }">
+            <i class="fas fa-plus"></i> {% trans "امانت جدید" %}
+        </a>
+        <a href="{% url 'dwms:dashboard' department.id %}" style="color: white; text-decoration: none;">
+            <i class="fas fa-arrow-right"></i> {% trans "بازگشت" %}
+        </a>
+        {% else %}
+        <a href="/dwms/" class="btn-primary">
+            <i class="fas fa-plus"></i> {% trans "امانت جدید" %}
+        </a>
+        <a href="/dwms/" style="color: white; text-decoration: none;">
+            <i class="fas fa-arrow-right"></i> {% trans "بازگشت" %}
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="filters-card">
+        <form method="get" class="filters-grid">
+            <div>
+                <label>{% trans "وضعیت" %}</label>
+                <select name="status" class="form-select">
+                    <option value="">{% trans "همه" %}</option>
+                    <option value="OUT" {% if status_filter == "OUT" %}selected{% endif %}>{% trans "امانت داده شده" %}</option>
+                    <option value="RETURNED" {% if status_filter == "RETURNED" %}selected{% endif %}>{% trans "بازگردانده شده" %}</option>
+                    <option value="OVERDUE" {% if status_filter == "OVERDUE" %}selected{% endif %}>{% trans "تأخیر در بازگشت" %}</option>
+                </select>
+            </div>
+            <div>
+                <label>{% trans "امانت‌گیرنده" %}</label>
+                <select name="borrower" class="form-select">
+                    <option value="">{% trans "همه" %}</option>
+                    {% for borrower in borrowers %}
+                    <option value="{{ borrower.id }}" {% if borrower_filter == borrower.id|stringformat:"s" %}selected{% endif %}>
+                        {{ borrower.get_full_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="display: flex; align-items: flex-end;">
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <i class="fas fa-filter"></i> {% trans "فیلتر" %}
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {% if page_obj and page_obj|length > 0 %}
+    <div>
+        {% for lend in page_obj %}
+        <div class="lend-card {% if lend.status == 'OVERDUE' %}overdue{% elif lend.status == 'RETURNED' %}returned{% endif %}">
+            <div class="lend-header">
+                <div>
+                    <h3>{% if lend.item %}{{ lend.item.name }}{% else %}{% trans "کالای حذف شده" %}{% endif %}</h3>
+                    <span class="badge badge-{% if lend.status %}{{ lend.status|lower }}{% else %}out{% endif %}">
+                        {% if lend.status %}{{ lend.get_status_display }}{% else %}{% trans "نامشخص" %}{% endif %}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="lend-info">
+                <div>
+                    <i class="fas fa-user"></i> <strong>{% trans "امانت‌گیرنده:" %}</strong>
+                    {% if lend.borrower %}{{ lend.borrower.get_full_name|default:lend.borrower.username }}{% else %}{% trans "نامشخص" %}{% endif %}
+                </div>
+                <div>
+                    <i class="fas fa-calculator"></i> <strong>{% trans "مقدار:" %}</strong>
+                    {{ lend.quantity }} {% if lend.item %}{{ lend.item.unit|default:"" }}{% endif %}
+                </div>
+                <div>
+                    <i class="fas fa-calendar-alt"></i> <strong>{% trans "تاریخ امانت:" %}</strong>
+                    {% if lend.issue_date %}{{ lend.issue_date|persian_date }}{% else %}{% trans "نامشخص" %}{% endif %}
+                </div>
+                <div>
+                    <i class="fas fa-calendar-check"></i> <strong>{% trans "موعد بازگشت:" %}</strong>
+                    {% if lend.due_date %}{{ lend.due_date|persian_date }}{% else %}{% trans "نامشخص" %}{% endif %}
+                </div>
+                {% if lend.return_date %}
+                <div>
+                    <i class="fas fa-check-circle"></i> <strong>{% trans "تاریخ بازگشت:" %}</strong>
+                    {{ lend.return_date|persian_date }}
+                </div>
+                {% endif %}
+                {% if lend.issued_by %}
+                <div>
+                    <i class="fas fa-user-tie"></i> <strong>{% trans "امانت داده شده توسط:" %}</strong>
+                    {{ lend.issued_by.get_full_name|default:lend.issued_by.username }}
+                </div>
+                {% endif %}
+            </div>
+
+            {% if lend.notes %}
+            <div style="margin-top: 1rem; padding: 0.75rem; background: #f9fafb; border-radius: 8px; font-size: 0.9rem; color: #6b7280;">
+                <strong>{% trans "یادداشت:" %}</strong> {{ lend.notes|truncatewords:30 }}
+            </div>
+            {% endif %}
+
+            {% if lend.status == 'OUT' or lend.status == 'OVERDUE' %}
+            <div class="lend-actions">
+                {% if department and department.id %}
+                <a href="{% url 'dwms:lend_return' department.id lend.id %}" class="btn-action btn-return">
+                    <i class="fas fa-undo"></i> {% trans "بازگشت" %}
+                </a>
+                {% elif lend.warehouse and lend.warehouse.department and lend.warehouse.department.id %}
+                <a href="/dwms/{{ lend.warehouse.department.id }}/lends/{{ lend.id }}/return/" class="btn-action btn-return">
+                    <i class="fas fa-undo"></i> {% trans "بازگشت" %}
+                </a>
+                {% else %}
+                <span class="btn-action btn-return" style="opacity: 0.5; cursor: not-allowed;" title="{% trans "خطا در بارگذاری اطلاعات" %}">
+                    <i class="fas fa-undo"></i> {% trans "بازگشت" %}
+                </span>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <div style="margin-top: 1.5rem; display: flex; justify-content: center; gap: 0.5rem;">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if borrower_filter %}&borrower={{ borrower_filter }}{% endif %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-right"></i> {% trans "قبلی" %}
+        </a>
+        {% endif %}
+        <span style="padding: 0.75rem 1.5rem; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+            {% trans "صفحه" %} {{ page_obj.number }} {% trans "از" %} {{ page_obj.paginator.num_pages }}
+        </span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if borrower_filter %}&borrower={{ borrower_filter }}{% endif %}" class="btn btn-secondary">
+            {% trans "بعدی" %} <i class="fas fa-arrow-left"></i>
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div style="text-align: center; padding: 3rem; background: white; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        <i class="fas fa-inbox" style="font-size: 4rem; color: #9ca3af; margin-bottom: 1rem;"></i>
+        <h3>{% trans "سابقه امانتی یافت نشد" %}</h3>
+        <p>{% trans "هنوز هیچ امانتی ثبت نشده است." %}</p>
+        {% if department and department.id %}
+        <a href="{% url 'dwms:lend_create' department.id %}" class="btn-primary" style="margin-top: 1rem;">
+            <i class="fas fa-plus"></i> {% trans "ایجاد اولین امانت" %}
+        </a>
+        {% else %}
+        <a href="/dwms/" class="btn-primary" style="margin-top: 1rem;">
+            <i class="fas fa-plus"></i> {% trans "ایجاد اولین امانت" %}
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

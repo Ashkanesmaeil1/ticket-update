@@ -56,6 +56,8 @@ class Department(models.Model):
     is_active = models.BooleanField(_('فعال'), default=True)
     can_receive_tickets = models.BooleanField(_('می‌تواند تیکت دریافت کند'), default=False, 
                                              help_text=_('اگر فعال باشد، این بخش می‌تواند تیکت‌ها را مستقیماً از کاربران دریافت کند'))
+    has_warehouse = models.BooleanField(_('انبار'), default=False,
+                                       help_text=_('اگر فعال باشد، سرپرست این بخش می‌تواند به ماژول انبار دسترسی داشته باشد'))
     supervisor = models.ForeignKey(
         'User',
         on_delete=models.SET_NULL,
@@ -571,6 +573,46 @@ class Notification(models.Model):
 
     def __str__(self) -> str:
         return f"{self.title} - {self.recipient.get_full_name()}"
+
+
+class TicketActivityLog(models.Model):
+    """Activity log model for tracking all changes to tickets"""
+    ACTION_CHOICES = [
+        ('created', _('ایجاد شد')),
+        ('status_changed', _('تغییر وضعیت')),
+        ('priority_changed', _('تغییر اولویت')),
+        ('assigned', _('تخصیص داده شد')),
+        ('unassigned', _('تخصیص حذف شد')),
+        ('replied', _('پاسخ اضافه شد')),
+        ('updated', _('بروزرسانی شد')),
+        ('access_approved', _('دسترسی تایید شد')),
+        ('access_rejected', _('دسترسی رد شد')),
+        ('attachment_added', _('پیوست اضافه شد')),
+        ('viewed', _('مشاهده شد')),
+    ]
+    
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='activity_logs', verbose_name=_('تیکت'))
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='ticket_activities', verbose_name=_('کاربر'))
+    action = models.CharField(_('عمل'), max_length=50, choices=ACTION_CHOICES)
+    description = models.TextField(_('توضیحات'), help_text=_('توضیحات تغییرات'))
+    old_value = models.CharField(_('مقدار قبلی'), max_length=255, blank=True, null=True)
+    new_value = models.CharField(_('مقدار جدید'), max_length=255, blank=True, null=True)
+    created_at = models.DateTimeField(_('تاریخ ایجاد'), auto_now_add=True)
+    
+    # Optional reference to related objects
+    reply = models.ForeignKey(Reply, on_delete=models.SET_NULL, null=True, blank=True, related_name='activity_logs', verbose_name=_('پاسخ مرتبط'))
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = _("لاگ فعالیت تیکت")
+        verbose_name_plural = _("لاگ‌های فعالیت تیکت")
+        indexes = [
+            models.Index(fields=['ticket', '-created_at']),
+            models.Index(fields=['user', '-created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.get_action_display()} - تیکت #{self.ticket.id} - {self.created_at}"
 
 # SMTP/Email configuration managed in-app by IT Manager
 class EmailConfig(models.Model):

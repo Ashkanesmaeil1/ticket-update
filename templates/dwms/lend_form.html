@@ -1,0 +1,442 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "ثبت امانت" %} - {{ warehouse.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dwms-container {
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 1rem;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .form-card {
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .form-header {
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #e5e7eb;
+    }
+
+    .form-header h1 {
+        margin: 0;
+        color: #374151;
+        font-size: 1.5rem;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: #374151;
+        font-weight: 600;
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 2rem;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-primary {
+        background: #667eea;
+        color: white;
+    }
+
+    .btn-secondary {
+        background: #6b7280;
+        color: white;
+    }
+
+    .stock-info {
+        background: #f0f9ff;
+        border: 1px solid #bae6fd;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .stock-info strong {
+        color: #0369a1;
+    }
+
+    .due-date-wrapper {
+        position: relative;
+    }
+
+    #due-date-input {
+        min-height: 44px; /* Mobile-friendly touch target */
+        font-size: 1rem;
+    }
+
+    @media (max-width: 768px) {
+        .form-card {
+            padding: 1.25rem;
+        }
+
+        .form-actions {
+            flex-direction: column;
+        }
+
+        .form-actions .btn {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        #due-date-input {
+            font-size: 16px; /* Prevent zoom on iOS */
+            padding: 0.875rem 0.75rem 0.875rem 2.5rem !important;
+        }
+
+        /* Ensure calendar modal is mobile-responsive */
+        .calendar-modal {
+            max-width: 95vw;
+            max-height: 95vh;
+            margin: 10px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dwms-container">
+    <div class="form-card">
+        <div class="form-header">
+            <h1><i class="fas fa-hand-holding"></i> {% trans "ثبت امانت" %}</h1>
+        </div>
+
+        {% if item %}
+        <div class="stock-info">
+            <strong>{% trans "کالا:" %}</strong> {{ item.name }}<br>
+            <strong>{% trans "موجودی فعلی:" %}</strong> 
+            {% if item.get_total_stock %}
+                {{ item.get_total_stock }} {{ item.unit }}
+            {% else %}
+                0 {{ item.unit }}
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="{{ form.item.id_for_label }}">{{ form.item.label }}</label>
+                {{ form.item }}
+                {% if form.item.errors %}
+                <div style="color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem;">
+                    {{ form.item.errors }}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.batch.id_for_label }}">{{ form.batch.label }}</label>
+                {{ form.batch }}
+                <small style="display: block; margin-top: 0.25rem; color: #6b7280;">
+                    {% trans "اگر بچ انتخاب نشود، اولین بچ موجود انتخاب می‌شود" %}
+                </small>
+                {% if form.batch.errors %}
+                <div style="color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem;">
+                    {{ form.batch.errors }}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.quantity.id_for_label }}">{{ form.quantity.label }}</label>
+                {{ form.quantity }}
+                {% if form.quantity.errors %}
+                <div style="color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem;">
+                    {{ form.quantity.errors }}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.borrower.id_for_label }}">{{ form.borrower.label }}</label>
+                {{ form.borrower }}
+                {% if form.borrower.errors %}
+                <div style="color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem;">
+                    {{ form.borrower.errors }}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.due_date.id_for_label }}">
+                    <i class="fas fa-clock me-2"></i>
+                    {{ form.due_date.label }}
+                </label>
+                <div class="due-date-wrapper" style="position: relative; width: 100%;">
+                    <input type="text" name="due_date" id="due-date-input" class="form-control" placeholder="{% trans 'برای انتخاب تاریخ و زمان کلیک کنید' %}" readonly autocomplete="off" required value="{{ form.due_date.value|default:'' }}" style="padding-left: 2.5rem; padding-right: 0.75rem;">
+                    <i class="fas fa-calendar-alt" id="calendar-icon-inside-input-due" style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280; pointer-events: none; z-index: 5;"></i>
+                </div>
+                <style>
+                    .due-date-wrapper {
+                        position: relative;
+                    }
+                    #due-date-input {
+                        padding-left: 2.5rem !important;
+                        cursor: pointer;
+                        background-color: #ffffff;
+                    }
+                    #calendar-icon-inside-input-due {
+                        pointer-events: none;
+                        z-index: 5;
+                    }
+                    /* Hide any other calendar icons that might appear */
+                    .due-date-wrapper .fa-calendar-alt:not(#calendar-icon-inside-input-due),
+                    .due-date-wrapper .fa-calendar:not(#calendar-icon-inside-input-due),
+                    .due-date-wrapper button,
+                    .due-date-wrapper .btn {
+                        display: none !important;
+                    }
+                </style>
+                {% if form.due_date.errors %}
+                <div class="text-danger" style="color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem;">
+                    {{ form.due_date.errors }}
+                </div>
+                {% endif %}
+                {% if form.due_date.field.required %}
+                <small class="form-text text-muted" style="display: block; margin-top: 0.25rem; color: #6b7280; font-size: 0.875rem;">
+                    {% trans "تاریخ و زمان موعد بازگشت امانت را انتخاب کنید" %}
+                </small>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
+                {{ form.notes }}
+                {% if form.notes.errors %}
+                <div style="color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem;">
+                    {{ form.notes.errors }}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> {% trans "ثبت امانت" %}
+                </button>
+                {% if item and item.id and department and department.id %}
+                <a href="/dwms/{{ department.id }}/items/{{ item.id }}/" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> {% trans "لغو" %}
+                </a>
+                {% elif department and department.id %}
+                <a href="/dwms/{{ department.id }}/lends/" class="btn btn-secondary" onclick="return confirmCancel();">
+                    <i class="fas fa-times"></i> {% trans "لغو" %}
+                </a>
+                {% else %}
+                <a href="{% url 'tickets:dashboard' %}" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> {% trans "لغو" %}
+                </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Persian Calendar Picker CSS and JS -->
+<link rel="stylesheet" href="{% static 'css/calendar_picker.css' %}?v=30">
+<script src="{% static 'js/calendar_picker.js' %}?v=30"></script>
+<script>
+// Initialize Modern Jalali Calendar Picker for Due Date
+(function() {
+    let pickerInstance = null;
+    let initializationAttempted = false;
+    
+    function initCalendarPicker() {
+        // Prevent multiple initializations
+        if (initializationAttempted) {
+            console.log('Calendar picker already initialized, skipping...');
+            return;
+        }
+        
+        console.log('=== DWMS Lend Form Calendar Picker Initialization ===');
+        console.log('Document ready state:', document.readyState);
+        
+        // Wait a bit to ensure all scripts are loaded
+        setTimeout(function() {
+            // Find the due date input element
+            let dueDateInput = document.getElementById('due-date-input');
+            
+            console.log('Searching for due date input...');
+            console.log('By ID (due-date-input):', dueDateInput);
+            
+            // If not found by ID, try by name attribute
+            if (!dueDateInput) {
+                dueDateInput = document.querySelector('input[name="due_date"]');
+                console.log('By name (due_date):', dueDateInput);
+            }
+            
+            // If still not found, try by placeholder
+            if (!dueDateInput) {
+                const allInputs = document.querySelectorAll('input[type="text"]');
+                for (let input of allInputs) {
+                    if (input.placeholder && input.placeholder.includes('تاریخ')) {
+                        dueDateInput = input;
+                        console.log('Found by placeholder:', input);
+                        break;
+                    }
+                }
+            }
+            
+            console.log('Final due date input:', dueDateInput);
+            console.log('JalaliCalendarPicker available:', typeof JalaliCalendarPicker !== 'undefined');
+            
+            if (!dueDateInput) {
+                console.error('❌ ERROR: Could not find due date input element!');
+                return;
+            }
+            
+            if (typeof JalaliCalendarPicker === 'undefined') {
+                console.error('❌ ERROR: JalaliCalendarPicker class is not defined!');
+                console.log('Check if calendar_picker.js is loaded correctly');
+                return;
+            }
+            
+            try {
+                console.log('✅ Creating JalaliCalendarPicker instance for due date...');
+                pickerInstance = new JalaliCalendarPicker(dueDateInput, {
+                    apiUrl: '{% url "tickets:calendar_api" %}',
+                    onSelect: function(dateStr, timeStr) {
+                        console.log('✅ Due date and time selected:', dateStr, 'Time:', timeStr);
+                        // Combined date and time string is already set in the input field
+                    }
+                });
+                console.log('✅ Calendar picker initialized successfully for lend form!');
+                initializationAttempted = true;
+                
+                // Add form submission interceptor to ensure due_date value is submitted
+                const lendForm = document.querySelector('form[method="post"]');
+                if (lendForm) {
+                    lendForm.addEventListener('submit', function(e) {
+                        console.log('=== LEND FORM SUBMISSION DEBUG ===');
+                        const dueDateInput = document.getElementById('due-date-input');
+                        if (dueDateInput) {
+                            console.log('due_date input value:', dueDateInput.value);
+                            console.log('due_date input name:', dueDateInput.name);
+                            
+                            // Ensure readonly inputs are included in form submission
+                            if (dueDateInput.value && dueDateInput.value.trim()) {
+                                // Remove any existing hidden input with the same name
+                                const existingHidden = lendForm.querySelector('input[name="due_date"][type="hidden"]');
+                                if (existingHidden) {
+                                    existingHidden.remove();
+                                }
+                                
+                                // Create hidden input to ensure value is definitely submitted
+                                const hiddenInput = document.createElement('input');
+                                hiddenInput.type = 'hidden';
+                                hiddenInput.name = 'due_date';
+                                hiddenInput.value = dueDateInput.value;
+                                lendForm.appendChild(hiddenInput);
+                                console.log('✅ Created hidden input with value:', hiddenInput.value);
+                            } else {
+                                console.error('❌ CRITICAL: due_date input has no value!');
+                            }
+                        }
+                        console.log('=== LEND FORM SUBMISSION DEBUG END ===');
+                    });
+                }
+                
+                // Ensure icon inside input stays visible
+                setTimeout(function() {
+                    const iconInside = document.getElementById('calendar-icon-inside-input-due');
+                    if (iconInside) {
+                        iconInside.style.display = 'inline-block';
+                        iconInside.style.visibility = 'visible';
+                        iconInside.style.opacity = '1';
+                    }
+                    
+                    // Remove any buttons that might exist
+                    const wrapper = dueDateInput.closest('.due-date-wrapper');
+                    if (wrapper) {
+                        const buttons = wrapper.querySelectorAll('button, .btn');
+                        buttons.forEach(btn => btn.remove());
+                        
+                        // Ensure only one icon exists
+                        const allIcons = wrapper.querySelectorAll('i.fa-calendar-alt, i.fa-calendar');
+                        allIcons.forEach(icon => {
+                            if (icon.id !== 'calendar-icon-inside-input-due') {
+                                icon.remove();
+                            }
+                        });
+                    }
+                }, 100);
+            } catch (error) {
+                console.error('❌ ERROR initializing calendar picker:', error);
+                console.error('Error name:', error.name);
+                console.error('Error message:', error.message);
+                console.error('Stack trace:', error.stack);
+            }
+        }, 100);
+    }
+    
+    // Try multiple initialization strategies
+    if (document.readyState === 'loading') {
+        console.log('DOM is loading, waiting for DOMContentLoaded...');
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOMContentLoaded fired');
+            initCalendarPicker();
+        });
+    } else {
+        console.log('DOM already loaded, initializing immediately...');
+        initCalendarPicker();
+    }
+    
+    // Also try on window load as fallback
+    window.addEventListener('load', function() {
+        console.log('Window load event fired');
+        if (!pickerInstance && !document.getElementById('calendar-modal-overlay')) {
+            console.log('Retrying calendar initialization on window load...');
+            initCalendarPicker();
+        }
+    });
+})();
+
+// Prevent multiple rapid clicks on Cancel button
+function confirmCancel() {
+    if (window.cancelButtonClicked) {
+        return false;
+    }
+    window.cancelButtonClicked = true;
+    setTimeout(function() {
+        window.cancelButtonClicked = false;
+    }, 1000);
+    return true;
+}
+</script>
+{% endblock %}
+

@@ -44,6 +44,7 @@ urlpatterns = [
     path('department-management/<int:department_id>/edit/', views.department_edit, name='department_edit'),
     path('department-management/<int:department_id>/delete/', views.department_delete, name='department_delete'),
     path('department-management/<int:department_id>/toggle-tickets/', views.department_toggle_tickets, name='department_toggle_tickets'),
+    path('department-management/<int:department_id>/toggle-warehouse/', views.department_toggle_warehouse, name='department_toggle_warehouse'),
     
     # Supervisor assignment management
     path('supervisor-assignment/', views.supervisor_assignment, name='supervisor_assignment'),
@@ -61,6 +62,14 @@ urlpatterns = [
     # Received tickets (for department supervisors)
     path('received-tickets/', views.received_tickets_list, name='received_tickets_list'),
     
+    # Warehouse management (for supervisors)
+    path('warehouse/', views.warehouse_management, name='warehouse_management'),
+    path('warehouse/department/<int:department_id>/', views.department_warehouse_inventory, name='department_warehouse_inventory'),
+    path('warehouse/department/<int:department_id>/create/', views.department_warehouse_element_create, name='department_warehouse_element_create'),
+    path('warehouse/department/<int:department_id>/element/<int:element_id>/', views.department_warehouse_element_detail, name='department_warehouse_element_detail'),
+    path('warehouse/department/<int:department_id>/element/<int:element_id>/edit/', views.department_warehouse_element_edit, name='department_warehouse_element_edit'),
+    path('warehouse/department/<int:department_id>/element/<int:element_id>/delete/', views.department_warehouse_element_delete, name='department_warehouse_element_delete'),
+    
     # API endpoints
     path('api/branches/<int:branch_id>/departments/', views.get_departments_for_branch, name='get_departments_for_branch'),
     path('api/departments/without-team-lead/', views.get_departments_without_team_lead, name='get_departments_without_team_lead'),
@@ -68,6 +77,7 @@ urlpatterns = [
     
     # API endpoints
     path('api/tickets/<int:ticket_id>/status/', views.update_ticket_status, name='update_ticket_status'),
+    path('api/tickets/<int:ticket_id>/activity-logs/', views.get_ticket_activity_logs, name='get_ticket_activity_logs'),
     path('api/search/', views.search_tickets, name='search_tickets'),
     
     # Reply management

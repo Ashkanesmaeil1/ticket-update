@@ -98,16 +98,27 @@
     <div class="detail-header">
         <h1><i class="fas fa-box"></i> {{ element.name }}</h1>
         <div style="margin-top: 1rem;">
-            <a href="{% url 'tickets:inventory_management' %}" class="btn-action btn-info">
+            <a href="{% if back_url %}{{ back_url }}{% else %}{% url 'tickets:inventory_management' %}{% endif %}" class="btn-action btn-info">
                 <i class="fas fa-arrow-right"></i> {% trans "بازگشت" %}
             </a>
-            <a href="{% url 'tickets:inventory_element_edit' element.id %}" class="btn-action btn-warning">
-                <i class="fas fa-edit"></i> {% trans "ویرایش" %}
-            </a>
-            {% if not is_warehouse %}
-            <a href="{% url 'tickets:inventory_element_delete' element.id %}" class="btn-action btn-danger">
-                <i class="fas fa-trash"></i> {% trans "حذف" %}
-            </a>
+            {% if department %}
+                <a href="{% url 'tickets:department_warehouse_element_edit' department.id element.id %}" class="btn-action btn-warning">
+                    <i class="fas fa-edit"></i> {% trans "ویرایش" %}
+                </a>
+                {% if not is_warehouse %}
+                <a href="{% url 'tickets:department_warehouse_element_delete' department.id element.id %}" class="btn-action btn-danger">
+                    <i class="fas fa-trash"></i> {% trans "حذف" %}
+                </a>
+                {% endif %}
+            {% elif user.role == 'it_manager' %}
+                <a href="{% url 'tickets:inventory_element_edit' element.id %}" class="btn-action btn-warning">
+                    <i class="fas fa-edit"></i> {% trans "ویرایش" %}
+                </a>
+                {% if not is_warehouse %}
+                <a href="{% url 'tickets:inventory_element_delete' element.id %}" class="btn-action btn-danger">
+                    <i class="fas fa-trash"></i> {% trans "حذف" %}
+                </a>
+                {% endif %}
             {% endif %}
         </div>
     </div>
@@ -158,9 +169,15 @@
         <div class="info-section">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #e2e8f0;">
                 <h2 class="section-title" style="margin: 0;">{% trans "مشخصات" %}</h2>
-                <a href="{% url 'tickets:inventory_specification_create' element.id %}" class="btn-action btn-primary">
-                    <i class="fas fa-plus"></i> {% trans "افزودن مشخصه" %}
-                </a>
+                {% if department %}
+                    <a href="{% url 'tickets:inventory_specification_create' element.id %}" class="btn-action btn-primary">
+                        <i class="fas fa-plus"></i> {% trans "افزودن مشخصه" %}
+                    </a>
+                {% elif user.role == 'it_manager' %}
+                    <a href="{% url 'tickets:inventory_specification_create' element.id %}" class="btn-action btn-primary">
+                        <i class="fas fa-plus"></i> {% trans "افزودن مشخصه" %}
+                    </a>
+                {% endif %}
             </div>
             {% if specifications %}
             <table class="spec-table">
@@ -179,6 +196,7 @@
                         <td>{{ spec.value }}</td>
                         <td>{{ spec.description|default:"-" }}</td>
                         <td>
+                            {% if department or user.role == 'it_manager' %}
                             <a href="{% url 'tickets:inventory_specification_edit' element.id spec.id %}" class="btn-action btn-warning" style="font-size: 0.85rem;">
                                 <i class="fas fa-edit"></i>
                             </a>
@@ -188,6 +206,7 @@
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </form>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -196,7 +215,9 @@
             {% else %}
             <p style="text-align: center; color: #6b7280; padding: 2rem;">
                 {% trans "هیچ مشخصه‌ای ثبت نشده است." %}
+                {% if department or user.role == 'it_manager' %}
                 <a href="{% url 'tickets:inventory_specification_create' element.id %}">{% trans "افزودن اولین مشخصه" %}</a>
+                {% endif %}
             </p>
             {% endif %}
         </div>

@@ -1,0 +1,261 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+
+{% block title %}{{ item.name }} - {% trans "جزئیات کالا" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dwms-container {
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    .item-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 16px;
+        margin-bottom: 1.5rem;
+    }
+
+    .item-header h1 {
+        margin: 0;
+        font-size: 1.5rem;
+    }
+
+    .info-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .info-row:last-child {
+        border-bottom: none;
+    }
+
+    .stock-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        display: inline-block;
+    }
+
+    .stock-badge.ok {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+    .stock-badge.low {
+        background: #fff7ed;
+        color: #f59e0b;
+    }
+
+    .stock-badge.critical {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .qr-code {
+        text-align: center;
+        padding: 1rem;
+        background: #f9fafb;
+        border-radius: 8px;
+        margin-top: 1rem;
+    }
+
+    .action-buttons {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        margin-top: 1.5rem;
+    }
+
+    .action-btn {
+        padding: 1rem;
+        border-radius: 12px;
+        text-align: center;
+        text-decoration: none;
+        font-weight: 600;
+        color: white;
+    }
+
+    .btn-in {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    }
+
+    .btn-out {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    }
+
+    .btn-lend {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    }
+
+    .btn-edit {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .action-btn {
+        -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+        touch-action: manipulation;
+        min-height: 60px;
+    }
+
+    .action-btn:active {
+        transform: scale(0.95);
+    }
+
+    @media (max-width: 768px) {
+        .action-buttons {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+        }
+
+        .action-btn {
+            padding: 1.25rem 0.75rem;
+            font-size: 0.875rem;
+        }
+
+        .action-btn i {
+            font-size: 1.25rem;
+            margin-bottom: 0.25rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dwms-container">
+    <div class="item-header">
+        <h1><i class="fas fa-box"></i> {{ item.name }}</h1>
+    </div>
+
+    <!-- Basic Info -->
+    <div class="info-card">
+        <h2 style="margin: 0 0 1rem 0; font-size: 1.25rem;">{% trans "اطلاعات کلی" %}</h2>
+        <div class="info-row">
+            <span>{% trans "موجودی کل:" %}</span>
+            <span class="stock-badge {% if is_low_stock %}{% if total_stock == 0 %}critical{% else %}low{% endif %}{% else %}ok{% endif %}">
+                {{ total_stock }} {{ item.unit }}
+            </span>
+        </div>
+        {% if item.min_stock_threshold %}
+        <div class="info-row">
+            <span>{% trans "حداقل موجودی:" %}</span>
+            <span>{{ item.min_stock_threshold }} {{ item.unit }}</span>
+        </div>
+        {% endif %}
+        {% if item.category %}
+        <div class="info-row">
+            <span>{% trans "دسته‌بندی:" %}</span>
+            <span>{{ item.category.name }}</span>
+        </div>
+        {% endif %}
+        {% if item.sku %}
+        <div class="info-row">
+            <span>{% trans "کد کالا:" %}</span>
+            <span>{{ item.sku }}</span>
+        </div>
+        {% endif %}
+        <div class="info-row">
+            <span>{% trans "واحد:" %}</span>
+            <span>{{ item.unit }}</span>
+        </div>
+        {% if item.description %}
+        <div class="info-row">
+            <span>{% trans "توضیحات:" %}</span>
+            <span>{{ item.description }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- QR Code -->
+    <div class="info-card">
+        <h2 style="margin: 0 0 1rem 0; font-size: 1.25rem;">{% trans "کد QR" %}</h2>
+        <div class="qr-code">
+            <div style="font-family: monospace; font-size: 0.875rem; margin-bottom: 0.5rem;">
+                {{ qr_code.code_value }}
+            </div>
+            <div id="qrcode"></div>
+        </div>
+    </div>
+
+    <!-- Stock by Location -->
+    {% if stock_by_location %}
+    <div class="info-card">
+        <h2 style="margin: 0 0 1rem 0; font-size: 1.25rem;">{% trans "موجودی بر اساس محل" %}</h2>
+        {% for stock in stock_by_location %}
+        <div class="info-row">
+            <span>{{ stock.location_name }}</span>
+            <span><strong>{{ stock.total }} {{ item.unit }}</strong></span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Recent Movements -->
+    {% if recent_movements %}
+    <div class="info-card">
+        <h2 style="margin: 0 0 1rem 0; font-size: 1.25rem;">{% trans "حرکت‌های اخیر" %}</h2>
+        {% for movement in recent_movements|slice:":10" %}
+        <div class="info-row">
+            <div>
+                <div>{{ movement.get_movement_type_display }} - {{ movement.location.name }}</div>
+                <div style="font-size: 0.875rem; color: #6b7280;">
+                    {% if movement.performed_by %}{{ movement.performed_by.get_full_name }}{% else %}-{% endif %} - {% if movement.movement_date %}{{ movement.movement_date|persian_date }}{% else %}-{% endif %}
+                </div>
+            </div>
+            <span><strong>{{ movement.quantity }} {{ item.unit }}</strong></span>
+        </div>
+        {% endfor %}
+        <div style="text-align: center; margin-top: 1rem;">
+            <a href="{% url 'dwms:movement_history' department.id %}?item={{ item.id }}" class="btn btn-outline-primary">
+                {% trans "مشاهده همه" %}
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Action Buttons -->
+    <div class="action-buttons">
+        <a href="{% url 'dwms:movement_create_item' department.id item.id %}?action=IN" class="action-btn btn-in">
+            <i class="fas fa-arrow-down"></i> {% trans "ورود" %}
+        </a>
+        <a href="{% url 'dwms:movement_create_item' department.id item.id %}?action=OUT" class="action-btn btn-out">
+            <i class="fas fa-arrow-up"></i> {% trans "خروج" %}
+        </a>
+        <a href="{% url 'dwms:lend_create_item' department.id item.id %}" class="action-btn btn-lend">
+            <i class="fas fa-hand-holding"></i> {% trans "امانت" %}
+        </a>
+        <a href="{% url 'dwms:item_edit' department.id item.id %}" class="action-btn btn-edit">
+            <i class="fas fa-edit"></i> {% trans "ویرایش" %}
+        </a>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script>
+QRCode.toCanvas(document.getElementById('qrcode'), '{{ qr_code.code_value }}', {
+    width: 200,
+    margin: 2,
+    color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+    }
+}, function (error) {
+    if (error) console.error(error);
+});
+</script>
+{% endblock %}
+

@@ -292,7 +292,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             
             <div class="form-actions">
-                <a href="{% if element %}{% url 'tickets:inventory_element_detail' element.id %}{% else %}{% url 'tickets:inventory_management' %}{% endif %}" class="btn-secondary">
+                <a href="{% if back_url %}{{ back_url }}{% elif element %}{% url 'tickets:inventory_element_detail' element.id %}{% else %}{% url 'tickets:inventory_management' %}{% endif %}" class="btn-secondary">
                     <i class="fas fa-times"></i> {% trans "انصراف" %}
                 </a>
                 <button type="submit" class="btn-primary">

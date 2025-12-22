@@ -1,0 +1,471 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+
+{% block title %}{% trans "مدیریت انبار" %} - {{ department.name }} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #06b6d4;
+        --dark: #1f2937;
+        --light: #f8fafc;
+        --border: #e2e8f0;
+        --text: #374151;
+        --text-light: #6b7280;
+    }
+
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .inventory-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 1400px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .inventory-header {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        color: white;
+        padding: 3rem 2rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .inventory-header h1 {
+        font-size: 3rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        position: relative;
+        z-index: 2;
+        flex-wrap: wrap;
+    }
+
+    .btn-modern {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-modern:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+        color: white;
+        text-decoration: none;
+    }
+
+    .inventory-content {
+        padding: 2rem;
+    }
+
+    .filter-section {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+
+    .filter-form {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        align-items: end;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .form-label {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: var(--text);
+    }
+
+    .form-control-modern, .form-select-modern {
+        padding: 0.75rem 1rem;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .form-control-modern:focus, .form-select-modern:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+
+    .btn-filter {
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .btn-filter:hover {
+        background: var(--primary-dark);
+        transform: translateY(-2px);
+    }
+
+    .elements-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .element-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        border-right: 4px solid var(--primary);
+    }
+
+    .element-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
+    }
+
+    .element-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 1rem;
+    }
+
+    .element-name {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text);
+        margin: 0;
+    }
+
+    .element-type {
+        background: var(--info);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .element-description {
+        color: var(--text-light);
+        font-size: 0.9rem;
+        margin-bottom: 1rem;
+        line-height: 1.6;
+    }
+
+    .element-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        font-size: 0.85rem;
+        color: var(--text-light);
+    }
+
+    .element-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .btn-action {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        border: none;
+        cursor: pointer;
+    }
+
+    .btn-view {
+        background: var(--info);
+        color: white;
+    }
+
+    .btn-view:hover {
+        background: #0891b2;
+        color: white;
+        text-decoration: none;
+    }
+
+    .btn-edit {
+        background: var(--warning);
+        color: white;
+    }
+
+    .btn-edit:hover {
+        background: #d97706;
+        color: white;
+        text-decoration: none;
+    }
+
+    .btn-delete {
+        background: var(--danger);
+        color: white;
+    }
+
+    .btn-delete:hover {
+        background: #dc2626;
+        color: white;
+        text-decoration: none;
+    }
+
+    .warehouse-card {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        color: white;
+        border-right: 4px solid white;
+    }
+
+    .warehouse-card .element-name,
+    .warehouse-card .element-description,
+    .warehouse-card .element-meta {
+        color: rgba(255, 255, 255, 0.9);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        background: white;
+        border-radius: 16px;
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        color: var(--text-light);
+        margin-bottom: 1rem;
+    }
+
+    .pagination {
+        display: flex;
+        justify-content: center;
+        gap: 0.5rem;
+        margin-top: 2rem;
+    }
+
+    .page-link {
+        padding: 0.5rem 1rem;
+        border: 2px solid var(--border);
+        border-radius: 8px;
+        text-decoration: none;
+        color: var(--text);
+        transition: all 0.3s ease;
+    }
+
+    .page-link:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+
+    .page-link.active {
+        background: var(--primary);
+        color: white;
+        border-color: var(--primary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="inventory-container">
+    <div class="inventory-header">
+        <h1>
+            <i class="fas fa-warehouse"></i>
+            {% trans "مدیریت انبار" %} - {{ department.name }}
+        </h1>
+        <div class="header-actions">
+            <a href="{% url 'tickets:department_warehouse_element_create' department.id %}" class="btn-modern">
+                <i class="fas fa-plus"></i>
+                {% trans "افزودن عنصر جدید" %}
+            </a>
+            <a href="{% url 'tickets:warehouse_management' %}" class="btn-modern">
+                <i class="fas fa-arrow-right"></i>
+                {% trans "بازگشت" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="inventory-content">
+        <!-- Filter Section -->
+        <div class="filter-section">
+            <form method="get" class="filter-form">
+                <div class="form-group">
+                    <label class="form-label">{% trans "جستجو" %}</label>
+                    <input type="text" name="search" class="form-control-modern" 
+                           placeholder="{% trans 'جستجو در نام، نوع، توضیحات...' %}" 
+                           value="{{ search_query }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">{% trans "نوع عنصر" %}</label>
+                    <select name="element_type" class="form-select-modern">
+                        <option value="">{% trans "همه انواع" %}</option>
+                        {% for et in element_types %}
+                        <option value="{{ et }}" {% if element_type_filter == et %}selected{% endif %}>
+                            {{ et }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">
+                        <input type="checkbox" name="show_inactive" {% if show_inactive %}checked{% endif %}>
+                        {% trans "نمایش غیرفعال‌ها" %}
+                    </label>
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn-filter">
+                        <i class="fas fa-search"></i>
+                        {% trans "فیلتر" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Warehouse Card -->
+        {% if warehouse %}
+        <div class="element-card warehouse-card">
+            <div class="element-header">
+                <h3 class="element-name">
+                    <i class="fas fa-warehouse"></i>
+                    {{ warehouse.name }}
+                </h3>
+                <span class="element-type">{{ warehouse.element_type }}</span>
+            </div>
+            {% if warehouse.description %}
+            <p class="element-description">{{ warehouse.description }}</p>
+            {% endif %}
+            <div class="element-meta">
+                <span><i class="fas fa-user"></i> {% trans "اختصاص داده شده به:" %} {{ warehouse.assigned_to.get_full_name }}</span>
+                <span><i class="fas fa-calendar"></i> {% trans "تاریخ ایجاد:" %} {{ warehouse.created_at|persian_date }}</span>
+            </div>
+            <div class="element-actions">
+                <a href="{% url 'tickets:department_warehouse_element_detail' department.id warehouse.id %}" class="btn-action btn-view">
+                    <i class="fas fa-eye"></i>
+                    {% trans "مشاهده" %}
+                </a>
+                <a href="{% url 'tickets:department_warehouse_element_edit' department.id warehouse.id %}" class="btn-action btn-edit">
+                    <i class="fas fa-edit"></i>
+                    {% trans "ویرایش" %}
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Elements Grid -->
+        {% if elements %}
+        <div class="elements-grid">
+            {% for element in elements %}
+            <div class="element-card">
+                <div class="element-header">
+                    <h3 class="element-name">{{ element.name }}</h3>
+                    <span class="element-type">{{ element.element_type }}</span>
+                </div>
+                {% if element.description %}
+                <p class="element-description">{{ element.description|truncatewords:20 }}</p>
+                {% endif %}
+                <div class="element-meta">
+                    <span><i class="fas fa-user"></i> {{ element.assigned_to.get_full_name }}</span>
+                    <span><i class="fas fa-calendar"></i> {{ element.created_at|persian_date }}</span>
+                    {% if not element.is_active %}
+                    <span style="color: var(--danger);"><i class="fas fa-times-circle"></i> {% trans "غیرفعال" %}</span>
+                    {% endif %}
+                </div>
+                <div class="element-actions">
+                    <a href="{% url 'tickets:department_warehouse_element_detail' department.id element.id %}" class="btn-action btn-view">
+                        <i class="fas fa-eye"></i>
+                        {% trans "مشاهده" %}
+                    </a>
+                    <a href="{% url 'tickets:department_warehouse_element_edit' department.id element.id %}" class="btn-action btn-edit">
+                        <i class="fas fa-edit"></i>
+                        {% trans "ویرایش" %}
+                    </a>
+                    <a href="{% url 'tickets:department_warehouse_element_delete' department.id element.id %}" class="btn-action btn-delete">
+                        <i class="fas fa-trash"></i>
+                        {% trans "حذف" %}
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+        <div class="pagination">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if element_type_filter %}&element_type={{ element_type_filter }}{% endif %}{% if show_inactive %}&show_inactive=on{% endif %}" class="page-link">
+                <i class="fas fa-chevron-right"></i>
+            </a>
+            {% endif %}
+            
+            {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+            <span class="page-link active">{{ num }}</span>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <a href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if element_type_filter %}&element_type={{ element_type_filter }}{% endif %}{% if show_inactive %}&show_inactive=on{% endif %}" class="page-link">{{ num }}</a>
+            {% endif %}
+            {% endfor %}
+            
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if element_type_filter %}&element_type={{ element_type_filter }}{% endif %}{% if show_inactive %}&show_inactive=on{% endif %}" class="page-link">
+                <i class="fas fa-chevron-left"></i>
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-inbox"></i>
+            <h3>{% trans "هیچ عنصری یافت نشد" %}</h3>
+            <p>{% trans "هنوز عنصری در این انبار ایجاد نشده است." %}</p>
+            <a href="{% url 'tickets:department_warehouse_element_create' department.id %}" class="btn-modern" style="margin-top: 1rem; background: var(--primary);">
+                <i class="fas fa-plus"></i>
+                {% trans "افزودن اولین عنصر" %}
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

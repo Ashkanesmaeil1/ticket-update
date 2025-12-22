@@ -2,6 +2,7 @@ from django import template
 from django.utils import timezone
 import jdatetime
 import zoneinfo
+from datetime import date, datetime
 
 register = template.Library()
 
@@ -11,16 +12,25 @@ def persian_date(value):
     if value is None:
         return ""
     
-    # Convert to Tehran timezone if it's timezone-aware
-    if timezone.is_aware(value):
+    # Handle datetime.date objects (from DateField)
+    if isinstance(value, date) and not isinstance(value, datetime):
+        # Convert date to datetime at midnight for conversion
+        value = datetime.combine(value, datetime.min.time())
+    
+    # Convert to Tehran timezone if it's timezone-aware datetime
+    if isinstance(value, datetime) and timezone.is_aware(value):
         tehran_tz = zoneinfo.ZoneInfo('Asia/Tehran')
         value = value.astimezone(tehran_tz)
     
     # Convert to Persian calendar
     persian_date = jdatetime.datetime.fromgregorian(datetime=value)
     
-    # Format: 1402/12/25 14:30
-    return persian_date.strftime('%Y/%m/%d %H:%M')
+    # Format: 1402/12/25 14:30 (or just date if original was date)
+    if isinstance(value, datetime) and not isinstance(value, date):
+        return persian_date.strftime('%Y/%m/%d %H:%M')
+    else:
+        # For date-only fields, don't show time
+        return persian_date.strftime('%Y/%m/%d')
 
 @register.filter
 def persian_date_only(value):
@@ -28,8 +38,13 @@ def persian_date_only(value):
     if value is None:
         return ""
     
-    # Convert to Tehran timezone if it's timezone-aware
-    if timezone.is_aware(value):
+    # Handle datetime.date objects (from DateField)
+    if isinstance(value, date) and not isinstance(value, datetime):
+        # Convert date to datetime at midnight for conversion
+        value = datetime.combine(value, datetime.min.time())
+    
+    # Convert to Tehran timezone if it's timezone-aware datetime
+    if isinstance(value, datetime) and timezone.is_aware(value):
         tehran_tz = zoneinfo.ZoneInfo('Asia/Tehran')
         value = value.astimezone(tehran_tz)
     
@@ -45,8 +60,12 @@ def persian_time_only(value):
     if value is None:
         return ""
     
-    # Convert to Tehran timezone if it's timezone-aware
-    if timezone.is_aware(value):
+    # Handle datetime.date objects (from DateField) - no time component
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return ""  # DateField has no time
+    
+    # Convert to Tehran timezone if it's timezone-aware datetime
+    if isinstance(value, datetime) and timezone.is_aware(value):
         tehran_tz = zoneinfo.ZoneInfo('Asia/Tehran')
         value = value.astimezone(tehran_tz)
     
@@ -59,8 +78,13 @@ def persian_month_name(value):
     if value is None:
         return ""
     
-    # Convert to Tehran timezone if it's timezone-aware
-    if timezone.is_aware(value):
+    # Handle datetime.date objects (from DateField)
+    if isinstance(value, date) and not isinstance(value, datetime):
+        # Convert date to datetime at midnight for conversion
+        value = datetime.combine(value, datetime.min.time())
+    
+    # Convert to Tehran timezone if it's timezone-aware datetime
+    if isinstance(value, datetime) and timezone.is_aware(value):
         tehran_tz = zoneinfo.ZoneInfo('Asia/Tehran')
         value = value.astimezone(tehran_tz)
     
@@ -91,8 +115,13 @@ def persian_weekday_name(value):
     if value is None:
         return ""
     
-    # Convert to Tehran timezone if it's timezone-aware
-    if timezone.is_aware(value):
+    # Handle datetime.date objects (from DateField)
+    if isinstance(value, date) and not isinstance(value, datetime):
+        # Convert date to datetime at midnight for conversion
+        value = datetime.combine(value, datetime.min.time())
+    
+    # Convert to Tehran timezone if it's timezone-aware datetime
+    if isinstance(value, datetime) and timezone.is_aware(value):
         tehran_tz = zoneinfo.ZoneInfo('Asia/Tehran')
         value = value.astimezone(tehran_tz)
     

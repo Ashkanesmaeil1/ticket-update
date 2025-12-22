@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+
+{% block title %}{% trans "انتخاب انبار" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dwms-container {
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 1rem;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .dwms-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 16px;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+
+    .dwms-header h1 {
+        margin: 0;
+        font-size: 1.75rem;
+        font-weight: 700;
+    }
+
+    .warehouse-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin-top: 1.5rem;
+    }
+
+    .warehouse-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+        text-decoration: none;
+        color: inherit;
+        display: block;
+    }
+
+    .warehouse-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+        text-decoration: none;
+        color: inherit;
+    }
+
+    .warehouse-card h3 {
+        margin: 0 0 0.5rem 0;
+        color: #667eea;
+        font-size: 1.25rem;
+    }
+
+    .warehouse-card p {
+        margin: 0.5rem 0;
+        color: #6b7280;
+        font-size: 0.9rem;
+    }
+
+    .warehouse-icon {
+        font-size: 3rem;
+        color: #667eea;
+        margin-bottom: 1rem;
+    }
+
+    @media (max-width: 768px) {
+        .warehouse-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .dwms-header h1 {
+            font-size: 1.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dwms-container">
+    <div class="dwms-header">
+        <h1><i class="fas fa-warehouse"></i> {% trans "انتخاب انبار" %}</h1>
+        <p>{% trans "لطفاً انباری که می‌خواهید مدیریت کنید را انتخاب کنید" %}</p>
+    </div>
+
+    {% if warehouses %}
+    <div class="warehouse-grid">
+        {% for item in warehouses %}
+        <a href="{% url 'dwms:dashboard' item.department.id %}" class="warehouse-card">
+            <div class="warehouse-icon">
+                <i class="fas fa-warehouse"></i>
+            </div>
+            <h3>{{ item.warehouse.name }}</h3>
+            <p><i class="fas fa-building"></i> {{ item.department.name }}</p>
+            {% if item.warehouse.description %}
+            <p style="margin-top: 0.75rem; font-size: 0.85rem;">{{ item.warehouse.description|truncatewords:15 }}</p>
+            {% endif %}
+            <div style="margin-top: 1rem; text-align: left;">
+                <span style="color: #667eea; font-weight: 600;">
+                    {% trans "ورود به انبار" %} <i class="fas fa-arrow-left"></i>
+                </span>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 3rem; background: white; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        <i class="fas fa-inbox" style="font-size: 4rem; color: #9ca3af; margin-bottom: 1rem;"></i>
+        <h3>{% trans "انباری یافت نشد" %}</h3>
+        <p>{% trans "شما به هیچ انباری دسترسی ندارید." %}</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

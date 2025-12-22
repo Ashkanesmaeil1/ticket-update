@@ -1,0 +1,316 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+
+{% block title %}{% trans "داشبورد انبار" %} - {{ warehouse.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Mobile-first responsive design */
+    .dwms-container {
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 1rem;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .dwms-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 16px;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .dwms-header h1 {
+        margin: 0;
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+
+    .dwms-header p {
+        margin: 0.5rem 0 0 0;
+        opacity: 0.9;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 1.25rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+
+    .stat-card .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #667eea;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-card .stat-label {
+        font-size: 0.875rem;
+        color: #6b7280;
+    }
+
+    .section-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .section-card h2 {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #374151;
+        margin: 0 0 1rem 0;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #e5e7eb;
+    }
+
+    .alert-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        background: #fef2f2;
+        border-right: 4px solid #ef4444;
+        border-radius: 8px;
+    }
+
+    .alert-item.low {
+        background: #fff7ed;
+        border-color: #f59e0b;
+    }
+
+    .movement-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        background: #f9fafb;
+        border-radius: 8px;
+    }
+
+    .movement-item .movement-type {
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .movement-type.IN {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+    .movement-type.OUT {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        margin-top: 1.5rem;
+    }
+
+    .action-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 12px;
+        text-decoration: none;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+        min-height: 100px;
+        -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+        touch-action: manipulation;
+    }
+
+    .action-btn:active {
+        transform: scale(0.95);
+    }
+
+    .action-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .action-btn.primary {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        grid-column: span 2;
+    }
+
+    @media (max-width: 768px) {
+        .quick-actions {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .action-btn.primary {
+            grid-column: span 2;
+        }
+
+        .action-btn {
+            min-height: 80px;
+            padding: 1rem;
+        }
+    }
+
+    .action-btn i {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .action-btn span {
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: #6b7280;
+    }
+
+    /* Tablet and desktop */
+    @media (min-width: 768px) {
+        .dwms-container {
+            max-width: 1200px;
+            padding: 2rem;
+        }
+
+        .stats-grid {
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        .quick-actions {
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        .action-btn.primary {
+            grid-column: span 1;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dwms-container">
+    <div class="dwms-header">
+        <h1><i class="fas fa-warehouse"></i> {{ warehouse.name }}</h1>
+        <p>{{ warehouse.department.name }}</p>
+    </div>
+
+    <!-- Statistics -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">{{ total_items }}</div>
+            <div class="stat-label">{% trans "کل کالاها" %}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ low_stock_count }}</div>
+            <div class="stat-label">{% trans "کمبود موجودی" %}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ open_lends|length }}</div>
+            <div class="stat-label">{% trans "امانت‌های فعال" %}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ recent_movements|length }}</div>
+            <div class="stat-label">{% trans "حرکت‌های اخیر" %}</div>
+        </div>
+    </div>
+
+    <!-- Low Stock Alerts -->
+    {% if low_stock_items %}
+    <div class="section-card">
+        <h2><i class="fas fa-exclamation-triangle"></i> {% trans "هشدار کمبود موجودی" %}</h2>
+        {% for alert in low_stock_items %}
+        <div class="alert-item {% if alert.current_stock == 0 %}critical{% else %}low{% endif %}">
+            <div>
+                <strong>{{ alert.item.name }}</strong>
+                <div style="font-size: 0.875rem; color: #6b7280; margin-top: 0.25rem;">
+                    موجودی: {{ alert.current_stock }} {{ alert.item.unit }} / حداقل: {{ alert.threshold }} {{ alert.item.unit }}
+                </div>
+            </div>
+            <a href="{% url 'dwms:item_detail' department.id alert.item.id %}" class="btn btn-sm btn-outline-primary">
+                {% trans "مشاهده" %}
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Recent Movements -->
+    <div class="section-card">
+        <h2><i class="fas fa-exchange-alt"></i> {% trans "حرکت‌های اخیر" %}</h2>
+        {% if recent_movements %}
+            {% for movement in recent_movements %}
+            <div class="movement-item">
+                <div>
+                    <strong>{{ movement.item.name|default:"-" }}</strong>
+                    <div style="font-size: 0.875rem; color: #6b7280; margin-top: 0.25rem;">
+                        {% if movement.performed_by %}{{ movement.performed_by.get_full_name }}{% else %}-{% endif %} - {% if movement.movement_date %}{{ movement.movement_date|persian_date }}{% else %}-{% endif %}
+                    </div>
+                </div>
+                <div>
+                    <span class="movement-type {{ movement.movement_type }}">{{ movement.get_movement_type_display }}</span>
+                    <div style="text-align: left; margin-top: 0.25rem; font-weight: 600;">
+                        {{ movement.quantity }} {% if movement.item %}{{ movement.item.unit }}{% else %}{% trans "عدد" %}{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            <div style="text-align: center; margin-top: 1rem;">
+                <a href="{% url 'dwms:movement_history' department.id %}" class="btn btn-outline-primary">
+                    {% trans "مشاهده همه" %}
+                </a>
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <i class="fas fa-inbox" style="font-size: 3rem; opacity: 0.3; margin-bottom: 1rem;"></i>
+                <p>{% trans "هیچ حرکتی ثبت نشده است" %}</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+        <a href="{% url 'dwms:scan' department.id %}" class="action-btn primary">
+            <i class="fas fa-qrcode"></i>
+            <span>{% trans "اسکن QR" %}</span>
+        </a>
+        <a href="{% url 'dwms:movement_create' department.id %}" class="action-btn">
+            <i class="fas fa-plus-circle"></i>
+            <span>{% trans "افزودن موجودی" %}</span>
+        </a>
+        <a href="{% url 'dwms:lend_create' department.id %}" class="action-btn">
+            <i class="fas fa-hand-holding"></i>
+            <span>{% trans "امانت" %}</span>
+        </a>
+        <a href="{% url 'dwms:reports_daily' department.id %}" class="action-btn">
+            <i class="fas fa-chart-line"></i>
+            <span>{% trans "گزارشات" %}</span>
+        </a>
+    </div>
+</div>
+{% endblock %}
+

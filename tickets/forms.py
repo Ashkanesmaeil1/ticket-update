@@ -193,6 +193,16 @@ class ReplyForm(forms.ModelForm):
                 raise ValidationError(_('نوع فایل مجاز نیست. فقط تصاویر، PDF و Word مجاز است.'))
         
         return attachment
+    
+    def save(self, commit=True):
+        """Override save to track user for activity logging"""
+        instance = super().save(commit=False)
+        # Set user for activity logging (will be set by view)
+        if hasattr(self, 'user') and self.user:
+            instance._activity_user = self.user
+        if commit:
+            instance.save()
+        return instance
 
 class TicketStatusForm(forms.ModelForm):
     """Form for updating ticket status and assignment"""
@@ -283,6 +293,11 @@ class TicketStatusForm(forms.ModelForm):
         if 'assigned_to' in self.fields and ('assigned_to' not in self.cleaned_data or not self.cleaned_data.get('assigned_to')):
             if self.instance and hasattr(self.instance, 'assigned_to'):
                 instance.assigned_to = self.instance.assigned_to
+        
+        # Set user for activity logging
+        if hasattr(self, 'user') and self.user:
+            instance._activity_user = self.user
+        
         if commit:
             instance.save()
         return instance

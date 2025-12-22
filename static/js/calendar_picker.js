@@ -503,45 +503,13 @@ class JalaliCalendarPicker {
         const combined = rawValue.trim();
 
         // #region agent log - Hypothesis A: setInitialDateSync input/source
-        try {
-            fetch('http://127.0.0.1:7242/ingest/6603fe93-6100-4623-ad05-986d2d58a7ef', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sessionId: 'debug-session',
-                    runId: 'pre-fix',
-                    hypothesisId: 'A',
-                    location: 'static/js/calendar_picker.js:setInitialDateSync',
-                    message: 'setInitialDateSync raw/combined values',
-                    data: {
-                        rawValue,
-                        combined,
-                        currentYear: this.currentYear,
-                        currentMonth: this.currentMonth,
-                        hadSelectedDate: !!this.selectedDate
-                    },
-                    timestamp: Date.now()
-                })
-            }).catch(() => {});
-        } catch (e) {}
+        // DISABLED: Telemetry endpoint causes ERR_CONNECTION_REFUSED and blocks form initialization
+        // Removed blocking fetch call to prevent frontend crashes
         // #endregion
 
         // #region agent log - Hypothesis H3: Input-based initialization may overwrite selectedDate with today's date
-        try {
-            fetch('http://127.0.0.1:7242/ingest/6603fe93-6100-4623-ad05-986d2d58a7ef', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sessionId: 'debug-session',
-                    runId: 'pre-fix',
-                    hypothesisId: 'H3',
-                    location: 'static/js/calendar_picker.js:setInitialDateSync',
-                    message: 'setInitialDateSync raw input value',
-                    data: { rawValue: rawValue, combined: combined },
-                    timestamp: Date.now()
-                })
-            }).catch(() => {});
-        } catch (e) {}
+        // DISABLED: Telemetry endpoint causes ERR_CONNECTION_REFUSED and blocks form initialization
+        // Removed blocking fetch call to prevent frontend crashes
         // #endregion
 
         // If we don't actually have anything, leave state unset so that the
@@ -631,27 +599,8 @@ class JalaliCalendarPicker {
         console.log('After setInitialDateSync - selectedDate:', this.selectedDate);
 
         // #region agent log - Hypothesis B: state right after setInitialDateSync in openModal
-        try {
-            fetch('http://127.0.0.1:7242/ingest/6603fe93-6100-4623-ad05-986d2d58a7ef', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sessionId: 'debug-session',
-                    runId: 'pre-fix',
-                    hypothesisId: 'B',
-                    location: 'static/js/calendar_picker.js:openModal',
-                    message: 'State after setInitialDateSync',
-                    data: {
-                        selectedDate: this.selectedDate,
-                        currentYear: this.currentYear,
-                        currentMonth: this.currentMonth,
-                        inputValue: this.input ? this.input.value : null,
-                        inputAttrValue: this.input ? this.input.getAttribute('value') : null
-                    },
-                    timestamp: Date.now()
-                })
-            }).catch(() => {});
-        } catch (e) {}
+        // DISABLED: Telemetry endpoint causes ERR_CONNECTION_REFUSED and blocks form initialization
+        // Removed blocking fetch call to prevent frontend crashes
         // #endregion
         
         if (!this.overlay) {
@@ -1041,25 +990,7 @@ class JalaliCalendarPicker {
 
         // #region agent log - Hypothesis H1: Selected day is correct but later overwritten before selectDate
         try {
-            fetch('http://127.0.0.1:7242/ingest/6603fe93-6100-4623-ad05-986d2d58a7ef', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sessionId: 'debug-session',
-                    runId: 'pre-fix',
-                    hypothesisId: 'H1',
-                    location: 'static/js/calendar_picker.js:selectDay',
-                    message: 'Day selected in calendar',
-                    data: {
-                        year: year,
-                        month: month,
-                        day: day,
-                        selectedDate: this.selectedDate,
-                        lockedSelectedDate: this._lockedSelectedDate
-                    },
-                    timestamp: Date.now()
-                })
-            }).catch(() => {});
+            // DISABLED: Telemetry endpoint causes ERR_CONNECTION_REFUSED
         } catch (e) {}
         // #endregion
         
@@ -1143,22 +1074,7 @@ class JalaliCalendarPicker {
 
         // #region agent log - Hypothesis H2: selectedDate is already wrong when user clicks Select
         try {
-            fetch('http://127.0.0.1:7242/ingest/6603fe93-6100-4623-ad05-986d2d58a7ef', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sessionId: 'debug-session',
-                    runId: 'pre-fix',
-                    hypothesisId: 'H2',
-                    location: 'static/js/calendar_picker.js:selectDate:start',
-                    message: 'selectDate entry state',
-                    data: {
-                        selectedDate: this.selectedDate,
-                        lockedSelectedDate: this._lockedSelectedDate
-                    },
-                    timestamp: Date.now()
-                })
-            }).catch(() => {});
+            // DISABLED: Telemetry endpoint causes ERR_CONNECTION_REFUSED
         } catch (e) {}
         // #endregion
         
@@ -1203,32 +1119,7 @@ class JalaliCalendarPicker {
 
         // #region agent log - Hypothesis H2: Date used in selectDate differs from selected in selectDay / DOM
         try {
-            fetch('http://127.0.0.1:7242/ingest/6603fe93-6100-4623-ad05-986d2d58a7ef', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sessionId: 'debug-session',
-                    runId: 'pre-fix',
-                    hypothesisId: 'H2',
-                    location: 'static/js/calendar_picker.js:selectDate:before-format',
-                    message: 'Date sources at start of selectDate',
-                    data: {
-                        domSelected: domSelected
-                            ? {
-                                  year: domSelected.dataset.year,
-                                  month: domSelected.dataset.month,
-                                  day: domSelected.dataset.day
-                              }
-                            : null,
-                        selectedDate: this.selectedDate,
-                        lockedSelectedDate: this._lockedSelectedDate,
-                        dateToUse: dateToUse,
-                        inputValueBefore: this.input ? this.input.value : null,
-                        inputAttrValueBefore: this.input ? this.input.getAttribute('value') : null
-                    },
-                    timestamp: Date.now()
-                })
-            }).catch(() => {});
+            // DISABLED: Telemetry endpoint causes ERR_CONNECTION_REFUSED
         } catch (e) {}
         // #endregion
         
@@ -1240,23 +1131,7 @@ class JalaliCalendarPicker {
 
         // #region agent log - Hypothesis H2: dateToUse (after fallback) differs from what was clicked
         try {
-            fetch('http://127.0.0.1:7242/ingest/6603fe93-6100-4623-ad05-986d2d58a7ef', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sessionId: 'debug-session',
-                    runId: 'pre-fix',
-                    hypothesisId: 'H2',
-                    location: 'static/js/calendar_picker.js:selectDate:afterValidation',
-                    message: 'selectDate validated dateToUse',
-                    data: {
-                        dateToUse: dateToUse,
-                        selectedDate: this.selectedDate,
-                        lockedSelectedDate: this._lockedSelectedDate
-                    },
-                    timestamp: Date.now()
-                })
-            }).catch(() => {});
+            // DISABLED: Telemetry endpoint causes ERR_CONNECTION_REFUSED
         } catch (e) {}
         // #endregion
         
@@ -1291,19 +1166,7 @@ class JalaliCalendarPicker {
 
         // #region agent log - Hypothesis H4: Parsed year/month/day are coerced back to "today"
         try {
-            fetch('http://127.0.0.1:7242/ingest/6603fe93-6100-4623-ad05-986d2d58a7ef', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sessionId: 'debug-session',
-                    runId: 'pre-fix',
-                    hypothesisId: 'H4',
-                    location: 'static/js/calendar_picker.js:selectDate:parsedComponents',
-                    message: 'Parsed date components from dateToUse',
-                    data: { year: year, month: month, day: day },
-                    timestamp: Date.now()
-                })
-            }).catch(() => {});
+            // DISABLED: Telemetry endpoint causes ERR_CONNECTION_REFUSED
         } catch (e) {}
         // #endregion
         
@@ -1319,26 +1182,7 @@ class JalaliCalendarPicker {
 
         // #region agent log - Hypothesis H3: Final formatted string vs. expected date
         try {
-            fetch('http://127.0.0.1:7242/ingest/6603fe93-6100-4623-ad05-986d2d58a7ef', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sessionId: 'debug-session',
-                    runId: 'pre-fix',
-                    hypothesisId: 'H3',
-                    location: 'static/js/calendar_picker.js:selectDate:after-format',
-                    message: 'Formatted date string and components',
-                    data: {
-                        year,
-                        month,
-                        day,
-                        dateStr,
-                        timeStr,
-                        combinedStr
-                    },
-                    timestamp: Date.now()
-                })
-            }).catch(() => {});
+            // DISABLED: Telemetry endpoint causes ERR_CONNECTION_REFUSED
         } catch (e) {}
         // #endregion
         

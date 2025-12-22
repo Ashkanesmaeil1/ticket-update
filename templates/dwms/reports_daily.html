@@ -1,0 +1,255 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+
+{% block title %}{% trans "گزارش روزانه" %} - {{ warehouse.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dwms-container {
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 1rem;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .report-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 16px;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .report-header h1 {
+        margin: 0;
+        font-size: 1.5rem;
+    }
+
+    .date-selector {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .summary-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .summary-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+
+    .summary-card h3 {
+        margin: 0 0 0.5rem 0;
+        color: #6b7280;
+        font-size: 0.9rem;
+    }
+
+    .summary-card .value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #374151;
+    }
+
+    .report-section {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .report-section h2 {
+        margin: 0 0 1rem 0;
+        color: #374151;
+        font-size: 1.25rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #e5e7eb;
+    }
+
+    .item-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #f3f4f6;
+    }
+
+    .item-row:last-child {
+        border-bottom: none;
+    }
+
+    .badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+
+    .badge-in {
+        background: #10b981;
+        color: white;
+    }
+
+    .badge-out {
+        background: #ef4444;
+        color: white;
+    }
+
+    .badge-low {
+        background: #f59e0b;
+        color: white;
+    }
+
+    @media (max-width: 768px) {
+        .summary-cards {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dwms-container">
+    <div class="report-header">
+        <h1><i class="fas fa-chart-line"></i> {% trans "گزارش روزانه" %}</h1>
+        <p>{{ warehouse.name }} - {{ date }}</p>
+    </div>
+
+    <div class="date-selector">
+        <form method="get" style="display: flex; gap: 1rem; align-items: end; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 200px;">
+                <label>{% trans "تاریخ (شمسی)" %}</label>
+                <input type="text" name="date" value="{{ date }}" class="form-control" 
+                       placeholder="{% trans 'مثال: 1403-09-15' %}" required>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-search"></i> {% trans "نمایش گزارش" %}
+            </button>
+        </form>
+    </div>
+
+    <div class="summary-cards">
+        <div class="summary-card">
+            <h3>{% trans "کل ورود" %}</h3>
+            <div class="value" style="color: #10b981;">
+                {% for summary in item_summary %}
+                    {% if summary.movement_type == 'IN' %}
+                        {{ summary.total|floatformat:0 }}
+                    {% endif %}
+                {% empty %}
+                    0
+                {% endfor %}
+            </div>
+        </div>
+        <div class="summary-card">
+            <h3>{% trans "کل خروج" %}</h3>
+            <div class="value" style="color: #ef4444;">
+                {% for summary in item_summary %}
+                    {% if summary.movement_type == 'OUT' %}
+                        {{ summary.total|floatformat:0 }}
+                    {% endif %}
+                {% empty %}
+                    0
+                {% endfor %}
+            </div>
+        </div>
+        <div class="summary-card">
+            <h3>{% trans "کالاهای کم‌موجود" %}</h3>
+            <div class="value" style="color: #f59e0b;">
+                {{ low_stock_items|length }}
+            </div>
+        </div>
+        <div class="summary-card">
+            <h3>{% trans "امانت‌های جدید" %}</h3>
+            <div class="value" style="color: #667eea;">
+                {{ new_lends|length }}
+            </div>
+        </div>
+    </div>
+
+    <div class="report-section">
+        <h2><i class="fas fa-exchange-alt"></i> {% trans "خلاصه حرکات بر اساس کالا" %}</h2>
+        {% if item_summary %}
+        <div>
+            {% for summary in item_summary %}
+            <div class="item-row">
+                <div>
+                    <strong>{{ summary.item__name }}</strong>
+                    <span class="badge badge-{{ summary.movement_type|lower }}">
+                        {{ summary.get_movement_type_display|default:summary.movement_type }}
+                    </span>
+                </div>
+                <div>
+                    <strong>{{ summary.total|floatformat:0 }}</strong>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="text-align: center; color: #6b7280; padding: 2rem;">
+            {% trans "هیچ حرکتی در این تاریخ ثبت نشده است." %}
+        </p>
+        {% endif %}
+    </div>
+
+    {% if low_stock_items %}
+    <div class="report-section">
+        <h2><i class="fas fa-exclamation-triangle"></i> {% trans "کالاهای کم‌موجود" %}</h2>
+        <div>
+            {% for item in low_stock_items %}
+            <div class="item-row">
+                <div>
+                    <strong>{{ item.name }}</strong>
+                    <span class="badge badge-low">{% trans "کمبود موجودی" %}</span>
+                </div>
+                <div>
+                    موجودی فعلی: <strong>{{ item.get_total_stock|floatformat:0 }}</strong> / 
+                    حد آستانه: <strong>{{ item.min_stock_threshold|floatformat:0 }}</strong>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if new_lends %}
+    <div class="report-section">
+        <h2><i class="fas fa-hand-holding"></i> {% trans "امانت‌های جدید" %}</h2>
+        <div>
+            {% for lend in new_lends %}
+            <div class="item-row">
+                <div>
+                    <strong>{{ lend.item.name }}</strong>
+                    <br>
+                    <small style="color: #6b7280;">
+                        {% trans "امانت‌گیرنده:" %} {{ lend.borrower.get_full_name }}
+                    </small>
+                </div>
+                <div>
+                    <strong>{{ lend.quantity|floatformat:0 }}</strong> {{ lend.item.unit }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div style="margin-top: 1.5rem; text-align: center;">
+        <a href="{% url 'dwms:dashboard' department.id %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-right"></i> {% trans "بازگشت به داشبورد" %}
+        </a>
+    </div>
+</div>
+{% endblock %}
+

@@ -1,0 +1,493 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "اسکن QR" %} - {% if warehouse %}{{ warehouse.name }}{% else %}{% trans "انبار" %}{% endif %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .scan-container {
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 1rem;
+        min-height: 100vh;
+        background: #000;
+        color: white;
+    }
+
+    .scan-header {
+        text-align: center;
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        margin-bottom: 1rem;
+    }
+
+    .scan-header h1 {
+        margin: 0;
+        font-size: 1.25rem;
+    }
+
+    .camera-container {
+        position: relative;
+        width: 100%;
+        max-width: 500px;
+        margin: 0 auto;
+        background: #1a1a1a;
+        border-radius: 16px;
+        overflow: hidden;
+        aspect-ratio: 1;
+    }
+
+    #video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .scan-overlay {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 80%;
+        height: 80%;
+        border: 3px solid #10b981;
+        border-radius: 12px;
+        pointer-events: none;
+    }
+
+    .scan-overlay::before {
+        content: '';
+        position: absolute;
+        top: -3px;
+        left: -3px;
+        right: -3px;
+        bottom: -3px;
+        border: 3px solid rgba(16, 185, 129, 0.3);
+        border-radius: 12px;
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    .action-buttons {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        margin-top: 2rem;
+        max-width: 500px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .action-btn {
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: none;
+        font-size: 1rem;
+        font-weight: 600;
+        color: white;
+        cursor: pointer;
+        transition: transform 0.2s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .action-btn:active {
+        transform: scale(0.95);
+    }
+
+    .action-btn.primary {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    }
+
+    .action-btn.secondary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .action-btn.danger {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    }
+
+    .action-btn.warning {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    }
+
+    .manual-input {
+        margin-top: 1rem;
+        max-width: 500px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .manual-input input {
+        width: 100%;
+        padding: 1rem;
+        border-radius: 12px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        font-size: 1rem;
+        text-align: center;
+    }
+
+    .manual-input input::placeholder {
+        color: rgba(255, 255, 255, 0.5);
+    }
+
+    .scan-result {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.9);
+        z-index: 2000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+    }
+
+    .scan-result.active {
+        display: flex;
+    }
+
+    .result-card {
+        background: white;
+        color: #374151;
+        padding: 2rem;
+        border-radius: 16px;
+        max-width: 400px;
+        width: 100%;
+    }
+
+    .result-card h3 {
+        margin: 0 0 1rem 0;
+        color: #10b981;
+    }
+
+    .result-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .result-actions button {
+        flex: 1;
+        padding: 0.75rem;
+        border-radius: 8px;
+        border: none;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .btn-close-result {
+        background: #e5e7eb;
+        color: #374151;
+    }
+
+    .btn-action-result {
+        background: #10b981;
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="scan-container">
+    <div class="scan-header">
+        <h1><i class="fas fa-qrcode"></i> {% trans "اسکن QR کد" %}</h1>
+        <p style="margin: 0.5rem 0 0 0; opacity: 0.8;">{% if warehouse %}{{ warehouse.name }}{% else %}{% trans "انبار" %}{% endif %}</p>
+    </div>
+
+    <div class="camera-container">
+        <video id="video" autoplay playsinline></video>
+        <div class="scan-overlay"></div>
+    </div>
+
+    <div class="action-buttons">
+        <button class="action-btn primary" onclick="setAction('IN')">
+            <i class="fas fa-arrow-down"></i>
+            <span>{% trans "ورود" %}</span>
+        </button>
+        <button class="action-btn danger" onclick="setAction('OUT')">
+            <i class="fas fa-arrow-up"></i>
+            <span>{% trans "خروج" %}</span>
+        </button>
+        <button class="action-btn warning" onclick="setAction('LEND')">
+            <i class="fas fa-hand-holding"></i>
+            <span>{% trans "امانت" %}</span>
+        </button>
+        <button class="action-btn secondary" onclick="setAction('RETURN')">
+            <i class="fas fa-undo"></i>
+            <span>{% trans "بازگشت" %}</span>
+        </button>
+    </div>
+
+    <div class="manual-input">
+        <input type="text" id="manual-code" placeholder="{% trans 'یا کد را دستی وارد کنید' %}" 
+               onkeypress="if(event.key==='Enter') handleManualCode()"
+               onpaste="setTimeout(handleManualCode, 100)">
+        <button class="action-btn primary" onclick="handleManualCode()" style="margin-top: 0.5rem;">
+            <i class="fas fa-search"></i>
+            <span>{% trans "جستجو" %}</span>
+        </button>
+    </div>
+
+    <div class="scan-result" id="scan-result">
+        <div class="result-card">
+            <h3 id="result-title">{% trans "نتیجه اسکن" %}</h3>
+            <div id="result-content"></div>
+            <div class="result-actions">
+                <button class="btn-close-result" onclick="closeResult()">{% trans "بستن" %}</button>
+                <button class="btn-action-result" id="result-action-btn" onclick="proceedWithAction()">{% trans "ادامه" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script>
+let currentAction = 'IN';
+let scannedItem = null;
+let video = document.getElementById('video');
+let canvas = document.createElement('canvas');
+let context = canvas.getContext('2d');
+let scanning = false;
+
+// Set action
+function setAction(action) {
+    currentAction = action;
+    // Visual feedback
+    document.querySelectorAll('.action-btn').forEach(btn => {
+        btn.style.opacity = '0.5';
+    });
+    event.target.closest('.action-btn').style.opacity = '1';
+}
+
+// Start camera
+async function startCamera() {
+    try {
+        // Check if camera is available
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.warn('Camera API not available');
+            return;
+        }
+        
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' }
+        });
+        video.srcObject = stream;
+        video.setAttribute('playsinline', true);
+        scan();
+    } catch (err) {
+        console.warn('Error accessing camera:', err);
+        // Don't show alert - manual input is still available
+        // Just log the error and let user use manual input
+    }
+}
+
+// Scan for QR codes
+function scan() {
+    if (scanning) return;
+    scanning = true;
+
+    function tick() {
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            canvas.height = video.videoHeight;
+            canvas.width = video.videoWidth;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+            if (code) {
+                handleScannedCode(code.data);
+                return;
+            }
+        }
+        requestAnimationFrame(tick);
+    }
+    tick();
+}
+
+// Handle scanned code
+async function handleScannedCode(code) {
+    if (!code || !code.trim()) {
+        alert('{% trans "لطفاً کد را وارد کنید" %}');
+        return;
+    }
+    
+    // Stop scanning if active
+    scanning = false;
+    if (video && video.srcObject) {
+        try {
+            video.srcObject.getTracks().forEach(track => track.stop());
+        } catch (e) {
+            console.warn('Error stopping camera:', e);
+        }
+    }
+    
+    // Show loading state
+    const resultDiv = document.getElementById('scan-result');
+    const contentDiv = document.getElementById('result-content');
+    contentDiv.innerHTML = '<p><i class="fas fa-spinner fa-spin"></i> {% trans "در حال جستجو..." %}</p>';
+    resultDiv.classList.add('active');
+    
+    try {
+        // Get CSRF token from cookie
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
+        const csrfToken = getCookie('csrftoken') || '{{ csrf_token }}';
+        const apiUrl = `{% if department %}{% url 'dwms:scan_api' department.id %}{% else %}/dwms/{{ department_id }}/api/scan/{% endif %}`;
+        
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                code: code.trim(),
+                action: currentAction
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: '{% trans "خطا در ارتباط با سرور" %}' }));
+            throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.success) {
+            scannedItem = data.item;
+            showResult(data);
+        } else {
+            contentDiv.innerHTML = `<p style="color: #ef4444;"><i class="fas fa-exclamation-circle"></i> ${data.error || '{% trans "خطا در اسکن" %}'}</p>`;
+            setTimeout(() => {
+                resultDiv.classList.remove('active');
+                // Restart camera if it was running
+                if (video && !video.srcObject) {
+                    startCamera();
+                }
+            }, 2000);
+        }
+    } catch (err) {
+        console.error('Error:', err);
+        contentDiv.innerHTML = `<p style="color: #ef4444;"><i class="fas fa-exclamation-circle"></i> ${err.message || '{% trans "خطا در ارتباط با سرور" %}'}</p>`;
+        setTimeout(() => {
+            resultDiv.classList.remove('active');
+            // Restart camera if it was running
+            if (video && !video.srcObject) {
+                startCamera();
+            }
+        }, 2000);
+    }
+}
+
+// Handle manual code input
+function handleManualCode() {
+    const input = document.getElementById('manual-code');
+    const code = input.value.trim();
+    if (code) {
+        handleScannedCode(code);
+    } else {
+        alert('{% trans "لطفاً کد را وارد کنید" %}');
+        input.focus();
+    }
+}
+
+// Show result
+function showResult(data) {
+    const resultDiv = document.getElementById('scan-result');
+    const contentDiv = document.getElementById('result-content');
+    const actionBtn = document.getElementById('result-action-btn');
+    
+    contentDiv.innerHTML = `
+        <p><strong>{% trans "کالا:" %}</strong> ${data.item.name}</p>
+        <p><strong>{% trans "موجودی:" %}</strong> ${data.item.total_stock} ${data.item.unit}</p>
+        ${data.item.is_low_stock ? '<p style="color: #f59e0b;"><i class="fas fa-exclamation-triangle"></i> {% trans "کمبود موجودی" %}</p>' : ''}
+    `;
+    
+    actionBtn.textContent = getActionLabel(currentAction);
+    resultDiv.classList.add('active');
+}
+
+// Get action label
+function getActionLabel(action) {
+    const labels = {
+        'IN': '{% trans "ثبت ورود" %}',
+        'OUT': '{% trans "ثبت خروج" %}',
+        'LEND': '{% trans "ثبت امانت" %}',
+        'RETURN': '{% trans "ثبت بازگشت" %}'
+    };
+    return labels[action] || '{% trans "ادامه" %}';
+}
+
+// Proceed with action
+function proceedWithAction() {
+    if (!scannedItem) return;
+    
+    const itemId = scannedItem.id;
+    const action = currentAction.toLowerCase();
+    
+    if (action === 'lend') {
+        window.location.href = `/dwms/{{ department.id }}/lends/create/${itemId}/`;
+    } else if (action === 'return') {
+        window.location.href = `/dwms/{{ department.id }}/lends/?item=${itemId}`;
+    } else {
+        window.location.href = `/dwms/{{ department.id }}/movements/create/${itemId}/?action=${currentAction}`;
+    }
+}
+
+// Close result
+function closeResult() {
+    document.getElementById('scan-result').classList.remove('active');
+    // Clear manual input
+    const manualInput = document.getElementById('manual-code');
+    if (manualInput) {
+        manualInput.value = '';
+        manualInput.focus();
+    }
+    // Try to restart camera if available
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        startCamera();
+    }
+}
+
+// Start on load (but don't fail if camera access is denied)
+window.addEventListener('load', function() {
+    // Try to start camera, but don't block if it fails
+    startCamera().catch(err => {
+        console.warn('Camera not available, manual input still works:', err);
+        // Show a message that manual input is available
+        const manualInput = document.getElementById('manual-code');
+        if (manualInput) {
+            manualInput.placeholder = '{% trans "کد را وارد کنید (دوربین در دسترس نیست)" %}';
+            manualInput.focus();
+        }
+    });
+});
+</script>
+{% endblock %}
+

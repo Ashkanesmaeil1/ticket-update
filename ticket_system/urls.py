@@ -12,6 +12,7 @@ from django.urls import re_path
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('tickets.urls')),
+    path('dwms/', include('dwms.urls')),
 ]
 
 # Serve static files in development
