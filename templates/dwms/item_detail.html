@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load i18n %}
 {% load persian_date %}
+{% load dwms_filters %}
 
 {% block title %}{{ item.name }} - {% trans "جزئیات کالا" %}{% endblock %}
 
@@ -147,13 +148,13 @@
         <div class="info-row">
             <span>{% trans "موجودی کل:" %}</span>
             <span class="stock-badge {% if is_low_stock %}{% if total_stock == 0 %}critical{% else %}low{% endif %}{% else %}ok{% endif %}">
-                {{ total_stock }} {{ item.unit }}
+                {{ total_stock|floatformat:0 }} {{ item.unit }}
             </span>
         </div>
         {% if item.min_stock_threshold %}
         <div class="info-row">
             <span>{% trans "حداقل موجودی:" %}</span>
-            <span>{{ item.min_stock_threshold }} {{ item.unit }}</span>
+            <span>{{ item.min_stock_threshold|floatformat:0 }} {{ item.unit }}</span>
         </div>
         {% endif %}
         {% if item.category %}
@@ -211,12 +212,12 @@
         {% for movement in recent_movements|slice:":10" %}
         <div class="info-row">
             <div>
-                <div>{{ movement.get_movement_type_display }} - {{ movement.location.name }}</div>
+                <div>{{ movement.movement_type|movement_type_persian }} - {{ movement.location.name }}</div>
                 <div style="font-size: 0.875rem; color: #6b7280;">
                     {% if movement.performed_by %}{{ movement.performed_by.get_full_name }}{% else %}-{% endif %} - {% if movement.movement_date %}{{ movement.movement_date|persian_date }}{% else %}-{% endif %}
                 </div>
             </div>
-            <span><strong>{{ movement.quantity }} {{ item.unit }}</strong></span>
+            <span><strong>{{ movement.quantity|floatformat:0 }} {{ item.unit }}</strong></span>
         </div>
         {% endfor %}
         <div style="text-align: center; margin-top: 1rem;">
@@ -228,6 +229,7 @@
     {% endif %}
 
     <!-- Action Buttons -->
+    {% if can_write %}
     <div class="action-buttons">
         <a href="{% url 'dwms:movement_create_item' department.id item.id %}?action=IN" class="action-btn btn-in">
             <i class="fas fa-arrow-down"></i> {% trans "ورود" %}
@@ -242,6 +244,11 @@
             <i class="fas fa-edit"></i> {% trans "ویرایش" %}
         </a>
     </div>
+    {% else %}
+    <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 12px; padding: 1rem; margin-top: 1.5rem; text-align: center; color: #92400e;">
+        <i class="fas fa-info-circle"></i> {% trans "شما فقط اجازه مشاهده این کالا را دارید. برای انجام تغییرات به دسترسی ویرایش نیاز دارید." %}
+    </div>
+    {% endif %}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>

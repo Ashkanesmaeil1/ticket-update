@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load i18n %}
 {% load persian_date %}
+{% load dwms_filters %}
 
 {% block title %}{% trans "گزارش هفتگی" %} - {{ warehouse.name }}{% endblock %}
 
@@ -55,10 +56,21 @@
         </a>
     </div>
 
-    <div style="text-align: center; margin-top: 1.5rem;">
-        <a href="{% url 'dwms:dashboard' department.id %}" class="btn btn-secondary">
-            <i class="fas fa-arrow-right"></i> {% trans "بازگشت به داشبورد" %}
-        </a>
+    <div style="margin-top: 1.5rem;">
+        <div class="row g-3">
+            <div class="col-12 col-md-6">
+                <a href="{% url 'tickets:dashboard' %}" class="btn btn-secondary w-100" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                    <i class="fas fa-home"></i>
+                    <span>{% trans "بازگشت به داشبورد" %}</span>
+                </a>
+            </div>
+            <div class="col-12 col-md-6">
+                <a href="{% url 'dwms:dashboard' department.id %}" class="btn btn-primary w-100" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                    <i class="fas fa-warehouse"></i>
+                    <span>{% trans "بازگشت به انبار" %}</span>
+                </a>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

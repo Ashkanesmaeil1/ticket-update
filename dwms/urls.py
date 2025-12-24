@@ -40,5 +40,8 @@ urlpatterns = [
     path('<int:department_id>/reports/daily/', views.reports_daily, name='reports_daily'),
     path('<int:department_id>/reports/weekly/', views.reports_weekly, name='reports_weekly'),
     path('<int:department_id>/reports/monthly/', views.reports_monthly, name='reports_monthly'),
+    
+    # Access Management
+    path('<int:department_id>/access/', views.warehouse_access_manage, name='warehouse_access_manage'),
 ]
 

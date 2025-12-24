@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load dwms_filters %}
+
+{% block title %}{% trans "مدیریت دسترسی‌های انبار" %} - {{ warehouse.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dwms-container {
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 1rem;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .access-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .access-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+    }
+
+    .access-table th,
+    .access-table td {
+        padding: 1rem;
+        text-align: right;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .access-table th {
+        background: #f9fafb;
+        font-weight: 600;
+        color: #374151;
+    }
+
+    .access-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+
+    .badge-read {
+        background: #e0e7ff;
+        color: #3730a3;
+    }
+
+    .badge-write {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+    .badge-none {
+        background: #f3f4f6;
+        color: #6b7280;
+    }
+
+    .access-form {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    .access-form select {
+        min-width: 120px;
+    }
+
+    @media (max-width: 768px) {
+        .access-table {
+            font-size: 0.875rem;
+        }
+
+        .access-form {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .access-form select,
+        .access-form button {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dwms-container">
+    <div style="margin-bottom: 1.5rem;">
+        <h1><i class="fas fa-user-shield"></i> {% trans "مدیریت دسترسی‌های انبار" %}</h1>
+        <p>{{ warehouse.name }} - {{ department.name }}</p>
+    </div>
+
+    <div class="access-card">
+        <h2 style="margin: 0 0 1rem 0;">{% trans "اعضای بخش" %}</h2>
+        
+        {% if department_members %}
+        <table class="access-table">
+            <thead>
+                <tr>
+                    <th>{% trans "نام کاربر" %}</th>
+                    <th>{% trans "وضعیت دسترسی" %}</th>
+                    <th>{% trans "سطح دسترسی" %}</th>
+                    <th>{% trans "اعطا شده توسط" %}</th>
+                    <th>{% trans "عملیات" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for member in department_members %}
+                <tr>
+                    <td>
+                        <strong>{{ member.get_full_name|default:member.username }}</strong><br>
+                        <small style="color: #6b7280;">{{ member.username }}</small>
+                    </td>
+                    <td>
+                        {% if member.id in access_map %}
+                            {% with access=access_map|get_item:member.id %}
+                            <span class="access-badge badge-{{ access.access_level }}">
+                                {% if access.access_level == 'read' %}
+                                    {% trans "فقط مشاهده" %}
+                                {% else %}
+                                    {% trans "ویرایش و تغییر" %}
+                                {% endif %}
+                            </span>
+                            {% endwith %}
+                        {% else %}
+                            <span class="access-badge badge-none">{% trans "بدون دسترسی" %}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form method="post" class="access-form">
+                            {% csrf_token %}
+                            <input type="hidden" name="user_id" value="{{ member.id }}">
+                            <select name="access_level" class="form-select">
+                                <option value="read" {% if member.id in access_map %}{% with access=access_map|get_item:member.id %}{% if access.access_level == 'read' %}selected{% endif %}{% endwith %}{% endif %}>
+                                    {% trans "فقط مشاهده" %}
+                                </option>
+                                <option value="write" {% if member.id in access_map %}{% with access=access_map|get_item:member.id %}{% if access.access_level == 'write' %}selected{% endif %}{% endwith %}{% endif %}>
+                                    {% trans "ویرایش و تغییر" %}
+                                </option>
+                            </select>
+                            {% if member.id in access_map %}
+                                <button type="submit" name="action" value="update" class="btn btn-sm btn-primary">
+                                    {% trans "به‌روزرسانی" %}
+                                </button>
+                                <button type="submit" name="action" value="revoke" class="btn btn-sm btn-danger" onclick="return confirm('{% trans "آیا از لغو دسترسی این کاربر اطمینان دارید؟" %}');">
+                                    {% trans "لغو" %}
+                                </button>
+                            {% else %}
+                                <button type="submit" name="action" value="grant" class="btn btn-sm btn-success">
+                                    {% trans "اعطا" %}
+                                </button>
+                            {% endif %}
+                        </form>
+                    </td>
+                    <td>
+                        {% if member.id in access_map %}
+                            {% with access=access_map|get_item:member.id %}
+                            {{ access.granted_by.get_full_name|default:"-" }}
+                            <br>
+                            <small style="color: #6b7280;">{{ access.granted_at|date:"Y/m/d" }}</small>
+                            {% endwith %}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if member.id in access_map %}
+                            <form method="post" style="display: inline;">
+                                {% csrf_token %}
+                                <input type="hidden" name="user_id" value="{{ member.id }}">
+                                <button type="submit" name="action" value="revoke" class="btn btn-sm btn-outline-danger" onclick="return confirm('{% trans "آیا از لغو دسترسی این کاربر اطمینان دارید؟" %}');">
+                                    <i class="fas fa-times"></i> {% trans "لغو دسترسی" %}
+                                </button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="text-align: center; color: #6b7280; padding: 2rem;">
+            {% trans "هیچ عضو غیر سرپرست در این بخش وجود ندارد." %}
+        </p>
+        {% endif %}
+    </div>
+
+    <div style="margin-top: 1.5rem;">
+        <a href="{% url 'dwms:dashboard' department.id %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-right"></i> {% trans "بازگشت به داشبورد" %}
+        </a>
+    </div>
+</div>
+{% endblock %}

@@ -64,6 +64,119 @@ class DepartmentWarehouse(models.Model):
             supervisors.extend(self.department.supervisors.all())
         return list(set(supervisors))  # Remove duplicates
 
+    def is_supervisor(self, user):
+        """
+        Check if user is a supervisor of this warehouse's department.
+        This is the OWNER-FIRST check - supervisors have full access regardless of delegation table.
+        """
+        if not user or not user.is_authenticated:
+            return False
+        
+        # Priority 1: Check ForeignKey supervisor
+        if hasattr(self.department, 'supervisor') and self.department.supervisor == user:
+            return True
+        
+        # Priority 2: Check M2M supervisors
+        if hasattr(self.department, 'supervisors'):
+            try:
+                if user in self.department.supervisors.all():
+                    return True
+            except Exception:
+                pass
+        
+        # Priority 3: Check if user's own department matches (for department heads)
+        if hasattr(user, 'department') and user.department == self.department:
+            # Additional check: user must be a supervisor role
+            if hasattr(user, 'department_role') and user.department_role in ['senior', 'manager']:
+                return True
+        
+        return False
+
+    def get_user_access_level(self, user):
+        """
+        Get user's access level for this warehouse.
+        Returns: 'supervisor', 'write', 'read', or None
+        
+        NOTE: This method should use the utility function get_warehouse_access_level
+        to avoid recursion. This method is kept for backward compatibility but
+        delegates to the non-recursive utility function.
+        """
+        from .utils import get_warehouse_access_level
+        return get_warehouse_access_level(self, user)
+
+
+class WarehouseAccess(models.Model):
+    """
+    Permission bridge model for delegating warehouse access to subordinates.
+    Links users to warehouses with specific access levels (READ or WRITE).
+    """
+    ACCESS_LEVEL_CHOICES = [
+        ('read', _('فقط مشاهده')),
+        ('write', _('ویرایش و تغییر')),
+    ]
+    
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='warehouse_accesses',
+        verbose_name=_('کاربر')
+    )
+    warehouse = models.ForeignKey(
+        DepartmentWarehouse,
+        on_delete=models.CASCADE,
+        related_name='access_list',
+        verbose_name=_('انبار')
+    )
+    access_level = models.CharField(
+        max_length=10,
+        choices=ACCESS_LEVEL_CHOICES,
+        default='read',
+        verbose_name=_('سطح دسترسی')
+    )
+    granted_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='granted_warehouse_accesses',
+        verbose_name=_('اعطا شده توسط')
+    )
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name=_('فعال')
+    )
+    granted_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name=_('تاریخ اعطا')
+    )
+    revoked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name=_('تاریخ لغو')
+    )
+    notes = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name=_('یادداشت'),
+        help_text=_('یادداشت اختیاری در مورد این دسترسی')
+    )
+
+    class Meta:
+        verbose_name = _('دسترسی انبار')
+        verbose_name_plural = _('دسترسی‌های انبار')
+        unique_together = [['user', 'warehouse']]
+        indexes = [
+            models.Index(fields=['warehouse', 'is_active']),
+            models.Index(fields=['user', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.get_full_name()} - {self.warehouse.name} ({self.get_access_level_display()})"
+
+    def revoke(self, revoked_by=None):
+        """Revoke this access"""
+        self.is_active = False
+        self.revoked_at = timezone.now()
+        self.save(update_fields=['is_active', 'revoked_at'])
+
 
 class StorageLocation(models.Model):
     """Physical or logical storage locations within a warehouse"""

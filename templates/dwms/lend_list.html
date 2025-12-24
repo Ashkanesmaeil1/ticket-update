@@ -233,7 +233,7 @@
                 </div>
                 <div>
                     <i class="fas fa-calculator"></i> <strong>{% trans "مقدار:" %}</strong>
-                    {{ lend.quantity }} {% if lend.item %}{{ lend.item.unit|default:"" }}{% endif %}
+                    {{ lend.quantity|floatformat:0 }} {% if lend.item %}{{ lend.item.unit|default:"" }}{% endif %}
                 </div>
                 <div>
                     <i class="fas fa-calendar-alt"></i> <strong>{% trans "تاریخ امانت:" %}</strong>

@@ -582,14 +582,6 @@
                             </a>
                         </li>
                         {% endif %}
-                        {% comment %}DWMS Warehouse link for supervisors{% endcomment %}
-                        {% if has_warehouse_access %}
-                            <li class="nav-item">
-                                <a class="nav-link {% if '/dwms/' in request.path %}active{% endif %}" href="{% url 'dwms:warehouse_selection' %}">
-                                    <i class="fas fa-warehouse me-2"></i>{% trans "انبار بخش" %}
-                                </a>
-                            </li>
-                        {% endif %}
                     {% else %}
                         <li class="nav-item">
                             <a class="nav-link {% if request.path == '/tickets/' %}active{% endif %}" href="{% url 'tickets:ticket_list' %}">
@@ -603,6 +595,14 @@
                             </a>
                         </li>
                         {% endif %}
+                    {% endif %}
+                    {% comment %}DWMS Warehouse link for all users with warehouse access (supervisors, write delegates, read delegates){% endcomment %}
+                    {% if has_warehouse_access %}
+                        <li class="nav-item">
+                            <a class="nav-link {% if '/dwms/' in request.path %}active{% endif %}" href="{% url 'dwms:warehouse_selection' %}">
+                                <i class="fas fa-warehouse me-2"></i>{% trans "انبار بخش" %}
+                            </a>
+                        </li>
                     {% endif %}
                     {% if user.role == 'employee' %}
                     <li class="nav-item">

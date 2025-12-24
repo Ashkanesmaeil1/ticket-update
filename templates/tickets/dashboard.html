@@ -1236,37 +1236,6 @@
             </div>
                 {% endif %}
         {% else %}
-            <!-- Warehouse Section for Supervisor (only if warehouse is enabled) -->
-            {% if has_warehouse_access %}
-            <div class="section-card">
-                <div class="section-header">
-                    <div class="section-title">
-                        <i class="fas fa-warehouse"></i>
-                        {% trans "انبار" %}
-                    </div>
-                    <a href="{% url 'tickets:warehouse_management' %}" class="section-action">
-                        <i class="fas fa-eye"></i>
-                        {% trans "مدیریت انبار" %}
-                    </a>
-                </div>
-                <div class="section-body">
-                    <div class="info-text">
-                        <i class="fas fa-info-circle"></i>
-                        {% if warehouse_departments|length > 1 %}
-                            {% trans "شما به انبار بخش‌های زیر دسترسی دارید:" %}
-                            <ul style="margin-top: 0.5rem; padding-right: 1.5rem;">
-                                {% for dept in warehouse_departments %}
-                                <li>{{ dept.name }}</li>
-                                {% endfor %}
-                            </ul>
-                        {% else %}
-                            {% trans "شما به انبار بخش" %} "{{ warehouse_departments.0.name }}" {% trans "دسترسی دارید." %}
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-
             <!-- Received Tickets Section for Ticket Responder (regular employee) -->
             {% if is_ticket_responder and can_receive_tickets %}
             <div class="section-card">

@@ -4006,41 +4006,61 @@ def department_toggle_warehouse(request, department_id):
 
 @login_required
 def warehouse_management(request):
-    """Warehouse management view - only accessible to supervisors of departments with warehouse enabled"""
+    """
+    Warehouse management view - accessible to supervisors and delegated users.
+    Redirects to the new DWMS system (warehouse_selection) which supports all access levels.
+    """
     user = request.user
     
-    # Check if user is a supervisor
-    if user.role != 'employee' or user.department_role not in ['senior', 'manager']:
+    # Only employees can access warehouses
+    if user.role != 'employee':
         messages.error(request, _('شما اجازه دسترسی به این بخش را ندارید.'))
         return redirect('tickets:dashboard')
     
-    # Get supervised departments with warehouse enabled
-    supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
-    warehouse_departments = [d for d in supervised_depts if d.has_warehouse] if supervised_depts else []
+    # Check if user has any warehouse access (supervisor OR delegate)
+    has_access = False
+    warehouse_departments = []
     
-    # Also check if user's own department has warehouse (for single department supervisors)
-    if user.department and user.department.has_warehouse and user.department not in warehouse_departments:
-        warehouse_departments.append(user.department)
+    # Check supervisor access
+    is_supervisor = user.department_role in ['senior', 'manager']
+    if is_supervisor:
+        supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
+        warehouse_departments = [d for d in supervised_depts if d.has_warehouse] if supervised_depts else []
+        
+        # Also check if user's own department has warehouse
+        if user.department and user.department.has_warehouse and user.department not in warehouse_departments:
+            warehouse_departments.append(user.department)
+        
+        if warehouse_departments:
+            has_access = True
     
-    if not warehouse_departments:
+    # Check for delegated access (read or write) via WarehouseAccess table
+    # This allows non-supervisor employees with delegated access
+    try:
+        from dwms.models import WarehouseAccess
+        delegated_accesses = WarehouseAccess.objects.filter(
+            user=user,
+            is_active=True
+        ).select_related('warehouse', 'warehouse__department')
+        
+        if delegated_accesses.exists():
+            has_access = True
+            # Add delegated warehouses to list
+            for access in delegated_accesses:
+                dept = access.warehouse.department
+                if dept.has_warehouse and dept not in warehouse_departments:
+                    warehouse_departments.append(dept)
+    except Exception:
+        # If WarehouseAccess model doesn't exist, continue with supervisor check only
+        pass
+    
+    if not has_access:
         messages.error(request, _('شما به هیچ انباری دسترسی ندارید. لطفاً با مدیر سیستم تماس بگیرید.'))
         return redirect('tickets:dashboard')
     
-    # If multiple departments, show selection. If single, show inventory directly
-    if len(warehouse_departments) == 1:
-        # Single department - redirect to its warehouse inventory
-        department = warehouse_departments[0]
-        warehouse = get_department_warehouse(department)
-        if warehouse:
-            return redirect('tickets:department_warehouse_inventory', department_id=department.id)
-    
-    # Multiple departments - show selection page
-    context = {
-        'warehouse_departments': warehouse_departments,
-        'user': user,
-    }
-    
-    return render(request, 'tickets/warehouse_management.html', context)
+    # Redirect to new DWMS system which supports all access levels (supervisor, write, read)
+    # The DWMS system has proper permission handling and supports delegated users
+    return redirect('dwms:warehouse_selection')
 
 @login_required
 def department_delete(request, department_id):

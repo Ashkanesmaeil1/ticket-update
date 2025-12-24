@@ -138,7 +138,7 @@
                 </div>
                 <div>
                     <strong>{% trans "مقدار:" %}</strong><br>
-                    {{ lend_record.quantity }} {{ lend_record.item.unit }}
+                    {{ lend_record.quantity|floatformat:0 }} {{ lend_record.item.unit }}
                 </div>
                 <div>
                     <strong>{% trans "تاریخ امانت:" %}</strong><br>

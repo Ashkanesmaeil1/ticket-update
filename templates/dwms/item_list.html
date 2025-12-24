@@ -202,7 +202,7 @@
                 </span>
             </div>
             <div class="item-meta">
-                <span><i class="fas fa-cube"></i> {{ item_data.total_stock }} {{ item_data.item.unit }}</span>
+                <span><i class="fas fa-cube"></i> {{ item_data.total_stock|floatformat:0 }} {{ item_data.item.unit }}</span>
                 {% if item_data.item.category %}
                 <span><i class="fas fa-tag"></i> {{ item_data.item.category.name }}</span>
                 {% endif %}
@@ -214,9 +214,11 @@
                 <a href="{% url 'dwms:item_detail' department.id item_data.item.id %}" class="btn-action btn-view">
                     <i class="fas fa-eye"></i> {% trans "مشاهده" %}
                 </a>
+                {% if can_write %}
                 <a href="{% url 'dwms:movement_create_item' department.id item_data.item.id %}" class="btn-action btn-edit">
                     <i class="fas fa-edit"></i> {% trans "حرکت" %}
                 </a>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -249,16 +251,20 @@
         <div class="text-center py-5">
             <i class="fas fa-inbox" style="font-size: 4rem; opacity: 0.3;"></i>
             <p class="mt-3">{% trans "هیچ کالایی یافت نشد" %}</p>
+            {% if can_write %}
             <a href="{% url 'dwms:item_create' department.id %}" class="btn btn-primary">
                 <i class="fas fa-plus"></i> {% trans "افزودن کالا" %}
             </a>
+            {% endif %}
         </div>
     {% endif %}
 
     <!-- Floating Action Button -->
+    {% if can_write %}
     <a href="{% url 'dwms:item_create' department.id %}" class="fab">
         <i class="fas fa-plus"></i>
     </a>
+    {% endif %}
 </div>
 {% endblock %}
 

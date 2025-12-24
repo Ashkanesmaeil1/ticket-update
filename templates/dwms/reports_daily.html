@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load i18n %}
 {% load persian_date %}
+{% load dwms_filters %}
 
 {% block title %}{% trans "گزارش روزانه" %} - {{ warehouse.name }}{% endblock %}
 
@@ -33,6 +34,48 @@
         padding: 1.5rem;
         margin-bottom: 1.5rem;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Align date input and button on a single line (desktop) */
+    .date-selector form {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .date-selector .date-input-wrapper {
+        flex: 1;
+        min-width: 220px;
+    }
+
+    .date-selector .date-input {
+        direction: rtl;
+        text-align: right;
+        padding-right: 0.75rem;
+        padding-left: 0.75rem;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .date-selector .date-submit {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        height: 38px; /* match typical .form-control height */
+        margin-bottom: 0;
+        white-space: nowrap;
+    }
+
+    @media (max-width: 768px) {
+        .date-selector form {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .date-selector .date-submit {
+            width: 100%;
+        }
     }
 
     .summary-cards {
@@ -123,17 +166,25 @@
 <div class="dwms-container">
     <div class="report-header">
         <h1><i class="fas fa-chart-line"></i> {% trans "گزارش روزانه" %}</h1>
-        <p>{{ warehouse.name }} - {{ date }}</p>
+        <p>{{ warehouse.name }} - <span style="direction: ltr; unicode-bidi: embed; display: inline-block; font-family: 'Vazirmatn', 'IRANSans', monospace;">{{ date|persian_digits }}</span></p>
     </div>
 
     <div class="date-selector">
-        <form method="get" style="display: flex; gap: 1rem; align-items: end; flex-wrap: wrap;">
-            <div style="flex: 1; min-width: 200px;">
-                <label>{% trans "تاریخ (شمسی)" %}</label>
-                <input type="text" name="date" value="{{ date }}" class="form-control" 
-                       placeholder="{% trans 'مثال: 1403-09-15' %}" required>
+        <form method="get">
+            <div class="date-input-wrapper">
+                <label>{% trans "فیلتر تاریخ" %}</label>
+                <input type="text"
+                       name="date"
+                       value="{{ date }}"
+                       class="form-control date-input"
+                       placeholder="{% trans 'مثال: 1403-09-15' %}"
+                       required
+                       lang="fa">
+                <small style="display: block; margin-top: 0.25rem; color: #6b7280;">
+                    {% trans "فیلتر اطلاعات بر اساس تاریخ" %}
+                </small>
             </div>
-            <button type="submit" class="btn btn-primary">
+            <button type="submit" class="btn btn-primary date-submit">
                 <i class="fas fa-search"></i> {% trans "نمایش گزارش" %}
             </button>
         </form>
@@ -142,40 +193,28 @@
     <div class="summary-cards">
         <div class="summary-card">
             <h3>{% trans "کل ورود" %}</h3>
-            <div class="value" style="color: #10b981;">
-                {% for summary in item_summary %}
-                    {% if summary.movement_type == 'IN' %}
-                        {{ summary.total|floatformat:0 }}
-                    {% endif %}
-                {% empty %}
-                    0
-                {% endfor %}
+            <div class="value" style="color: #10b981; font-family: 'Vazirmatn', 'IRANSans', monospace;">
+                {{ total_in|floatformat:0|default:"0"|persian_digits }}
             </div>
         </div>
         <div class="summary-card">
             <h3>{% trans "کل خروج" %}</h3>
-            <div class="value" style="color: #ef4444;">
-                {% for summary in item_summary %}
-                    {% if summary.movement_type == 'OUT' %}
-                        {{ summary.total|floatformat:0 }}
-                    {% endif %}
-                {% empty %}
-                    0
-                {% endfor %}
+            <div class="value" style="color: #ef4444; font-family: 'Vazirmatn', 'IRANSans', monospace;">
+                {{ total_out|floatformat:0|default:"0"|persian_digits }}
             </div>
         </div>
         <div class="summary-card">
-            <h3>{% trans "کالاهای کم‌موجود" %}</h3>
-            <div class="value" style="color: #f59e0b;">
-                {{ low_stock_items|length }}
+            <h3>{% trans "کالا با موجودی کم" %}</h3>
+            <div class="value" style="color: #f59e0b; font-family: 'Vazirmatn', 'IRANSans', monospace;">
+                {{ low_stock_items|length|persian_digits }}
             </div>
         </div>
         <div class="summary-card">
             <h3>{% trans "امانت‌های جدید" %}</h3>
-            <div class="value" style="color: #667eea;">
-                {{ new_lends|length }}
+            <div class="value" style="color: #667eea; font-family: 'Vazirmatn', 'IRANSans', monospace;">
+                {{ new_lends|length|persian_digits }}
             </div>
-        </div>
+            </div>
     </div>
 
     <div class="report-section">
@@ -187,11 +226,11 @@
                 <div>
                     <strong>{{ summary.item__name }}</strong>
                     <span class="badge badge-{{ summary.movement_type|lower }}">
-                        {{ summary.get_movement_type_display|default:summary.movement_type }}
+                        {{ summary.movement_type|movement_type_persian }}
                     </span>
                 </div>
                 <div>
-                    <strong>{{ summary.total|floatformat:0 }}</strong>
+                    <strong style="font-family: 'Vazirmatn', 'IRANSans', monospace;">{{ summary.total|floatformat:0|persian_digits }}</strong>
                 </div>
             </div>
             {% endfor %}
@@ -205,7 +244,7 @@
 
     {% if low_stock_items %}
     <div class="report-section">
-        <h2><i class="fas fa-exclamation-triangle"></i> {% trans "کالاهای کم‌موجود" %}</h2>
+        <h2><i class="fas fa-exclamation-triangle"></i> {% trans "کالا با موجودی کم" %}</h2>
         <div>
             {% for item in low_stock_items %}
             <div class="item-row">
@@ -214,8 +253,8 @@
                     <span class="badge badge-low">{% trans "کمبود موجودی" %}</span>
                 </div>
                 <div>
-                    موجودی فعلی: <strong>{{ item.get_total_stock|floatformat:0 }}</strong> / 
-                    حد آستانه: <strong>{{ item.min_stock_threshold|floatformat:0 }}</strong>
+                    موجودی فعلی: <strong style="font-family: 'Vazirmatn', 'IRANSans', monospace;">{{ item.get_total_stock|floatformat:0|persian_digits }}</strong> / 
+                    حد آستانه: <strong style="font-family: 'Vazirmatn', 'IRANSans', monospace;">{{ item.min_stock_threshold|floatformat:0|persian_digits }}</strong>
                 </div>
             </div>
             {% endfor %}
@@ -237,7 +276,7 @@
                     </small>
                 </div>
                 <div>
-                    <strong>{{ lend.quantity|floatformat:0 }}</strong> {{ lend.item.unit }}
+                    <strong style="font-family: 'Vazirmatn', 'IRANSans', monospace;">{{ lend.quantity|floatformat:0|persian_digits }}</strong> {{ lend.item.unit }}
                 </div>
             </div>
             {% endfor %}
@@ -245,10 +284,21 @@
     </div>
     {% endif %}
 
-    <div style="margin-top: 1.5rem; text-align: center;">
-        <a href="{% url 'dwms:dashboard' department.id %}" class="btn btn-secondary">
-            <i class="fas fa-arrow-right"></i> {% trans "بازگشت به داشبورد" %}
-        </a>
+    <div style="margin-top: 1.5rem;">
+        <div class="row g-3">
+            <div class="col-12 col-md-6">
+                <a href="{% url 'tickets:dashboard' %}" class="btn btn-secondary w-100" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                    <i class="fas fa-home"></i>
+                    <span>{% trans "بازگشت به داشبورد" %}</span>
+                </a>
+            </div>
+            <div class="col-12 col-md-6">
+                <a href="{% url 'dwms:dashboard' department.id %}" class="btn btn-primary w-100" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                    <i class="fas fa-warehouse"></i>
+                    <span>{% trans "بازگشت به انبار" %}</span>
+                </a>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

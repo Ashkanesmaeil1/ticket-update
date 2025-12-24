@@ -9,3 +9,4 @@ class TicketsConfig(AppConfig):
         """Import signals when the app is ready"""
         import tickets.signals  # noqa
 
+

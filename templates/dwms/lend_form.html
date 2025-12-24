@@ -140,7 +140,7 @@
             <strong>{% trans "کالا:" %}</strong> {{ item.name }}<br>
             <strong>{% trans "موجودی فعلی:" %}</strong> 
             {% if item.get_total_stock %}
-                {{ item.get_total_stock }} {{ item.unit }}
+                {{ item.get_total_stock|floatformat:0 }} {{ item.unit }}
             {% else %}
                 0 {{ item.unit }}
             {% endif %}

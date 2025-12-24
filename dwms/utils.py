@@ -22,10 +22,13 @@ def get_authorized_warehouse_for_user(department_id, user):
             logger.warning(f'get_authorized_warehouse_for_user: User not authenticated or None')
             return None
 
-        # Must be a supervisor
-        if user.role != 'employee' or user.department_role not in ['senior', 'manager']:
-            logger.warning(f'get_authorized_warehouse_for_user: User {user.id} is not a supervisor (role={user.role}, dept_role={user.department_role})')
+        # Only employees can access warehouses (supervisors OR delegated users)
+        if user.role != 'employee':
+            logger.warning(f'get_authorized_warehouse_for_user: User {user.id} is not an employee (role={user.role})')
             return None
+        
+        # Check if user is a supervisor (will check delegated access later if not)
+        is_supervisor_role = user.department_role in ['senior', 'manager']
 
         # Validate department_id
         try:
@@ -76,37 +79,238 @@ def get_authorized_warehouse_for_user(department_id, user):
             # User is supervisor via ForeignKey, allow
             is_authorized = True
             logger.info(f'get_authorized_warehouse_for_user: User authorized via ForeignKey supervision')
-        else:
-            # User is not a supervisor of this department
-            logger.warning(f'get_authorized_warehouse_for_user: User {user.id} is NOT authorized for department {department_id}')
-            return None
-
-        # Get or create warehouse
-        from .models import DepartmentWarehouse
+        
+        # Get or create warehouse first
+        from .models import DepartmentWarehouse, WarehouseAccess
         try:
             warehouse, created = DepartmentWarehouse.objects.get_or_create(
                 department=department,
                 defaults={
                     'name': f"{department.name} انبار",
-                    'created_by': user,
+                    'created_by': user if is_authorized else None,
                 }
             )
             if created:
                 logger.info(f'get_authorized_warehouse_for_user: Created new warehouse {warehouse.id} for department {department_id}')
             else:
                 logger.info(f'get_authorized_warehouse_for_user: Retrieved existing warehouse {warehouse.id} for department {department_id}')
-            return warehouse
         except Exception as warehouse_error:
-            # Log error but don't crash - return None so view can handle it
             logger.error(f"Error creating/getting warehouse for department {department_id}: {str(warehouse_error)}", exc_info=True)
-            import traceback
-            logger.error(f'Full traceback:\n{traceback.format_exc()}')
             return None
+        
+        # If user is supervisor, return warehouse
+        if is_authorized:
+            logger.info(f'get_authorized_warehouse_for_user: User {user.id} is supervisor - returning warehouse {warehouse.id}')
+            return warehouse
+        
+        # Check for delegated access (even if user is not a supervisor)
+        # This allows regular employees with delegated access to view reports
+        try:
+            access = WarehouseAccess.objects.filter(
+                warehouse=warehouse,
+                user=user,
+                is_active=True
+            ).first()
+            
+            if access:
+                logger.info(f'get_authorized_warehouse_for_user: User {user.id} has delegated {access.access_level} access to warehouse {warehouse.id}')
+                return warehouse
+            else:
+                # User is not supervisor and has no delegated access
+                if is_supervisor_role:
+                    logger.warning(f'get_authorized_warehouse_for_user: Supervisor user {user.id} has NO access to warehouse {warehouse.id} (not supervising this department)')
+                else:
+                    logger.warning(f'get_authorized_warehouse_for_user: Regular employee {user.id} has NO delegated access to warehouse {warehouse.id}')
+                return None
+        except Exception as access_error:
+            logger.error(f'get_authorized_warehouse_for_user: Error checking delegated access: {str(access_error)}', exc_info=True)
+            return None
+
     except Exception as e:
         # Catch any unexpected errors in the function itself
         logger.error(f'get_authorized_warehouse_for_user: Unexpected error: {str(e)}', exc_info=True)
         import traceback
         logger.error(f'Full traceback:\n{traceback.format_exc()}')
+        return None
+
+
+def verify_warehouse_access(user, department_id):
+    """
+    Diagnostic function to verify warehouse access records and permissions.
+    Returns a dictionary with diagnostic information for debugging.
+    
+    Usage:
+        diagnostic = verify_warehouse_access(request.user, department_id)
+        logger.info(f'Access diagnostic: {diagnostic}')
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    result = {
+        'user_id': user.id if user and user.is_authenticated else None,
+        'department_id': department_id,
+        'department_exists': False,
+        'warehouse_exists': False,
+        'has_access_record': False,
+        'access_level': None,
+        'is_supervisor': False,
+        'is_authorized': False,
+        'errors': []
+    }
+    
+    try:
+        if not user or not user.is_authenticated:
+            result['errors'].append('User not authenticated')
+            return result
+        
+        # Validate department_id
+        try:
+            department_id = int(department_id)
+        except (ValueError, TypeError):
+            result['errors'].append(f'Invalid department_id: {department_id}')
+            return result
+        
+        # Check if department exists
+        try:
+            department = Department.objects.get(id=department_id, has_warehouse=True)
+            result['department_exists'] = True
+            result['department_name'] = department.name
+        except Department.DoesNotExist:
+            result['errors'].append(f'Department {department_id} does not exist or has_warehouse=False')
+            return result
+        except Exception as e:
+            result['errors'].append(f'Error fetching department: {str(e)}')
+            return result
+        
+        # Check if warehouse exists
+        from .models import DepartmentWarehouse, WarehouseAccess
+        try:
+            warehouse = DepartmentWarehouse.objects.get(department=department)
+            result['warehouse_exists'] = True
+            result['warehouse_id'] = warehouse.id
+            result['warehouse_name'] = warehouse.name
+        except DepartmentWarehouse.DoesNotExist:
+            result['errors'].append(f'Warehouse does not exist for department {department_id}')
+            return result
+        except Exception as e:
+            result['errors'].append(f'Error fetching warehouse: {str(e)}')
+            return result
+        
+        # Check if user is supervisor
+        is_supervisor_result = _is_supervisor_direct(warehouse, user)
+        result['is_supervisor'] = is_supervisor_result
+        
+        # Check for delegated access
+        try:
+            access = WarehouseAccess.objects.filter(
+                warehouse=warehouse,
+                user=user,
+                is_active=True
+            ).first()
+            
+            if access:
+                result['has_access_record'] = True
+                result['access_level'] = access.access_level
+                result['access_granted_by'] = access.granted_by.id if access.granted_by else None
+                result['access_granted_at'] = str(access.granted_at) if hasattr(access, 'granted_at') else None
+            else:
+                result['has_access_record'] = False
+        except Exception as e:
+            result['errors'].append(f'Error checking WarehouseAccess: {str(e)}')
+        
+        # Determine if user is authorized
+        result['is_authorized'] = is_supervisor_result or result['has_access_record']
+        
+        logger.info(f'verify_warehouse_access diagnostic: {result}')
+        return result
+        
+    except Exception as e:
+        result['errors'].append(f'Unexpected error in verify_warehouse_access: {str(e)}')
+        logger.error(f'verify_warehouse_access error: {str(e)}', exc_info=True)
+        return result
+
+
+def _is_supervisor_direct(warehouse, user):
+    """
+    NON-RECURSIVE supervisor check using direct database queries.
+    This function avoids calling model methods that might cause recursion.
+    Returns True if user is supervisor, False otherwise.
+    """
+    if not user or not user.is_authenticated:
+        return False
+    
+    department = warehouse.department
+    
+    # Priority 1: Check ForeignKey supervisor (direct database query)
+    try:
+        if hasattr(department, 'supervisor_id') and department.supervisor_id == user.id:
+            return True
+    except (AttributeError, Exception):
+        pass
+    
+    # Priority 2: Check M2M supervisors (direct database query)
+    try:
+        if hasattr(department, 'supervisors'):
+            # Use direct query to avoid recursion
+            from tickets.models import Department
+            dept = Department.objects.filter(id=department.id).prefetch_related('supervisors').first()
+            if dept and user.id in dept.supervisors.values_list('id', flat=True):
+                return True
+    except (AttributeError, Exception):
+        pass
+    
+    # Priority 3: Check if user's own department matches (for department heads)
+    try:
+        if hasattr(user, 'department_id') and user.department_id == department.id:
+            # Additional check: user must be a supervisor role
+            if hasattr(user, 'department_role') and user.department_role in ['senior', 'manager']:
+                return True
+    except (AttributeError, Exception):
+        pass
+    
+    return False
+
+
+def get_warehouse_access_level(warehouse, user):
+    """
+    Get user's access level for a warehouse.
+    CRITICAL: This function MUST prioritize supervisor ownership over delegation.
+    CRITICAL: Uses non-recursive direct database queries to prevent infinite loops.
+    Returns: 'supervisor', 'write', 'read', or None
+    
+    Logic Hierarchy:
+    1. IF user is supervisor (owner) → 'supervisor' (FULL ACCESS)
+    2. ELSE IF user has delegated 'write' access → 'write'
+    3. ELSE IF user has delegated 'read' access → 'read'
+    4. ELSE → None (no access)
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    if not user or not user.is_authenticated:
+        logger.debug(f'get_warehouse_access_level: User not authenticated or None')
+        return None
+    
+    # PRIORITY 1: Check if supervisor (OWNER-FIRST CHECK)
+    # Use non-recursive direct check to prevent infinite loops
+    is_supervisor_result = _is_supervisor_direct(warehouse, user)
+    logger.debug(f'get_warehouse_access_level: User {user.id} is_supervisor check: {is_supervisor_result}')
+    
+    if is_supervisor_result:
+        logger.info(f'get_warehouse_access_level: User {user.id} is supervisor of warehouse {warehouse.id} - returning "supervisor"')
+        return 'supervisor'
+    
+    # PRIORITY 2: Check delegated access (only if NOT supervisor)
+    from .models import WarehouseAccess
+    try:
+        access = WarehouseAccess.objects.get(warehouse=warehouse, user=user, is_active=True)
+        logger.info(f'get_warehouse_access_level: User {user.id} has delegated {access.access_level} access to warehouse {warehouse.id}')
+        return access.access_level
+    except WarehouseAccess.DoesNotExist:
+        logger.debug(f'get_warehouse_access_level: User {user.id} has no delegated access to warehouse {warehouse.id}')
+        return None
+    except Exception as e:
+        logger.error(f'get_warehouse_access_level: Error checking WarehouseAccess for user {user.id}, warehouse {warehouse.id}: {str(e)}', exc_info=True)
         return None
 
 
@@ -122,6 +326,63 @@ def require_warehouse_access(view_func):
             from django.shortcuts import redirect
             return redirect('tickets:dashboard')
         return view_func(request, department_id, warehouse, *args, **kwargs)
+    return wrapper
+
+
+def get_warehouse_permissions(warehouse, user):
+    """
+    Get comprehensive permission flags for a user's warehouse access.
+    Returns a dictionary with permission flags for template rendering.
+    
+    Returns:
+        dict: {
+            'access_level': 'supervisor' | 'write' | 'read' | None,
+            'can_write': bool,      # True for supervisor or write
+            'can_read': bool,        # True for any access level
+            'is_supervisor': bool,   # True only for supervisor
+            'is_read_only': bool,   # True only for read access
+        }
+    """
+    access_level = get_warehouse_access_level(warehouse, user)
+    
+    return {
+        'access_level': access_level,
+        'can_write': access_level in ['supervisor', 'write'],
+        'can_read': access_level is not None,
+        'is_supervisor': access_level == 'supervisor',
+        'is_read_only': access_level == 'read',
+    }
+
+
+def require_warehouse_write_access(view_func):
+    """
+    Decorator to ensure user has WRITE access to warehouse.
+    Blocks READ-only users from write operations.
+    
+    This decorator validates write access before allowing the view to execute.
+    It does NOT pass warehouse to the view - views should get it themselves.
+    
+    Usage:
+        @require_warehouse_write_access
+        def movement_create(request, department_id, ...):
+            warehouse = get_authorized_warehouse_for_user(department_id, request.user)
+            ...
+    """
+    def wrapper(request, department_id, *args, **kwargs):
+        warehouse = get_authorized_warehouse_for_user(department_id, request.user)
+        if not warehouse:
+            messages.error(request, _('شما اجازه دسترسی به این انبار را ندارید.'))
+            from django.shortcuts import redirect
+            return redirect('tickets:dashboard')
+        
+        access_level = get_warehouse_access_level(warehouse, request.user)
+        if access_level not in ['supervisor', 'write']:
+            messages.error(request, _('شما فقط اجازه مشاهده این انبار را دارید. برای انجام این عملیات به دسترسی ویرایش نیاز دارید.'))
+            from django.shortcuts import redirect
+            return redirect('dwms:dashboard', department_id=department_id)
+        
+        # View function gets warehouse itself, decorator just validates access
+        return view_func(request, department_id, *args, **kwargs)
     return wrapper
 
 
