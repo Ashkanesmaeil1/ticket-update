@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load i18n %}
 {% load persian_date %}
+{% load persian_numbers %}
 {% load dwms_filters %}
 
 {% block title %}{% trans "تاریخچه حرکات" %} - {{ warehouse.name }}{% endblock %}
@@ -151,7 +152,7 @@
                             {{ movement.movement_type|movement_type_persian }}
                         </span>
                     </td>
-                    <td>{{ movement.quantity|floatformat:0 }} {{ movement.item.unit }}</td>
+                    <td>{{ movement.quantity|floatformat:0|persian_digits }} {{ movement.item.unit }}</td>
                     <td>{{ movement.location.name }}</td>
                     <td>{{ movement.performed_by.get_full_name|default:"-" }}</td>
                     <td>{{ movement.get_reason_display }}</td>

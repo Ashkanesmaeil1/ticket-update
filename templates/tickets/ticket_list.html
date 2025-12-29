@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load i18n %}
 {% load persian_date %}
+{% load persian_numbers %}
 
 {% block title %}{% trans "تیکت‌ها" %} - {% trans "سیستم تیکت" %}{% endblock %}
 
@@ -908,7 +909,7 @@
             <div class="ticket-card">
                 <div class="ticket-header-card">
                     <div class="ticket-id {% if search_query == ticket.id|stringformat:'s' %}highlighted{% endif %}">
-                        #{{ ticket.id }}
+                        #{{ ticket.id|persian_id }}
                     </div>
                     <div class="ticket-meta">
                         <span class="status-badge {{ ticket.status }}">

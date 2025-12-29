@@ -9,6 +9,10 @@ def warehouse_access(request):
     - Supervisor access (owns warehouse)
     - Write access (delegated)
     - Read access (delegated)
+    - Staff/Superuser access (administrative override)
+    
+    NOTE: IT Managers are EXCLUDED from Department Warehouse access.
+    IT Managers use the separate hierarchical IT Inventory system (مدیریت موجودی).
     """
     # Safely check if user exists and is authenticated
     if not hasattr(request, 'user') or not request.user.is_authenticated:
@@ -16,7 +20,28 @@ def warehouse_access(request):
     
     user = request.user
     
-    # Only employees can access warehouses
+    # EXCLUDE IT MANAGERS: They use the hierarchical IT Inventory system, not Department Warehouse
+    if user.role == 'it_manager':
+        return {'has_warehouse_access': False}
+    
+    # Staff and Superusers have global warehouse access
+    if hasattr(user, 'is_staff') and user.is_staff:
+        try:
+            from dwms.models import DepartmentWarehouse
+            if DepartmentWarehouse.objects.filter(is_active=True).exists():
+                return {'has_warehouse_access': True}
+        except Exception:
+            pass
+    
+    if hasattr(user, 'is_superuser') and user.is_superuser:
+        try:
+            from dwms.models import DepartmentWarehouse
+            if DepartmentWarehouse.objects.filter(is_active=True).exists():
+                return {'has_warehouse_access': True}
+        except Exception:
+            pass
+    
+    # Only employees can access warehouses (IT Managers excluded above)
     if user.role != 'employee':
         return {'has_warehouse_access': False}
     

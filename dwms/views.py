@@ -37,12 +37,33 @@ def warehouse_selection(request):
     """Entry point - show list of warehouses user can access"""
     user = request.user
     
-    # Employees can access warehouses (supervisors OR delegated users)
-    if user.role != 'employee':
-        messages.error(request, _('شما اجازه دسترسی به این بخش را ندارید.'))
+    # EXCLUDE IT MANAGERS: They use the hierarchical IT Inventory system, not Department Warehouse
+    if user.role == 'it_manager':
+        messages.info(request, _('IT Managers use the Inventory Management system (مدیریت موجودی) for hierarchical asset management.'))
         return redirect('tickets:dashboard')
     
+    # ADMINISTRATIVE OVERRIDE: Staff and Superusers can access warehouses
+    # Employees can access warehouses (supervisors OR delegated users)
+    if user.role != 'employee':
+        # Check for staff/superuser override
+        if not (hasattr(user, 'is_staff') and user.is_staff) and not (hasattr(user, 'is_superuser') and user.is_superuser):
+            messages.error(request, _('شما اجازه دسترسی به این بخش را ندارید.'))
+            return redirect('tickets:dashboard')
+    
     warehouses_list = []
+    
+    # ADMINISTRATIVE OVERRIDE: Staff and Superusers see all warehouses
+    if (hasattr(user, 'is_staff') and user.is_staff) or (hasattr(user, 'is_superuser') and user.is_superuser):
+        try:
+            all_warehouses = DepartmentWarehouse.objects.filter(is_active=True).select_related('department')
+            for warehouse in all_warehouses:
+                warehouses_list.append({
+                    'warehouse': warehouse,
+                    'department': warehouse.department,
+                    'access_type': 'admin',  # Administrative access
+                })
+        except Exception:
+            pass
     
     # Get all departments user supervises (supervisor access)
     supervised_depts = []
@@ -63,11 +84,13 @@ def warehouse_selection(request):
         if dept.has_warehouse:
             try:
                 warehouse = DepartmentWarehouse.objects.get(department=dept)
-                warehouses_list.append({
-                    'warehouse': warehouse,
-                    'department': dept,
-                    'access_type': 'supervisor',  # Track access type for UI
-                })
+                # Only add if not already in list (admin access may have already added it)
+                if not any(w['warehouse'].id == warehouse.id for w in warehouses_list):
+                    warehouses_list.append({
+                        'warehouse': warehouse,
+                        'department': dept,
+                        'access_type': 'supervisor',  # Track access type for UI
+                    })
             except DepartmentWarehouse.DoesNotExist:
                 pass
     
@@ -79,7 +102,7 @@ def warehouse_selection(request):
     ).select_related('warehouse', 'warehouse__department')
     
     for access in delegated_accesses:
-        # Only add if not already in list (supervisor access takes precedence)
+        # Only add if not already in list (supervisor/admin access takes precedence)
         if not any(w['warehouse'].id == access.warehouse.id for w in warehouses_list):
             warehouses_list.append({
                 'warehouse': access.warehouse,

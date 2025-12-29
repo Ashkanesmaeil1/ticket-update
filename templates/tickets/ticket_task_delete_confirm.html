@@ -1,8 +1,9 @@
 {% extends 'base.html' %}
 {% load i18n %}
 {% load persian_date %}
+{% load persian_numbers %}
 
-{% block title %}{% trans "حذف تسک" %} #{{ task.id }} - {% trans "سیستم تیکت" %}{% endblock %}
+{% block title %}{% trans "حذف تسک" %} #{{ task.id|persian_id }} - {% trans "سیستم تیکت" %}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -134,7 +135,7 @@
         <div class="task-info">
             <h4>{% trans "اطلاعات تسک" %}</h4>
             <p><strong>{% trans "عنوان:" %}</strong> {{ task.title }}</p>
-            <p><strong>{% trans "شماره تسک:" %}</strong> #{{ task.id }}</p>
+            <p><strong>{% trans "شماره تسک:" %}</strong> #{{ task.id|persian_id }}</p>
             {% if task.department %}
             <p><strong>{% trans "بخش:" %}</strong> {{ task.department.name }}</p>
             {% endif %}
@@ -160,6 +161,7 @@
     </div>
 </div>
 {% endblock %}
+
 
 
 

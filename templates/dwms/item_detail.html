@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load i18n %}
 {% load persian_date %}
+{% load persian_numbers %}
 {% load dwms_filters %}
 
 {% block title %}{{ item.name }} - {% trans "جزئیات کالا" %}{% endblock %}
@@ -148,13 +149,13 @@
         <div class="info-row">
             <span>{% trans "موجودی کل:" %}</span>
             <span class="stock-badge {% if is_low_stock %}{% if total_stock == 0 %}critical{% else %}low{% endif %}{% else %}ok{% endif %}">
-                {{ total_stock|floatformat:0 }} {{ item.unit }}
+                {{ total_stock|floatformat:0|persian_digits }} {{ item.unit }}
             </span>
         </div>
         {% if item.min_stock_threshold %}
         <div class="info-row">
             <span>{% trans "حداقل موجودی:" %}</span>
-            <span>{{ item.min_stock_threshold|floatformat:0 }} {{ item.unit }}</span>
+            <span>{{ item.min_stock_threshold|floatformat:0|persian_digits }} {{ item.unit }}</span>
         </div>
         {% endif %}
         {% if item.category %}
@@ -199,7 +200,7 @@
         {% for stock in stock_by_location %}
         <div class="info-row">
             <span>{{ stock.location_name }}</span>
-            <span><strong>{{ stock.total }} {{ item.unit }}</strong></span>
+            <span><strong>{{ stock.total|persian_digits }} {{ item.unit }}</strong></span>
         </div>
         {% endfor %}
     </div>
@@ -217,7 +218,7 @@
                     {% if movement.performed_by %}{{ movement.performed_by.get_full_name }}{% else %}-{% endif %} - {% if movement.movement_date %}{{ movement.movement_date|persian_date }}{% else %}-{% endif %}
                 </div>
             </div>
-            <span><strong>{{ movement.quantity|floatformat:0 }} {{ item.unit }}</strong></span>
+            <span><strong>{{ movement.quantity|floatformat:0|persian_digits }} {{ item.unit }}</strong></span>
         </div>
         {% endfor %}
         <div style="text-align: center; margin-top: 1rem;">

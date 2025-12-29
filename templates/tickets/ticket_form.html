@@ -2,6 +2,7 @@
 {% load crispy_forms_tags %}
 {% load i18n %}
 {% load persian_date %}
+{% load persian_numbers %}
 
 {% block title %}
     {% if form.instance.pk %}
@@ -211,6 +212,21 @@ body {
     border-color: #667eea;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     background: white;
+}
+
+.form-select-modern.error,
+.form-control-modern.error {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.error-message {
+    color: #ef4444;
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .form-textarea-modern {
@@ -876,6 +892,55 @@ body {
                 </div>
 
     <div class="ticket-form-content">
+        <!-- Form Error Display -->
+        {% if form.errors %}
+        <div class="alert alert-danger" style="background: rgba(239, 68, 68, 0.1); border: 2px solid #ef4444; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <i class="fas fa-exclamation-triangle" style="color: #ef4444; font-size: 1.5rem;"></i>
+                <h4 style="margin: 0; color: #ef4444; font-weight: 700;">{% trans "خطا در اعتبارسنجی فرم" %}</h4>
+            </div>
+            {% if form.non_field_errors %}
+            <ul style="list-style: none; padding: 0; margin: 0 0 1rem 0;">
+                {% for error in form.non_field_errors %}
+                <li style="padding: 0.5rem 0; color: #991b1b;">
+                    <i class="fas fa-circle" style="font-size: 0.5rem; margin-left: 0.5rem;"></i>{{ error }}
+                </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            {% for field, errors in form.errors.items %}
+                {% if field != '__all__' %}
+                <div style="margin-bottom: 0.75rem;">
+                    <strong style="color: #991b1b;">
+                        {% if field == 'ticket_category' %}
+                            {% trans "دسته‌بندی" %}:
+                        {% elif field == 'target_department' %}
+                            {% trans "بخش" %}:
+                        {% elif field == 'title' %}
+                            {% trans "عنوان" %}:
+                        {% elif field == 'description' %}
+                            {% trans "توضیحات" %}:
+                        {% elif field == 'priority' %}
+                            {% trans "اولویت" %}:
+                        {% elif field == 'branch' %}
+                            {% trans "شعبه" %}:
+                        {% else %}
+                            {{ field }}:
+                        {% endif %}
+                    </strong>
+                    <ul style="list-style: none; padding: 0; margin: 0.25rem 0 0 0;">
+                        {% for error in errors %}
+                        <li style="padding: 0.25rem 0; color: #991b1b;">
+                            <i class="fas fa-circle" style="font-size: 0.5rem; margin-left: 0.5rem;"></i>{{ error }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+        
         <form method="post" enctype="multipart/form-data" id="ticketForm">
                         {% csrf_token %}
                         
@@ -942,19 +1007,36 @@ body {
                                 </div>
                         </div>
                         <div class="form-group">
-                            <label for="{{ form.category.id_for_label }}" class="form-label">
+                            <label for="{{ form.ticket_category.id_for_label }}" class="form-label">
                                 <i class="fas fa-tags"></i>
                                 {% trans "دسته‌بندی" %}
+                                {% if form.ticket_category.field.required %}<span style="color: #ef4444;">*</span>{% endif %}
                             </label>
-                            <select name="{{ form.category.name }}" id="{{ form.category.id_for_label }}" class="form-select-modern" required>
-                                {% for value, label in form.category.field.choices %}
-                                    <option value="{{ value }}" {% if form.category.value == value %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
+                            <select name="{{ form.ticket_category.name }}" id="{{ form.ticket_category.id_for_label }}" class="form-select-modern {% if form.ticket_category.errors %}error{% endif %}" disabled 
+                                    {% if form.instance and form.instance.ticket_category %}data-existing-category-id="{{ form.instance.ticket_category.id }}"{% endif %}>
+                                <option value="">{% trans "ابتدا بخش را انتخاب کنید" %}</option>
+                                {% if form.ticket_category.value %}
+                                    <option value="{{ form.ticket_category.value }}" selected>{{ form.ticket_category.value }}</option>
+                                {% endif %}
                             </select>
+                            {% if form.ticket_category.errors %}
+                            <div class="error-message" style="color: #ef4444; font-size: 0.85rem; margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-exclamation-circle"></i>
+                                <div>
+                                    {% for error in form.ticket_category.errors %}
+                                        {{ error }}{% if not forloop.last %}<br>{% endif %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
                             <div class="help-text">
                                 <i class="fas fa-info-circle"></i>
-                                {% trans "نوع مشکل یا درخواست خود را انتخاب کنید" %}
+                                {% trans "پس از انتخاب بخش، دسته‌بندی‌های آن بخش نمایش داده می‌شود" %}
                             </div>
+                            <!-- Hidden field for old category (backward compatibility) -->
+                            {% if form.category %}
+                            <input type="hidden" name="{{ form.category.name }}" value="{{ form.category.value|default:'' }}">
+                            {% endif %}
                                 </div>
                             </div>
 
@@ -1052,7 +1134,7 @@ body {
                 <div class="ticket-quick-info">
                     <div class="ticket-id">
                         <i class="fas fa-hashtag"></i>
-                        <span>#{{ form.instance.id }}</span>
+                        <span>#{{ form.instance.id|persian_id }}</span>
                     </div>
                     <div class="ticket-title">{{ form.instance.title }}</div>
                     <div class="ticket-meta">
@@ -1285,15 +1367,109 @@ document.addEventListener('DOMContentLoaded', function() {
         departmentSelect.disabled = true;
         departmentSelect.innerHTML = '<option value="">{% trans "ابتدا شعبه را انتخاب کنید" %}</option>';
     }
+    
+    // Category dropdown functionality - loads categories based on selected department
+    const categorySelect = document.getElementById('id_ticket_category');
+    
+    function loadCategories() {
+        if (!departmentSelect || !categorySelect) return;
+        
+        const departmentId = departmentSelect.value;
+        if (!departmentId) {
+            categorySelect.innerHTML = '<option value="">{% trans "ابتدا بخش را انتخاب کنید" %}</option>';
+            categorySelect.disabled = true;
+            categorySelect.required = false;
+            return;
+        }
+        
+        // Show loading state
+        categorySelect.innerHTML = '<option value="">{% trans "در حال بارگذاری..." %}</option>';
+        categorySelect.disabled = true;
+        
+        // Fetch categories for selected department (only active ones)
+        fetch(`/api/departments/${departmentId}/categories/`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.categories && data.categories.length > 0) {
+                    categorySelect.innerHTML = '<option value="">{% trans "دسته‌بندی را انتخاب کنید" %}</option>';
+                    data.categories.forEach(category => {
+                        const option = document.createElement('option');
+                        option.value = category.id;
+                        option.textContent = category.name;
+                        if (category.description) {
+                            option.title = category.description;
+                        }
+                        categorySelect.appendChild(option);
+                    });
+                    categorySelect.disabled = false;
+                    categorySelect.required = true;
+                    
+                    // If editing and there's an existing category value, select it
+                    const existingCategoryId = categorySelect.getAttribute('data-existing-category-id');
+                    if (existingCategoryId && categorySelect.querySelector(`option[value="${existingCategoryId}"]`)) {
+                        categorySelect.value = existingCategoryId;
+                    }
+                } else {
+                    categorySelect.innerHTML = '<option value="">{% trans "هیچ دسته‌بندی فعالی برای این بخش یافت نشد" %}</option>';
+                    categorySelect.disabled = true;
+                    categorySelect.required = false;
+                }
+            })
+            .catch(error => {
+                console.error('Error loading categories:', error);
+                categorySelect.innerHTML = '<option value="">{% trans "خطا در بارگذاری دسته‌بندی‌ها" %}</option>';
+                categorySelect.disabled = true;
+                categorySelect.required = false;
+            });
+    }
+    
+    if (departmentSelect && categorySelect) {
+        departmentSelect.addEventListener('change', loadCategories);
+        // Load categories if department is already selected (for editing or form re-render after validation error)
+        if (departmentSelect.value && !departmentSelect.disabled) {
+            loadCategories();
+        }
+    }
+    
+    // Handle form re-render after validation error - restore category selection
+    // This runs on page load if form has errors and category was previously selected
+    {% if form.ticket_category.value and form.target_department.value %}
+    (function() {
+        const savedCategoryId = {{ form.ticket_category.value|default:"null" }};
+        const savedDepartmentId = {{ form.target_department.value|default:"null" }};
+        if (savedCategoryId && savedDepartmentId && departmentSelect && categorySelect) {
+            // Wait for categories to be loaded, then restore selection
+            const checkAndRestore = setInterval(() => {
+                if (!categorySelect.disabled && categorySelect.options.length > 1) {
+                    if (categorySelect.querySelector(`option[value="${savedCategoryId}"]`)) {
+                        categorySelect.value = savedCategoryId;
+                        clearInterval(checkAndRestore);
+                    }
+                }
+            }, 100);
+            // Timeout after 2 seconds
+            setTimeout(() => clearInterval(checkAndRestore), 2000);
+        }
+    })();
+    {% endif %}
 
-    // Software category notice functionality
-    const categorySelect = document.getElementById('id_category');
+    // Software category notice functionality (for old category field if it exists)
+    const oldCategorySelect = document.getElementById('id_category');
     const softwareNotice = document.getElementById('software-notice');
     
     function toggleSoftwareNotice() {
-        if (categorySelect && categorySelect.value === 'software') {
-            softwareNotice.style.display = 'block';
-            softwareNotice.classList.add('no-auto-hide');
+        // Check both old and new category fields
+        const selectedValue = oldCategorySelect ? oldCategorySelect.value : (categorySelect ? categorySelect.value : '');
+        if (selectedValue === 'software') {
+            if (softwareNotice) {
+                softwareNotice.style.display = 'block';
+                softwareNotice.classList.add('no-auto-hide');
+            }
         } else if (softwareNotice) {
             softwareNotice.style.display = 'none';
         }
@@ -1302,9 +1478,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check on page load
     toggleSoftwareNotice();
     
-    // Check when category changes
+    // Check when category changes (listen to both fields)
+    if (oldCategorySelect) {
+        oldCategorySelect.addEventListener('change', toggleSoftwareNotice);
+    }
     if (categorySelect) {
-    categorySelect.addEventListener('change', toggleSoftwareNotice);
+        categorySelect.addEventListener('change', toggleSoftwareNotice);
     }
     
     // File validation helpers
@@ -1332,11 +1511,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // Form submission with loading state and client-side file validation
     const form = document.getElementById('ticketForm');
     const submitBtn = document.getElementById('submitBtn');
-    const btnText = submitBtn.querySelector('.btn-text');
-    const loadingSpinner = submitBtn.querySelector('.loading-spinner');
+    const btnText = submitBtn ? submitBtn.querySelector('.btn-text') : null;
+    const loadingSpinner = submitBtn ? submitBtn.querySelector('.loading-spinner') : null;
     
     if (form && submitBtn) {
         form.addEventListener('submit', function(e) {
+            // Enable disabled fields before submission (disabled fields don't submit)
+            // This is critical for the ticket_category field which is dynamically populated
+            if (categorySelect && categorySelect.disabled && categorySelect.value) {
+                categorySelect.disabled = false;
+            }
+            
             // Validate file input before locking UI
             const fileInput = document.getElementById('{{ form.attachment.id_for_label }}');
             const result = validateFileInput(fileInput);
@@ -1352,12 +1537,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     alert(result.message);
                 }
+                // Re-disable the category field if validation failed
+                if (categorySelect && !categorySelect.disabled && !categorySelect.value) {
+                    categorySelect.disabled = true;
+                }
                 return false;
             }
+            
             // Show loading state
             submitBtn.disabled = true;
-            btnText.style.display = 'none';
-            loadingSpinner.style.display = 'inline-block';
+            if (btnText) btnText.style.display = 'none';
+            if (loadingSpinner) loadingSpinner.style.display = 'inline-block';
             
             // Add loading class for visual feedback
             submitBtn.classList.add('loading');

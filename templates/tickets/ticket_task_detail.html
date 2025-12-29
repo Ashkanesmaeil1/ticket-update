@@ -1,8 +1,9 @@
 {% extends 'base.html' %}
 {% load i18n %}
 {% load persian_date %}
+{% load persian_numbers %}
 
-{% block title %}{% trans "جزئیات تسک" %} #{{ task.id }} - {% trans "سیستم تیکت" %}{% endblock %}
+{% block title %}{% trans "جزئیات تسک" %} #{{ task.id|persian_id }} - {% trans "سیستم تیکت" %}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -264,7 +265,7 @@
                             {{ task.title }}
                         </h1>
                         <div class="task-meta-info">
-                            <span><i class="fas fa-hashtag me-1"></i>#{{ task.id }}</span>
+                            <span><i class="fas fa-hashtag me-1"></i>#{{ task.id|persian_id }}</span>
                             <span><i class="fas fa-calendar me-1"></i>{{ task.created_at|persian_date }}</span>
                             {% if task.department %}
                             <span><i class="fas fa-building me-1"></i>{{ task.department.name }}</span>

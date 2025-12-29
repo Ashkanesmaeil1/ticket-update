@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load i18n %}
 {% load persian_date %}
+{% load persian_numbers %}
 
 {% block title %}{% trans "تسک‌های من" %} - {% trans "سیستم تیکت" %}{% endblock %}
 
@@ -294,7 +295,7 @@
                                 <tbody>
                                     {% for task in my_tasks %}
                                     <tr>
-                                        <td><strong>#{{ task.id }}</strong></td>
+                                        <td><strong>#{{ task.id|persian_id }}</strong></td>
                                         <td>{{ task.title|truncatechars:50 }}</td>
                                         <td>{{ task.department.name|default:"-" }}</td>
                                         <td>
@@ -379,7 +380,7 @@
                                 <tbody>
                                     {% for task in department_tasks %}
                                     <tr>
-                                        <td><strong>#{{ task.id }}</strong></td>
+                                        <td><strong>#{{ task.id|persian_id }}</strong></td>
                                         <td>{{ task.title|truncatechars:50 }}</td>
                                         <td>{{ task.department.name|default:"-" }}</td>
                                         <td>{{ task.assigned_to.get_full_name|default:"-" }}</td>

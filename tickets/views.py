@@ -1,4 +1,9 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
+from django.core.cache import cache
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -15,8 +20,9 @@ from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth.decorators import user_passes_test
 from django.utils.translation import gettext_lazy as _
 from django.template.response import TemplateResponse
+from django.core.exceptions import ValidationError
 
-from .models import User, Ticket, Reply, Department, Branch, InventoryElement, ElementSpecification, Notification, TicketTask, TaskReply, TicketActivityLog
+from .models import User, Ticket, Reply, Department, Branch, InventoryElement, ElementSpecification, Notification, TicketTask, TaskReply, TicketActivityLog, TicketCategory
 from .services import notify_department_supervisor
 from .admin_security import get_admin_superuser_queryset_filter, is_admin_superuser
 
@@ -195,7 +201,7 @@ from .forms import (
     EmployeeCreationForm, TechnicianCreationForm, EmployeeEditForm, TechnicianEditForm,
     ITManagerProfileForm, DepartmentForm, EmailConfigForm, BranchForm,
     InventoryElementForm, ElementSpecificationForm, TicketTaskForm, TaskReplyForm, TaskStatusForm,
-    SupervisorAssignmentForm
+    SupervisorAssignmentForm, TicketCategoryForm
 )
 from .services import StatisticsService, notify_it_manager, notify_employee_ticket_created, notify_employee_ticket_replied, notify_employee_ticket_status_changed, notify_employee_ticket_assigned, create_it_manager_login_notification
 from .models import Notification, EmailConfig
@@ -957,11 +963,15 @@ def view_all_replies(request):
     
     # Apply search filter (only ticket ID, creator name, and title)
     if search_query:
+        # Normalize Persian digits to Latin for search compatibility
+        from tickets.templatetags.persian_numbers import _persian_to_latin
+        normalized_query = _persian_to_latin(search_query)
+        
         replies = replies.filter(
-            Q(ticket__id__icontains=search_query) |
-            Q(ticket__created_by__first_name__icontains=search_query) |
-            Q(ticket__created_by__last_name__icontains=search_query) |
-            Q(ticket__title__icontains=search_query)
+            Q(ticket__id__icontains=normalized_query) |
+            Q(ticket__created_by__first_name__icontains=normalized_query) |
+            Q(ticket__created_by__last_name__icontains=normalized_query) |
+            Q(ticket__title__icontains=normalized_query)
         )
     
     # Order by creation date (newest first)
@@ -1060,24 +1070,32 @@ def ticket_list(request):
     
     # Apply filters
     if search_query:
+        # Normalize Persian digits to Latin for search compatibility
+        # This allows users to search with either Persian (#۱۲۳) or Latin (#123) digits
+        from tickets.templatetags.persian_numbers import _persian_to_latin
+        normalized_query = _persian_to_latin(search_query)
+        
+        # Remove hash prefix if present for ID search
+        query_for_id = normalized_query.lstrip('#')
+        
         # Check if search query is a number (potential ticket ID)
         try:
-            ticket_id = int(search_query)
+            ticket_id = int(query_for_id)
             # If it's a number, search by ID first, then by other fields
             tickets = tickets.filter(
                 Q(id=ticket_id) |
-                Q(title__icontains=search_query) |
-                Q(description__icontains=search_query) |
-                Q(created_by__first_name__icontains=search_query) |
-                Q(created_by__last_name__icontains=search_query)
+                Q(title__icontains=normalized_query) |
+                Q(description__icontains=normalized_query) |
+                Q(created_by__first_name__icontains=normalized_query) |
+                Q(created_by__last_name__icontains=normalized_query)
             )
         except ValueError:
-            # If it's not a number, search by text fields only
+            # If it's not a number, search by text fields only (using normalized query)
             tickets = tickets.filter(
-                Q(title__icontains=search_query) |
-                Q(description__icontains=search_query) |
-                Q(created_by__first_name__icontains=search_query) |
-                Q(created_by__last_name__icontains=search_query)
+                Q(title__icontains=normalized_query) |
+                Q(description__icontains=normalized_query) |
+                Q(created_by__first_name__icontains=normalized_query) |
+                Q(created_by__last_name__icontains=normalized_query)
             )
     
     if status_filter:
@@ -1142,11 +1160,15 @@ def received_tickets_list(request):
     # Search functionality
     search_query = request.GET.get('search', '')
     if search_query:
+        # Normalize Persian digits to Latin for search compatibility
+        from tickets.templatetags.persian_numbers import _persian_to_latin
+        normalized_query = _persian_to_latin(search_query)
+        
         tickets = tickets.filter(
-            Q(title__icontains=search_query) |
-            Q(description__icontains=search_query) |
-            Q(created_by__first_name__icontains=search_query) |
-            Q(created_by__last_name__icontains=search_query)
+            Q(title__icontains=normalized_query) |
+            Q(description__icontains=normalized_query) |
+            Q(created_by__first_name__icontains=normalized_query) |
+            Q(created_by__last_name__icontains=normalized_query)
         )
     
     # Status filter
@@ -1472,10 +1494,8 @@ def ticket_detail(request, ticket_id):
                 if user.role in ['it_manager', 'technician']:
                     notify_employee_ticket_replied(ticket, reply)
                 
-                # Update ticket status to in_progress only if reply by IT/Tech and current status is open
-                if user.role in ['it_manager', 'technician'] and ticket.status == 'open':
-                    ticket.status = 'in_progress'
-                    ticket.save(update_fields=['status'])
+                # Manual State Control: Reply operations do not change ticket status
+                # Status must be changed explicitly via the status update interface
 
                 messages.success(request, _('پاسخ با موفقیت اضافه شد.'))
                 return redirect('tickets:ticket_detail', ticket_id=ticket.id)
@@ -1579,9 +1599,10 @@ def ticket_create(request):
                 ticket.created_by = request.user
                 ticket._activity_user = request.user  # Set for activity logging
                 
-                # Set branch and target_department from form
+                # Set branch, target_department, and ticket_category from form
                 ticket.branch = form.cleaned_data.get('branch')
                 ticket.target_department = form.cleaned_data.get('target_department')
+                ticket.ticket_category = form.cleaned_data.get('ticket_category')  # Explicitly set the new category field
                 
                 # Determine if approval is needed based on category and user role
                 if ticket.category == 'access':
@@ -1726,6 +1747,9 @@ def ticket_update(request, ticket_id):
             # Set user for activity logging
             if hasattr(form, 'instance'):
                 form.instance._activity_user = user
+            # For employee ticket updates, explicitly preserve ticket_category
+            if user.role == 'employee' and hasattr(form, 'cleaned_data') and 'ticket_category' in form.cleaned_data:
+                ticket.ticket_category = form.cleaned_data.get('ticket_category')
             form.save()
 
             # Send specific notifications based on what changed
@@ -2144,8 +2168,8 @@ def update_ticket_status(request, ticket_id):
     # Set user for activity logging
     ticket._activity_user = user
     
-    # Handle status update
-    if status in dict(Ticket.STATUS_CHOICES):
+    # Handle status update (only if explicitly provided)
+    if status:
         ticket.status = status
     
     # Handle assignment
@@ -2155,15 +2179,10 @@ def update_ticket_status(request, ticket_id):
             if user.role == 'it_manager' or (user.role == 'technician' and assigned_user.id == user.id):
                 ticket.assigned_to = assigned_user
                 
-                # Auto-change status from 'open' to 'in_progress' when IT manager assigns to technician
-                if (user.role == 'it_manager' and 
-                    assigned_user.role == 'technician' and 
-                    original_status == 'open' and
-                    original_assignment != assigned_user):
-                    
-                    ticket.status = 'in_progress'
-                
-                ticket.save()
+                # Manual State Control: Assignment operations do not change ticket status
+                # Status must be changed explicitly via the status parameter
+                # Use update_fields to prevent signal-based status changes
+                ticket.save(update_fields=['assigned_to'])
                 
                 # After assignment or status change in update_ticket_status
                 if assigned_to_id and assigned_user:
@@ -2211,21 +2230,18 @@ def update_ticket_status(request, ticket_id):
                     except Exception:
                         pass
                 
-                # Return success message if status was auto-changed
-                if (user.role == 'it_manager' and 
-                    assigned_user.role == 'technician' and 
-                    ticket.status == 'in_progress' and 
-                    original_status == 'open' and
-                    original_assignment != assigned_user):
-                    return JsonResponse({
-                        'success': True, 
-                        'status': ticket.status,
-                        'message': _('تیکت به کارشناس فنی تخصیص داده شد و وضعیت آن به "در حال انجام" تغییر یافت.')
-                    })
+                # Manual State Control: Assignment success message (no status change)
+                return JsonResponse({
+                    'success': True, 
+                    'status': ticket.status,
+                    'message': _('تیکت به کارشناس فنی تخصیص داده شد.')
+                })
         except User.DoesNotExist:
             pass
     
-    ticket.save()
+    # Only save if status was explicitly provided, otherwise skip save
+    if status:
+        ticket.save()
     return JsonResponse({'success': True, 'status': ticket.status})
 
 @login_required
@@ -2387,11 +2403,15 @@ def search_tickets(request):
         tickets = Ticket.objects.all()
     
     if query:
+        # Normalize Persian digits to Latin for search compatibility
+        from tickets.templatetags.persian_numbers import _persian_to_latin
+        normalized_query = _persian_to_latin(query)
+        
         tickets = tickets.filter(
-            Q(title__icontains=query) |
-            Q(description__icontains=query) |
-            Q(created_by__first_name__icontains=query) |
-            Q(created_by__last_name__icontains=query)
+            Q(title__icontains=normalized_query) |
+            Q(description__icontains=normalized_query) |
+            Q(created_by__first_name__icontains=normalized_query) |
+            Q(created_by__last_name__icontains=normalized_query)
         )[:10]
     
     results = []
@@ -4089,6 +4109,188 @@ def department_delete(request, department_id):
     }
     
     return render(request, 'tickets/department_confirm_delete.html', context)
+
+@login_required
+def category_list(request):
+    """List ticket categories for supervisor's department"""
+    # Check if user is a supervisor
+    if not (request.user.role == 'employee' and request.user.department_role in ['senior', 'manager']):
+        messages.error(request, _('دسترسی رد شد. فقط سرپرست بخش میتواند این بخش را مشاهده کند.'))
+        return redirect('tickets:dashboard')
+    
+    # Get supervisor's department
+    department = request.user.department
+    if not department or not department.can_receive_tickets:
+        messages.error(request, _('بخش شما مجاز به دریافت تیکت نیست.'))
+        return redirect('tickets:dashboard')
+    
+    categories = TicketCategory.objects.filter(department=department).order_by('sort_order', 'name')
+    
+    context = {
+        'categories': categories,
+        'department': department,
+    }
+    
+    return render(request, 'tickets/category_list.html', context)
+
+@login_required
+def category_create(request):
+    """Create a new ticket category for supervisor's department"""
+    # Check if user is a supervisor
+    if not (request.user.role == 'employee' and request.user.department_role in ['senior', 'manager']):
+        messages.error(request, _('دسترسی رد شد. فقط سرپرست بخش میتواند این بخش را مشاهده کند.'))
+        return redirect('tickets:dashboard')
+    
+    # Get supervisor's department
+    department = request.user.department
+    if not department or not department.can_receive_tickets:
+        messages.error(request, _('بخش شما مجاز به دریافت تیکت نیست.'))
+        return redirect('tickets:category_list')
+    
+    if request.method == 'POST':
+        form = TicketCategoryForm(request.POST)
+        if form.is_valid():
+            # Validate department exists and user has permission
+            if not department:
+                messages.error(request, _('خطا: بخش شما یافت نشد. لطفاً با مدیر سیستم تماس بگیرید.'))
+                return redirect('tickets:category_list')
+            
+            # Create instance manually to avoid RelatedObjectDoesNotExist during form.save(commit=False)
+            # The form doesn't include department field (for security), so we create the instance directly
+            # This prevents Django from trying to access category.department before it's set
+            category = TicketCategory()
+            category.name = form.cleaned_data['name']
+            category.description = form.cleaned_data.get('description', '')
+            category.is_active = form.cleaned_data.get('is_active', True)
+            category.sort_order = form.cleaned_data.get('sort_order', 0)
+            
+            # Assign required foreign key relationships before saving
+            # Department is excluded from the form for security (supervisor can only create for their own department)
+            category.department = department
+            category.created_by = request.user
+            
+            # Now that department is set, run full validation
+            try:
+                category.full_clean()
+            except ValidationError as e:
+                # If validation fails, show errors
+                for field, errors in e.error_dict.items():
+                    for error in errors:
+                        messages.error(request, f'{field}: {error}')
+                # Re-render form with errors
+            else:
+                # Save the instance with all required relationships set and validated
+                try:
+                    category.save()
+                    messages.success(request, _('دسته‌بندی "{}" با موفقیت ایجاد شد.').format(category.name))
+                    return redirect('tickets:category_list')
+                except Exception as e:
+                    messages.error(request, _('خطا در ایجاد دسته‌بندی: {}').format(str(e)))
+        else:
+            messages.error(request, _('خطا در ایجاد دسته‌بندی. لطفاً اطلاعات را بررسی کنید.'))
+    else:
+        form = TicketCategoryForm()
+    
+    context = {
+        'form': form,
+        'department': department,
+        'action': 'create',
+        'title': _('ایجاد دسته‌بندی جدید')
+    }
+    
+    return render(request, 'tickets/category_form.html', context)
+
+@login_required
+def category_edit(request, category_id):
+    """Edit an existing ticket category"""
+    # Check if user is a supervisor
+    if not (request.user.role == 'employee' and request.user.department_role in ['senior', 'manager']):
+        messages.error(request, _('دسترسی رد شد. فقط سرپرست بخش میتواند این بخش را مشاهده کند.'))
+        return redirect('tickets:dashboard')
+    
+    # Get supervisor's department
+    department = request.user.department
+    if not department or not department.can_receive_tickets:
+        messages.error(request, _('بخش شما مجاز به دریافت تیکت نیست.'))
+        return redirect('tickets:category_list')
+    
+    category = get_object_or_404(TicketCategory, id=category_id, department=department)
+    
+    if request.method == 'POST':
+        form = TicketCategoryForm(request.POST, instance=category)
+        if form.is_valid():
+            category = form.save()
+            messages.success(request, _('دسته‌بندی "{}" با موفقیت بروزرسانی شد.').format(category.name))
+            return redirect('tickets:category_list')
+        else:
+            messages.error(request, _('خطا در بروزرسانی دسته‌بندی. لطفاً اطلاعات را بررسی کنید.'))
+    else:
+        form = TicketCategoryForm(instance=category)
+    
+    context = {
+        'form': form,
+        'category': category,
+        'department': department,
+        'action': 'edit',
+        'title': _('ویرایش دسته‌بندی')
+    }
+    
+    return render(request, 'tickets/category_form.html', context)
+
+@login_required
+def category_delete(request, category_id):
+    """Delete a ticket category"""
+    # Check if user is a supervisor
+    if not (request.user.role == 'employee' and request.user.department_role in ['senior', 'manager']):
+        messages.error(request, _('دسترسی رد شد. فقط سرپرست بخش میتواند این بخش را مشاهده کند.'))
+        return redirect('tickets:dashboard')
+    
+    # Get supervisor's department
+    department = request.user.department
+    if not department or not department.can_receive_tickets:
+        messages.error(request, _('بخش شما مجاز به دریافت تیکت نیست.'))
+        return redirect('tickets:category_list')
+    
+    category = get_object_or_404(TicketCategory, id=category_id, department=department)
+    
+    # Check if category is in use
+    ticket_count = category.tickets.count()
+    
+    if request.method == 'POST':
+        if ticket_count > 0:
+            messages.error(request, _('نمی‌توان دسته‌بندی که در حال استفاده است را حذف کرد. {} تیکت از این دسته‌بندی استفاده می‌کند.').format(ticket_count))
+        else:
+            category_name = category.name
+            category.delete()
+            messages.success(request, _('دسته‌بندی "{}" با موفقیت حذف شد.').format(category_name))
+        return redirect('tickets:category_list')
+    
+    context = {
+        'category': category,
+        'department': department,
+        'ticket_count': ticket_count
+    }
+    
+    return render(request, 'tickets/category_confirm_delete.html', context)
+
+@login_required
+def get_department_categories(request, department_id):
+    """API endpoint to get categories for a department"""
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    
+    department = get_object_or_404(Department, id=department_id)
+    
+    # Check if department can receive tickets
+    if not department.can_receive_tickets:
+        return JsonResponse({'error': 'Department cannot receive tickets'}, status=403)
+    
+    categories = TicketCategory.objects.filter(
+        department=department,
+        is_active=True
+    ).order_by('sort_order', 'name').values('id', 'name', 'description')
+    
+    return JsonResponse({'categories': list(categories)})
 
 @login_required
 def supervisor_assignment(request):

@@ -4,7 +4,7 @@ from django.contrib.auth import authenticate
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
 from django.db.models import Q, Count
-from .models import Ticket, Reply, User, Department, EmailConfig, Branch, InventoryElement, ElementSpecification, TicketTask, TaskReply
+from .models import Ticket, Reply, User, Department, EmailConfig, Branch, InventoryElement, ElementSpecification, TicketTask, TaskReply, TicketCategory
 from .validators import validate_iranian_national_id, validate_iranian_mobile_number
 import os
 import mimetypes
@@ -76,7 +76,7 @@ class TicketForm(forms.ModelForm):
     """Form for creating and editing tickets"""
     class Meta:
         model = Ticket
-        fields = ['title', 'description', 'category', 'priority', 'target_department', 'branch', 'attachment']
+        fields = ['title', 'description', 'category', 'ticket_category', 'priority', 'target_department', 'branch', 'attachment']
         widgets = {
             'title': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -88,15 +88,23 @@ class TicketForm(forms.ModelForm):
                 'placeholder': _('توضیحات تیکت را وارد کنید')
             }),
             'category': forms.Select(attrs={'class': 'form-select'}),
+            'ticket_category': forms.Select(attrs={
+                'class': 'form-select',
+                'id': 'id_ticket_category'
+            }),
             'priority': forms.Select(attrs={'class': 'form-select'}),
-            'target_department': forms.Select(attrs={'class': 'form-select'}),
+            'target_department': forms.Select(attrs={
+                'class': 'form-select',
+                'id': 'id_target_department'
+            }),
             'branch': forms.Select(attrs={'class': 'form-select'}),
             'attachment': forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/*,.pdf,.doc,.docx'})
         }
         labels = {
             'title': _('عنوان'),
             'description': _('توضیحات'),
-            'category': _('دسته‌بندی'),
+            'category': _('دسته‌بندی (قدیمی)'),
+            'ticket_category': _('دسته‌بندی'),
             'priority': _('اولویت'),
             'target_department': _('بخش هدف'),
             'branch': _('شعبه'),
@@ -117,6 +125,83 @@ class TicketForm(forms.ModelForm):
         # Filter branches to only show active ones
         if 'branch' in self.fields:
             self.fields['branch'].queryset = Branch.objects.filter(is_active=True).order_by('name')
+        
+        # Initialize ticket_category field - will be populated dynamically via JavaScript
+        if 'ticket_category' in self.fields:
+            # For POST requests, update queryset based on selected department to allow validation
+            if self.data and 'target_department' in self.data:
+                target_department_id = self.data.get('target_department')
+                if target_department_id:
+                    try:
+                        target_department_id = int(target_department_id)
+                        dept = Department.objects.get(id=target_department_id, can_receive_tickets=True)
+                        # Update queryset to include all active categories for this department
+                        self.fields['ticket_category'].queryset = TicketCategory.objects.filter(
+                            department=dept,
+                            is_active=True
+                        ).order_by('sort_order', 'name')
+                        self.fields['ticket_category'].required = True
+                    except (Department.DoesNotExist, ValueError, TypeError):
+                        self.fields['ticket_category'].queryset = TicketCategory.objects.none()
+                        self.fields['ticket_category'].required = False
+                else:
+                    self.fields['ticket_category'].queryset = TicketCategory.objects.none()
+                    self.fields['ticket_category'].required = False
+            else:
+                # For GET requests, start with empty queryset
+                self.fields['ticket_category'].queryset = TicketCategory.objects.none()
+                self.fields['ticket_category'].required = False
+            # Widget is disabled initially, JavaScript will enable it
+            if not self.data:  # Only disable on GET requests
+                self.fields['ticket_category'].widget.attrs['disabled'] = True
+    
+    def clean_ticket_category(self):
+        """Dynamically validate ticket_category based on selected department"""
+        ticket_category = self.cleaned_data.get('ticket_category')
+        
+        # If no category selected, check if it should be required
+        if not ticket_category:
+            target_department_id = self.data.get('target_department')
+            if target_department_id:
+                try:
+                    target_department_id = int(target_department_id)
+                    dept = Department.objects.get(id=target_department_id, can_receive_tickets=True)
+                    # Check if department has categories - if yes, category should be required
+                    if TicketCategory.objects.filter(department=dept, is_active=True).exists():
+                        raise forms.ValidationError(_('لطفاً دسته‌بندی را انتخاب کنید.'))
+                except (Department.DoesNotExist, ValueError, TypeError):
+                    pass
+            return None
+        
+        # Category object is already validated by ModelChoiceField (queryset was updated in __init__)
+        # Additional validation (category belongs to department) is done in clean() method
+        return ticket_category
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        target_department = cleaned_data.get('target_department')
+        ticket_category = cleaned_data.get('ticket_category')
+        
+        # Validate category belongs to selected department
+        if ticket_category and target_department:
+            if ticket_category.department != target_department:
+                raise forms.ValidationError({
+                    'ticket_category': _(
+                        'دسته‌بندی انتخاب شده متعلق به بخش انتخاب شده نیست. '
+                        'لطفاً دسته‌بندی مناسب را انتخاب کنید.'
+                    )
+                })
+        
+        # Validate department can receive tickets (if category is provided)
+        if ticket_category and target_department:
+            if not target_department.can_receive_tickets:
+                raise forms.ValidationError({
+                    'target_department': _(
+                        'بخش انتخاب شده نمی‌تواند تیکت دریافت کند.'
+                    )
+                })
+        
+        return cleaned_data
 
 class TaskTicketForm(forms.ModelForm):
     """Form for creating task tickets (IT Manager only)"""
@@ -1839,3 +1924,43 @@ class ElementSpecificationForm(forms.ModelForm):
                 if existing.exists():
                     raise ValidationError(_('این کلید قبلاً برای این عنصر تعریف شده است.'))
         return key
+
+class TicketCategoryForm(forms.ModelForm):
+    """Form for creating and editing ticket categories"""
+    
+    class Meta:
+        model = TicketCategory
+        fields = ['name', 'description', 'is_active', 'sort_order']
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('نام دسته‌بندی (مثال: سخت‌افزار، شبکه)')
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': _('توضیحات اختیاری')
+            }),
+            'is_active': forms.CheckboxInput(attrs={
+                'class': 'form-check-input'
+            }),
+            'sort_order': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('ترتیب نمایش')
+            }),
+        }
+        labels = {
+            'name': _('نام دسته‌بندی'),
+            'description': _('توضیحات'),
+            'is_active': _('فعال'),
+            'sort_order': _('ترتیب نمایش'),
+        }
+        help_texts = {
+            'sort_order': _('اعداد کمتر در ابتدا نمایش داده می‌شوند'),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        """Initialize form - department is excluded for security"""
+        super().__init__(*args, **kwargs)
+        # Department field is intentionally excluded from the form
+        # It will be set by the view based on the supervisor's department

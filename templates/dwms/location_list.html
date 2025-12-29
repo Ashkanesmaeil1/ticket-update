@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load i18n %}
 {% load persian_date %}
+{% load persian_numbers %}
 
 {% block title %}{% trans "محل‌های نگهداری" %} - {{ warehouse.name }}{% endblock %}
 
@@ -136,8 +137,8 @@
             <p style="color: #6b7280; font-size: 0.9rem; margin: 0.5rem 0;">{{ location.description|truncatewords:20 }}</p>
             {% endif %}
             <div class="location-meta">
-                <span><i class="fas fa-boxes"></i> {% trans "تعداد کالا:" %} {{ location.item_count }}</span>
-                <span><i class="fas fa-calculator"></i> {% trans "کل موجودی:" %} {{ location.total_items|floatformat:0 }}</span>
+                <span><i class="fas fa-boxes"></i> {% trans "تعداد کالا:" %} {{ location.item_count|persian_digits }}</span>
+                <span><i class="fas fa-calculator"></i> {% trans "کل موجودی:" %} {{ location.total_items|floatformat:0|persian_digits }}</span>
             </div>
             <div class="location-actions">
                 <a href="{% url 'dwms:location_edit' department.id location.id %}" class="btn-action btn-edit">
@@ -159,5 +160,6 @@
     {% endif %}
 </div>
 {% endblock %}
+
 
 

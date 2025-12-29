@@ -53,6 +53,19 @@ class Department(models.Model):
                            error_messages={'unique': 'بخشی با این نام قبلاً وجود دارد.'})
     department_type = models.CharField(_('نوع بخش'), max_length=20, choices=DEPARTMENT_TYPE_CHOICES, default='employee')
     description = models.TextField(_('توضیحات'), blank=True, null=True)
+    
+    # Multi-tenant categorization support
+    is_service_provider = models.BooleanField(
+        _('ارائه‌دهنده خدمات'),
+        default=False,
+        help_text=_('در صورتی که این بخش می‌تواند تیکت‌های پشتیبانی دریافت کند، این گزینه را فعال کنید')
+    )
+    service_provider_since = models.DateTimeField(
+        _('ارائه خدمات از تاریخ'),
+        null=True,
+        blank=True,
+        help_text=_('تاریخ فعال‌سازی این بخش به عنوان ارائه‌دهنده خدمات')
+    )
     is_active = models.BooleanField(_('فعال'), default=True)
     can_receive_tickets = models.BooleanField(_('می‌تواند تیکت دریافت کند'), default=False, 
                                              help_text=_('اگر فعال باشد، این بخش می‌تواند تیکت‌ها را مستقیماً از کاربران دریافت کند'))
@@ -421,6 +434,17 @@ class Ticket(models.Model):
     title = models.CharField(_('عنوان'), max_length=200)
     description = models.TextField(_('توضیحات'))
     category = models.CharField(_('دسته‌بندی'), max_length=20, choices=CATEGORY_CHOICES, default='other')
+    
+    # New department-specific category (multi-tenant)
+    ticket_category = models.ForeignKey(
+        'TicketCategory',
+        on_delete=models.PROTECT,
+        related_name='tickets',
+        verbose_name=_('دسته‌بندی جدید'),
+        null=True,
+        blank=True,
+        help_text=_('دسته‌بندی تیکت بر اساس بخش مقصد (سیستم جدید)')
+    )
     priority = models.CharField(_('اولویت'), max_length=20, choices=PRIORITY_CHOICES, default='medium')
     status = models.CharField(_('وضعیت'), max_length=20, choices=STATUS_CHOICES, default='open')
     access_approval_status = models.CharField(
@@ -448,6 +472,21 @@ class Ticket(models.Model):
     
     def __str__(self):
         return f"#{self.id} - {self.title} ({self.get_status_display()})"
+    
+    def get_category_display(self):
+        """
+        Return the category display name.
+        Priority: ticket_category (new system) > category (old system fallback)
+        """
+        if self.ticket_category:
+            # New department-specific category system
+            return self.ticket_category.name
+        elif self.category:
+            # Fallback to old category system
+            return dict(self.CATEGORY_CHOICES).get(self.category, self.category)
+        else:
+            # No category set - return default
+            return dict(self.CATEGORY_CHOICES).get('other', _('سایر'))
     
     class Meta:
         ordering = ['-created_at']
@@ -641,24 +680,102 @@ class EmailConfig(models.Model):
             return cfg
         return cls(host='', port=587, use_tls=True, use_ssl=False)
 
-# Signal to automatically change ticket status when assigned to technician
-@receiver(pre_save, sender=Ticket)
-def auto_change_status_on_technician_assignment(sender, instance, **kwargs):
-    """Automatically change ticket status from 'open' to 'in_progress' when assigned to technician"""
-    if instance.pk:  # Only for existing tickets
-        try:
-            old_instance = Ticket.objects.get(pk=instance.pk)
-            
-            # Check if ticket was just assigned to a technician and status is 'open'
-            if (instance.assigned_to and 
-                instance.assigned_to.role == 'technician' and 
-                instance.status == 'open' and
-                (old_instance.assigned_to != instance.assigned_to or old_instance.status != 'open')):
-                
-                # Auto-change status to 'in_progress'
-                instance.status = 'in_progress'
-        except Ticket.DoesNotExist:
-            pass
+# Signal removed: Manual State Control - Status changes must be explicit user actions
+# Assignment operations no longer automatically change ticket status
+
+class TicketCategory(models.Model):
+    """
+    Department-specific ticket categories.
+    Each service provider department can define its own categories.
+    """
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.CASCADE,
+        related_name='ticket_categories',
+        verbose_name=_('بخش'),
+        help_text=_('بخش ارائه‌دهنده خدمات مربوطه')
+    )
+    
+    name = models.CharField(
+        _('نام دسته‌بندی'),
+        max_length=100,
+        help_text=_('نام دسته‌بندی تیکت (مثال: سخت‌افزار، شبکه، درخواست دسترسی)')
+    )
+    
+    description = models.TextField(
+        _('توضیحات'),
+        blank=True,
+        null=True,
+        help_text=_('توضیحات اختیاری برای این دسته‌بندی')
+    )
+    
+    is_active = models.BooleanField(
+        _('فعال'),
+        default=True,
+        help_text=_('در صورت غیرفعال بودن، این دسته‌بندی در فرم ایجاد تیکت نمایش داده نمی‌شود')
+    )
+    
+    sort_order = models.IntegerField(
+        _('ترتیب نمایش'),
+        default=0,
+        help_text=_('ترتیب نمایش دسته‌بندی در لیست (اعداد کمتر در ابتدا نمایش داده می‌شوند)')
+    )
+    
+    created_at = models.DateTimeField(_('تاریخ ایجاد'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('تاریخ بروزرسانی'), auto_now=True)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_categories',
+        verbose_name=_('ایجاد شده توسط')
+    )
+    
+    class Meta:
+        verbose_name = _("دسته‌بندی تیکت")
+        verbose_name_plural = _("دسته‌بندی‌های تیکت")
+        ordering = ['department', 'sort_order', 'name']
+        unique_together = [['department', 'name']]
+        indexes = [
+            models.Index(fields=['department', 'is_active']),
+            models.Index(fields=['department', 'sort_order']),
+        ]
+    
+    def __str__(self):
+        # Safely access department to avoid RelatedObjectDoesNotExist during form validation
+        if self.department_id:
+            try:
+                return f"{self.department.name} - {self.name}"
+            except (AttributeError, ValueError):
+                return f"{self.name}"
+        return f"{self.name}"
+    
+    def clean(self):
+        """Validate that department is a service provider"""
+        # Use department_id to avoid RelatedObjectDoesNotExist when department is not yet set
+        # This allows form validation to pass before the view sets the department
+        if self.department_id is not None:
+            # Only validate if department is set (will be set by view before final save)
+            try:
+                department = self.department
+                if department and not department.can_receive_tickets:
+                    raise ValidationError({
+                        'department': _('فقط بخش‌هایی که می‌توانند تیکت دریافت کنند می‌توانند دسته‌بندی داشته باشند.')
+                    })
+            except (AttributeError, ValueError):
+                # Department not set yet or invalid - this is OK during form validation
+                # The view will set it before final save
+                pass
+    
+    def save(self, *args, **kwargs):
+        """Save the category with validation"""
+        # Only run full_clean if department_id is set
+        # This prevents RelatedObjectDoesNotExist during form.save(commit=False)
+        # The view will set department before calling save(), so validation will run then
+        if hasattr(self, 'department_id') and self.department_id is not None:
+            self.full_clean()  # Run validation (department should be set by view before calling save())
+        super().save(*args, **kwargs)
 
 class InventoryElement(models.Model):
     """

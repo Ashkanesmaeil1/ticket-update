@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load i18n %}
 {% load persian_date %}
+{% load persian_numbers %}
 
 {% block title %}{% trans "لیست کالاها" %} - {{ warehouse.name }}{% endblock %}
 
@@ -202,7 +203,7 @@
                 </span>
             </div>
             <div class="item-meta">
-                <span><i class="fas fa-cube"></i> {{ item_data.total_stock|floatformat:0 }} {{ item_data.item.unit }}</span>
+                <span><i class="fas fa-cube"></i> {{ item_data.total_stock|floatformat:0|persian_digits }} {{ item_data.item.unit }}</span>
                 {% if item_data.item.category %}
                 <span><i class="fas fa-tag"></i> {{ item_data.item.category.name }}</span>
                 {% endif %}

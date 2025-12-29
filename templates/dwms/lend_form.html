@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load i18n %}
 {% load static %}
+{% load persian_numbers %}
 
 {% block title %}{% trans "ثبت امانت" %} - {{ warehouse.name }}{% endblock %}
 
@@ -140,9 +141,9 @@
             <strong>{% trans "کالا:" %}</strong> {{ item.name }}<br>
             <strong>{% trans "موجودی فعلی:" %}</strong> 
             {% if item.get_total_stock %}
-                {{ item.get_total_stock|floatformat:0 }} {{ item.unit }}
+                {{ item.get_total_stock|floatformat:0|persian_digits }} {{ item.unit }}
             {% else %}
-                0 {{ item.unit }}
+                {{ 0|persian_digits }} {{ item.unit }}
             {% endif %}
         </div>
         {% endif %}

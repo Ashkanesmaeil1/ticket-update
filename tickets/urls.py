@@ -70,10 +70,17 @@ urlpatterns = [
     path('warehouse/department/<int:department_id>/element/<int:element_id>/edit/', views.department_warehouse_element_edit, name='department_warehouse_element_edit'),
     path('warehouse/department/<int:department_id>/element/<int:element_id>/delete/', views.department_warehouse_element_delete, name='department_warehouse_element_delete'),
     
+    # Category Management (Supervisor only)
+    path('categories/', views.category_list, name='category_list'),
+    path('categories/create/', views.category_create, name='category_create'),
+    path('categories/<int:category_id>/edit/', views.category_edit, name='category_edit'),
+    path('categories/<int:category_id>/delete/', views.category_delete, name='category_delete'),
+    
     # API endpoints
     path('api/branches/<int:branch_id>/departments/', views.get_departments_for_branch, name='get_departments_for_branch'),
     path('api/departments/without-team-lead/', views.get_departments_without_team_lead, name='get_departments_without_team_lead'),
     path('api/departments/all-employee/', views.get_all_employee_departments, name='get_all_employee_departments'),
+    path('api/departments/<int:department_id>/categories/', views.get_department_categories, name='department_categories_api'),
     
     # API endpoints
     path('api/tickets/<int:ticket_id>/status/', views.update_ticket_status, name='update_ticket_status'),

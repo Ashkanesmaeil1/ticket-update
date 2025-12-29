@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load i18n %}
 {% load persian_date %}
+{% load persian_numbers %}
 {% load dwms_filters %}
 
 {% block title %}{% trans "داشبورد انبار" %} - {{ warehouse.name }}{% endblock %}
@@ -223,19 +224,19 @@
     <!-- Statistics -->
     <div class="stats-grid">
         <div class="stat-card">
-            <div class="stat-value">{{ total_items }}</div>
+            <div class="stat-value">{{ total_items|persian_digits }}</div>
             <div class="stat-label">{% trans "کل کالاها" %}</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value">{{ low_stock_count|floatformat:0 }}</div>
+            <div class="stat-value">{{ low_stock_count|floatformat:0|persian_digits }}</div>
             <div class="stat-label">{% trans "کمبود موجودی" %}</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value">{{ open_lends|length }}</div>
+            <div class="stat-value">{{ open_lends|length|persian_digits }}</div>
             <div class="stat-label">{% trans "امانت‌های فعال" %}</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value">{{ recent_movements|length }}</div>
+            <div class="stat-value">{{ recent_movements|length|persian_digits }}</div>
             <div class="stat-label">{% trans "حرکت‌های اخیر" %}</div>
         </div>
     </div>
@@ -249,7 +250,7 @@
             <div>
                 <strong>{{ alert.item.name }}</strong>
                 <div style="font-size: 0.875rem; color: #6b7280; margin-top: 0.25rem;">
-                    موجودی: {{ alert.current_stock|floatformat:0 }} {{ alert.item.unit }} / حداقل: {{ alert.threshold|floatformat:0 }} {{ alert.item.unit }}
+                    موجودی: {{ alert.current_stock|floatformat:0|persian_digits }} {{ alert.item.unit }} / حداقل: {{ alert.threshold|floatformat:0|persian_digits }} {{ alert.item.unit }}
                 </div>
             </div>
             <a href="{% url 'dwms:item_detail' department.id alert.item.id %}" class="btn btn-sm btn-outline-primary">
@@ -275,7 +276,7 @@
                 <div>
                     <span class="movement-type {{ movement.movement_type }}">{{ movement.movement_type|movement_type_persian }}</span>
                     <div style="text-align: left; margin-top: 0.25rem; font-weight: 600;">
-                        {{ movement.quantity|floatformat:0 }} {% if movement.item %}{{ movement.item.unit }}{% else %}{% trans "عدد" %}{% endif %}
+                        {{ movement.quantity|floatformat:0|persian_digits }} {% if movement.item %}{{ movement.item.unit }}{% else %}{% trans "عدد" %}{% endif %}
                     </div>
                 </div>
             </div>

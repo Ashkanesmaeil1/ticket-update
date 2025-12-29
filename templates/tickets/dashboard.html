@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load i18n %}
 {% load persian_date %}
+{% load persian_numbers %}
 {% load admin_security_tags %}
 
 {% block title %}{% trans "داشبورد" %} - {% trans "سیستم تیکت" %}{% endblock %}
@@ -595,7 +596,7 @@
                         <div class="stat-header">
                             <div class="stat-info">
                                 <div class="stat-label">{% trans "تیکت‌های من" %}</div>
-                                <div class="stat-value">{{ my_total_tickets }}</div>
+                                <div class="stat-value">{{ my_total_tickets|persian_digits }}</div>
                                 </div>
                             <div class="stat-icon">
                                 <i class="fas fa-user"></i>
@@ -606,7 +607,7 @@
                         <div class="stat-header">
                             <div class="stat-info">
                                 <div class="stat-label">{% trans "تیکت‌های باز" %}</div>
-                                <div class="stat-value">{{ my_open_tickets }}</div>
+                                <div class="stat-value">{{ my_open_tickets|persian_digits }}</div>
                         </div>
                             <div class="stat-icon">
                                 <i class="fas fa-clock"></i>
@@ -617,7 +618,7 @@
                         <div class="stat-header">
                             <div class="stat-info">
                                 <div class="stat-label">{% trans "تیکت های انجام شده" %}</div>
-                                <div class="stat-value">{{ my_resolved_tickets }}</div>
+                                <div class="stat-value">{{ my_resolved_tickets|persian_digits }}</div>
                                 </div>
                             <div class="stat-icon">
                                 <i class="fas fa-check-circle"></i>
@@ -628,7 +629,7 @@
                         <div class="stat-header">
                             <div class="stat-info">
                                 <div class="stat-label">{% trans "تمام تیکت های شرکت" %}</div>
-                                <div class="stat-value">{{ all_total_tickets }}</div>
+                                <div class="stat-value">{{ all_total_tickets|persian_digits }}</div>
                         </div>
                             <div class="stat-icon">
                                 <i class="fas fa-globe"></i>
@@ -641,7 +642,7 @@
                         <div class="stat-header">
                             <div class="stat-info">
                                 <div class="stat-label">{% trans "تیکت‌های من" %}</div>
-                                <div class="stat-value">{{ my_total_tickets }}</div>
+                                <div class="stat-value">{{ my_total_tickets|persian_digits }}</div>
                                 </div>
                             <div class="stat-icon">
                                 <i class="fas fa-user"></i>
@@ -652,7 +653,7 @@
                         <div class="stat-header">
                             <div class="stat-info">
                                 <div class="stat-label">{% trans "تیکت‌های باز" %}</div>
-                                <div class="stat-value">{{ my_open_tickets }}</div>
+                                <div class="stat-value">{{ my_open_tickets|persian_digits }}</div>
                         </div>
                             <div class="stat-icon">
                                 <i class="fas fa-clock"></i>
@@ -663,7 +664,7 @@
                         <div class="stat-header">
                             <div class="stat-info">
                                 <div class="stat-label">{% trans "تیکت های انجام شده" %}</div>
-                                <div class="stat-value">{{ my_resolved_tickets }}</div>
+                                <div class="stat-value">{{ my_resolved_tickets|persian_digits }}</div>
                                 </div>
                             <div class="stat-icon">
                                 <i class="fas fa-check-circle"></i>
@@ -674,7 +675,7 @@
                         <div class="stat-header">
                             <div class="stat-info">
                                 <div class="stat-label">{% trans "تیکت‌های بخش" %}</div>
-                                <div class="stat-value">{{ department_total_tickets }}</div>
+                                <div class="stat-value">{{ department_total_tickets|persian_digits }}</div>
                         </div>
                             <div class="stat-icon">
                                 <i class="fas fa-building"></i>
@@ -686,14 +687,14 @@
                         <div class="stat-header">
                             <div class="stat-info">
                                 <div class="stat-label">{% trans "تیکت‌های دریافتی" %}</div>
-                                <div class="stat-value">{{ received_total_tickets|default:0 }}</div>
+                                <div class="stat-value">{{ received_total_tickets|default:0|persian_digits }}</div>
                         </div>
                             <div class="stat-icon">
                                 <i class="fas fa-inbox"></i>
                     </div>
                 </div>
                         <div class="stat-footer">
-                            <span class="stat-badge">{{ received_open_tickets|default:0 }} {% trans "باز" %} | {{ received_resolved_tickets|default:0 }} {% trans "انجام شده" %}</span>
+                            <span class="stat-badge">{{ received_open_tickets|default:0|persian_digits }} {% trans "باز" %} | {{ received_resolved_tickets|default:0|persian_digits }} {% trans "انجام شده" %}</span>
                         </div>
                     </a>
                     {% endif %}
@@ -704,14 +705,14 @@
                         <div class="stat-header">
                             <div class="stat-info">
                                 <div class="stat-label">{% trans "تیکت‌های دریافتی" %}</div>
-                                <div class="stat-value">{{ received_total_tickets|default:0 }}</div>
+                                <div class="stat-value">{{ received_total_tickets|default:0|persian_digits }}</div>
                             </div>
                             <div class="stat-icon">
                                 <i class="fas fa-inbox"></i>
                             </div>
                         </div>
                         <div class="stat-footer">
-                            <span class="stat-badge">{{ received_open_tickets|default:0 }} {% trans "باز" %} | {{ received_resolved_tickets|default:0 }} {% trans "انجام شده" %}</span>
+                            <span class="stat-badge">{{ received_open_tickets|default:0|persian_digits }} {% trans "باز" %} | {{ received_resolved_tickets|default:0|persian_digits }} {% trans "انجام شده" %}</span>
                         </div>
                     </a>
                     {% endif %}
@@ -719,7 +720,7 @@
                         <div class="stat-header">
                             <div class="stat-info">
                                 <div class="stat-label">{% trans "کل تیکت‌ها" %}</div>
-                                <div class="stat-value">{{ total_tickets }}</div>
+                                <div class="stat-value">{{ total_tickets|persian_digits }}</div>
                                 </div>
                             <div class="stat-icon">
                                 <i class="fas fa-ticket-alt"></i>
@@ -730,7 +731,7 @@
                         <div class="stat-header">
                             <div class="stat-info">
                                 <div class="stat-label">{% trans "تیکت‌های باز" %}</div>
-                                <div class="stat-value">{{ open_tickets }}</div>
+                                <div class="stat-value">{{ open_tickets|persian_digits }}</div>
                         </div>
                             <div class="stat-icon">
                                 <i class="fas fa-clock"></i>
@@ -741,7 +742,7 @@
                         <div class="stat-header">
                             <div class="stat-info">
                                 <div class="stat-label">{% trans "تیکت های انجام شده" %}</div>
-                                <div class="stat-value">{{ resolved_tickets }}</div>
+                                <div class="stat-value">{{ resolved_tickets|persian_digits }}</div>
                                 </div>
                             <div class="stat-icon">
                                 <i class="fas fa-check-circle"></i>
@@ -755,7 +756,7 @@
                     <div class="stat-header">
                         <div class="stat-info">
                             <div class="stat-label">{% trans "کل تیکت‌ها" %}</div>
-                            <div class="stat-value">{{ total_tickets }}</div>
+                            <div class="stat-value">{{ total_tickets|persian_digits }}</div>
                         </div>
                         <div class="stat-icon">
                             <i class="fas fa-ticket-alt"></i>
@@ -766,7 +767,7 @@
                     <div class="stat-header">
                         <div class="stat-info">
                             <div class="stat-label">{% trans "تیکت‌های باز" %}</div>
-                            <div class="stat-value">{{ open_tickets }}</div>
+                            <div class="stat-value">{{ open_tickets|persian_digits }}</div>
                         </div>
                         <div class="stat-icon">
                             <i class="fas fa-clock"></i>
@@ -777,7 +778,7 @@
                     <div class="stat-header">
                         <div class="stat-info">
                             <div class="stat-label">{% trans "در حال انجام" %}</div>
-                            <div class="stat-value">{{ in_progress_tickets }}</div>
+                            <div class="stat-value">{{ in_progress_tickets|persian_digits }}</div>
                         </div>
                         <div class="stat-icon">
                             <i class="fas fa-tools"></i>
@@ -788,7 +789,7 @@
                     <div class="stat-header">
                         <div class="stat-info">
                             <div class="stat-label">{% trans "تیکت های انجام شده" %}</div>
-                            <div class="stat-value">{{ resolved_tickets }}</div>
+                            <div class="stat-value">{{ resolved_tickets|persian_digits }}</div>
                         </div>
                         <div class="stat-icon">
                             <i class="fas fa-check-circle"></i>
@@ -801,7 +802,7 @@
                     <div class="stat-header">
                         <div class="stat-info">
                             <div class="stat-label">{% trans "کل تیکت‌ها" %}</div>
-                            <div class="stat-value">{{ total_tickets }}</div>
+                            <div class="stat-value">{{ total_tickets|persian_digits }}</div>
                                 </div>
                         <div class="stat-icon">
                             <i class="fas fa-ticket-alt"></i>
@@ -812,7 +813,7 @@
                     <div class="stat-header">
                         <div class="stat-info">
                             <div class="stat-label">{% trans "تیکت‌های باز" %}</div>
-                            <div class="stat-value">{{ open_tickets }}</div>
+                            <div class="stat-value">{{ open_tickets|persian_digits }}</div>
             </div>
                         <div class="stat-icon">
                             <i class="fas fa-clock"></i>
@@ -823,7 +824,7 @@
                     <div class="stat-header">
                         <div class="stat-info">
                             <div class="stat-label">{% trans "در حال انجام" %}</div>
-                            <div class="stat-value">{{ in_progress_tickets }}</div>
+                            <div class="stat-value">{{ in_progress_tickets|persian_digits }}</div>
             </div>
                         <div class="stat-icon">
                             <i class="fas fa-tools"></i>
@@ -834,7 +835,7 @@
                     <div class="stat-header">
                         <div class="stat-info">
                             <div class="stat-label">{% trans "تیکت های انجام شده" %}</div>
-                            <div class="stat-value">{{ resolved_tickets }}</div>
+                            <div class="stat-value">{{ resolved_tickets|persian_digits }}</div>
             </div>
                         <div class="stat-icon">
                             <i class="fas fa-check-circle"></i>
@@ -855,7 +856,7 @@
                         <i class="fas fa-tasks" style="color: #6366f1;"></i>
                         {% trans "تسک" %}
                         <span style="font-size: 0.9rem; color: #6b7280; margin-right: 0.5rem;">
-                            ({{ my_open_tasks_count|default:0 }} {% trans "باز" %} | {{ my_resolved_tasks_count|default:0 }} {% trans "انجام شده" %})
+                            ({{ my_open_tasks_count|default:0|persian_digits }} {% trans "باز" %} | {{ my_resolved_tasks_count|default:0|persian_digits }} {% trans "انجام شده" %})
                         </span>
                     </div>
                     <div style="display: flex; gap: 0.5rem; align-items: center;">
@@ -876,7 +877,7 @@
                     <div class="ticket-grid">
                         {% for task in my_tasks %}
                         <div class="ticket-item" style="border-left: 4px solid #6366f1;">
-                            <div class="ticket-id" style="background: #6366f1; color: white;">Task #{{ task.id }}</div>
+                            <div class="ticket-id" style="background: #6366f1; color: white;">Task #{{ task.id|persian_id }}</div>
                             <div class="ticket-content">
                                 <div class="ticket-title">{{ task.title|truncatechars:50 }}</div>
                                 <div class="ticket-meta">
@@ -923,7 +924,7 @@
                     <div class="ticket-grid">
                         {% for ticket in tickets %}
                         <div class="ticket-item">
-                            <div class="ticket-id">#{{ ticket.id }}</div>
+                            <div class="ticket-id">#{{ ticket.id|persian_id }}</div>
                             <div class="ticket-content">
                                 <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
                                 <div class="ticket-meta">
@@ -964,7 +965,7 @@
                     <div class="ticket-grid">
                         {% for ticket in my_tickets %}
                         <div class="ticket-item">
-                            <div class="ticket-id">#{{ ticket.id }}</div>
+                            <div class="ticket-id">#{{ ticket.id|persian_id }}</div>
                             <div class="ticket-content">
                                 <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
                                 <div class="ticket-meta">
@@ -1004,7 +1005,7 @@
                             <div class="ticket-grid">
                                         {% for ticket in my_tickets %}
                                 <div class="ticket-item">
-                                    <div class="ticket-id">#{{ ticket.id }}</div>
+                                    <div class="ticket-id">#{{ ticket.id|persian_id }}</div>
                                     <div class="ticket-content">
                                         <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
                                         <div class="ticket-meta">
@@ -1053,7 +1054,7 @@
                             <div class="ticket-grid">
                                         {% for ticket in all_tickets %}
                                 <div class="ticket-item">
-                                    <div class="ticket-id">#{{ ticket.id }}</div>
+                                    <div class="ticket-id">#{{ ticket.id|persian_id }}</div>
                                     <div class="ticket-content">
                                         <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
                                         <div class="ticket-meta">
@@ -1101,7 +1102,7 @@
                             <div class="ticket-grid">
                                         {% for ticket in my_tickets %}
                                 <div class="ticket-item">
-                                    <div class="ticket-id">#{{ ticket.id }}</div>
+                                    <div class="ticket-id">#{{ ticket.id|persian_id }}</div>
                                     <div class="ticket-content">
                                         <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
                                         <div class="ticket-meta">
@@ -1150,7 +1151,7 @@
                             <div class="ticket-grid">
                                         {% for ticket in department_tickets %}
                                 <div class="ticket-item">
-                                    <div class="ticket-id">#{{ ticket.id }}</div>
+                                    <div class="ticket-id">#{{ ticket.id|persian_id }}</div>
                                     <div class="ticket-content">
                                         <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
                                         <div class="ticket-meta">
@@ -1204,7 +1205,7 @@
                             <div class="ticket-grid">
                                         {% for ticket in received_tickets %}
                                 <div class="ticket-item">
-                                    <div class="ticket-id">#{{ ticket.id }}</div>
+                                    <div class="ticket-id">#{{ ticket.id|persian_id }}</div>
                                     <div class="ticket-content">
                                         <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
                                         <div class="ticket-meta">
@@ -1254,7 +1255,7 @@
                         <div class="ticket-grid">
                             {% for ticket in received_tickets %}
                             <div class="ticket-item">
-                                <div class="ticket-id">#{{ ticket.id }}</div>
+                                <div class="ticket-id">#{{ ticket.id|persian_id }}</div>
                                 <div class="ticket-content">
                                     <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
                                     <div class="ticket-meta">
@@ -1306,7 +1307,7 @@
                         <div class="ticket-grid">
                             {% for ticket in my_tickets %}
                             <div class="ticket-item">
-                                <div class="ticket-id">#{{ ticket.id }}</div>
+                                <div class="ticket-id">#{{ ticket.id|persian_id }}</div>
                                 <div class="ticket-content">
                                     <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
                                     <div class="ticket-meta">
@@ -1402,7 +1403,7 @@
                             <div class="ticket-grid">
                                 {% for ticket in tickets %}
                                 <div class="ticket-item">
-                                    <div class="ticket-id">#{{ ticket.id }}</div>
+                                    <div class="ticket-id">#{{ ticket.id|persian_id }}</div>
                                     <div class="ticket-content">
                                         <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
                                         <div class="ticket-meta">
@@ -1458,7 +1459,7 @@
                                 <div class="activity-content">
                                     {% trans "پاسخ داد" %} به 
                                     <a href="{% url 'tickets:ticket_detail' reply.ticket.id %}" class="activity-ticket">
-                                        #{{ reply.ticket.id }} - {{ reply.ticket.title|truncatechars:40 }}
+                                        #{{ reply.ticket.id|persian_id }} - {{ reply.ticket.title|truncatechars:40 }}
                                     </a>
                                     </div>
                                 <div class="activity-content">

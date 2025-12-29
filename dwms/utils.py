@@ -22,8 +22,19 @@ def get_authorized_warehouse_for_user(department_id, user):
             logger.warning(f'get_authorized_warehouse_for_user: User not authenticated or None')
             return None
 
-        # Only employees can access warehouses (supervisors OR delegated users)
-        if user.role != 'employee':
+        # EXCLUDE IT MANAGERS: They use the hierarchical IT Inventory system, not Department Warehouse
+        if user.role == 'it_manager':
+            logger.info(f'get_authorized_warehouse_for_user: User {user.id} is IT Manager - excluded from Department Warehouse access (uses IT Inventory system)')
+            return None
+        
+        # ADMINISTRATIVE OVERRIDE: Staff and Superusers can access warehouses
+        # Employees can access warehouses (supervisors OR delegated users)
+        is_admin_user = False
+        if (hasattr(user, 'is_staff') and user.is_staff) or (hasattr(user, 'is_superuser') and user.is_superuser):
+            is_admin_user = True
+            logger.info(f'get_authorized_warehouse_for_user: User {user.id} is Staff/Superuser - granting administrative access')
+        
+        if user.role != 'employee' and not is_admin_user:
             logger.warning(f'get_authorized_warehouse_for_user: User {user.id} is not an employee (role={user.role})')
             return None
         
@@ -87,7 +98,7 @@ def get_authorized_warehouse_for_user(department_id, user):
                 department=department,
                 defaults={
                     'name': f"{department.name} انبار",
-                    'created_by': user if is_authorized else None,
+                    'created_by': user if (is_authorized or is_admin_user) else None,
                 }
             )
             if created:
@@ -97,6 +108,11 @@ def get_authorized_warehouse_for_user(department_id, user):
         except Exception as warehouse_error:
             logger.error(f"Error creating/getting warehouse for department {department_id}: {str(warehouse_error)}", exc_info=True)
             return None
+        
+        # ADMINISTRATIVE OVERRIDE: Staff and Superusers have access to all warehouses
+        if (hasattr(user, 'is_staff') and user.is_staff) or (hasattr(user, 'is_superuser') and user.is_superuser):
+            logger.info(f'get_authorized_warehouse_for_user: User {user.id} is Staff/Superuser - granting access to warehouse {warehouse.id}')
+            return warehouse
         
         # If user is supervisor, return warehouse
         if is_authorized:

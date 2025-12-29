@@ -6,6 +6,17 @@ from datetime import date, datetime
 
 register = template.Library()
 
+def _latin_to_persian_digits(value_str):
+    """
+    Convert Latin digits to Persian digits in a string.
+    Preserves non-digit characters.
+    """
+    persian_map = {
+        '0': '۰', '1': '۱', '2': '۲', '3': '۳', '4': '۴',
+        '5': '۵', '6': '۶', '7': '۷', '8': '۸', '9': '۹',
+    }
+    return ''.join(persian_map.get(char, char) for char in value_str)
+
 @register.filter
 def persian_date(value):
     """Convert datetime to Persian date format"""
@@ -27,10 +38,13 @@ def persian_date(value):
     
     # Format: 1402/12/25 14:30 (or just date if original was date)
     if isinstance(value, datetime) and not isinstance(value, date):
-        return persian_date.strftime('%Y/%m/%d %H:%M')
+        formatted = persian_date.strftime('%Y/%m/%d %H:%M')
     else:
         # For date-only fields, don't show time
-        return persian_date.strftime('%Y/%m/%d')
+        formatted = persian_date.strftime('%Y/%m/%d')
+    
+    # Convert digits to Persian
+    return _latin_to_persian_digits(formatted)
 
 @register.filter
 def persian_date_only(value):
@@ -52,7 +66,9 @@ def persian_date_only(value):
     persian_date = jdatetime.datetime.fromgregorian(datetime=value)
     
     # Format: 1402/12/25
-    return persian_date.strftime('%Y/%m/%d')
+    formatted = persian_date.strftime('%Y/%m/%d')
+    # Convert digits to Persian
+    return _latin_to_persian_digits(formatted)
 
 @register.filter
 def persian_time_only(value):
@@ -70,7 +86,9 @@ def persian_time_only(value):
         value = value.astimezone(tehran_tz)
     
     # Format: 14:30
-    return value.strftime('%H:%M')
+    formatted = value.strftime('%H:%M')
+    # Convert digits to Persian
+    return _latin_to_persian_digits(formatted)
 
 @register.filter
 def persian_month_name(value):

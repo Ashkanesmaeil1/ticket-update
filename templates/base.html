@@ -581,6 +581,11 @@
                                 <i class="fas fa-user-check me-2"></i>{% trans "مدیریت پاسخ‌دهنده" %}
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if '/categories/' in request.path %}active{% endif %}" href="{% url 'tickets:category_list' %}">
+                                <i class="fas fa-tags me-2"></i>{% trans "دسته‌بندی تیکت" %}
+                            </a>
+                        </li>
                         {% endif %}
                     {% else %}
                         <li class="nav-item">
@@ -596,7 +601,13 @@
                         </li>
                         {% endif %}
                     {% endif %}
-                    {% comment %}DWMS Warehouse link for all users with warehouse access (supervisors, write delegates, read delegates){% endcomment %}
+                    {% comment %}
+                    DEPARTMENT WAREHOUSE SYSTEM (Flat Structure):
+                    - Uses DepartmentWarehouse model with flat Item -> Quantity -> Movement structure
+                    - Accessible to supervisors, delegated users (read/write), and IT Managers
+                    - Supports delegation via WarehouseAccess table
+                    - URL pattern: /dwms/<department_id>/
+                    {% endcomment %}
                     {% if has_warehouse_access %}
                         <li class="nav-item">
                             <a class="nav-link {% if '/dwms/' in request.path %}active{% endif %}" href="{% url 'dwms:warehouse_selection' %}">
@@ -668,8 +679,17 @@
                             <i class="fas fa-envelope me-2"></i>{% trans "تنظیمات ایمیل" %}
                         </a>
                     </li>
+                    {% comment %}
+                    IT INVENTORY SYSTEM (Hierarchical/Tree Structure):
+                    - Uses InventoryElement model with recursive parent-child relationships
+                    - Tree structure: User -> Parent Element -> Sub-Elements -> Specifications
+                    - IT Manager exclusive access
+                    - Supports dynamic expansion and attribute inheritance
+                    - URL pattern: /tickets/inventory/
+                    - This is SEPARATE from Department Warehouse system (flat structure above)
+                    {% endcomment %}
                     <li class="nav-item">
-                        <a class="nav-link {% if '/inventory/' in request.path %}active{% endif %}" href="{% url 'tickets:inventory_management' %}">
+                        <a class="nav-link {% if '/inventory/' in request.path and '/dwms/' not in request.path %}active{% endif %}" href="{% url 'tickets:inventory_management' %}">
                             <i class="fas fa-boxes me-2"></i>{% trans "مدیریت موجودی" %}
                         </a>
                     </li>
