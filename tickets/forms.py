@@ -1215,6 +1215,8 @@ class SuperAdminProfileForm(forms.ModelForm):
         """Validate national_id uniqueness (excluding current user)"""
         national_id = self.cleaned_data.get('national_id')
         if national_id:
+            # Normalize before validation to match database format
+            national_id = normalize_national_id(national_id.strip())
             # Check if another user (excluding current instance) has this national_id
             existing_user = User.objects.filter(national_id=national_id).exclude(
                 id=self.instance.id if self.instance and self.instance.pk else None
@@ -1227,6 +1229,8 @@ class SuperAdminProfileForm(forms.ModelForm):
         """Validate employee_code uniqueness (excluding current user)"""
         employee_code = self.cleaned_data.get('employee_code')
         if employee_code:
+            # Normalize before validation to match database format
+            employee_code = normalize_employee_code(employee_code.strip())
             # Check if another user (excluding current instance) has this employee_code
             existing_user = User.objects.filter(employee_code=employee_code).exclude(
                 id=self.instance.id if self.instance and self.instance.pk else None
@@ -1420,9 +1424,15 @@ class EmployeeCreationForm(forms.ModelForm):
     def clean_department(self):
         """Validate department - must be None for supervisors"""
         department = self.cleaned_data.get('department')
+        # department_role may not be in cleaned_data yet (field order: department before department_role)
         department_role = self.cleaned_data.get('department_role')
+        if department_role is None and self.data and 'department_role' in self.data:
+            dept_role = self.data.get('department_role')
+            if isinstance(dept_role, list):
+                dept_role = dept_role[0] if dept_role else None
+            department_role = dept_role
         
-        # If creating a supervisor (senior or manager), department must be None
+        # If creating a supervisor (senior or manager), department is optional - must be None/empty
         if department_role in ['senior', 'manager']:
             if department is not None:
                 from django.core.exceptions import ValidationError
@@ -1699,7 +1709,8 @@ class EmployeeEditForm(forms.ModelForm):
         
         # CRITICAL: Preserve critical fields; allow national_id/employee_code when admin explicitly edits them
         if self.instance and self.instance.pk and original_fields:
-            user.is_active = original_fields['is_active']
+            # Use is_active from form data (admin can toggle user status)
+            user.is_active = self.cleaned_data.get('is_active', original_fields['is_active'])
             user.role = original_fields['role']  # Preserve role (employee, technician, it_manager)
             # Use cleaned_data for national_id/employee_code when admin submitted new values (identity sync in User.save())
             if self.cleaned_data.get('national_id'):

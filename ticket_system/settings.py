@@ -152,8 +152,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('SECRET_KEY', 'default-safe-secret-key-for-local')
 
 # خواندن DEBUG و تبدیل رشته به مقدار بولی (True/False)
-# DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 't')
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 't')
+# DEBUG = True
 
 # خواندن ALLOWED_HOSTS و تبدیل رشته کاما جدا شده به لیست
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
