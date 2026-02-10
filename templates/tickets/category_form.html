@@ -402,6 +402,31 @@
                         {% endif %}
                     </div>
                     
+                    <div class="checkbox-modern" style="margin-bottom: 1.5rem;">
+                        <input type="checkbox" 
+                               name="{{ form.requires_supervisor_approval.name }}" 
+                               id="{{ form.requires_supervisor_approval.id_for_label }}"
+                               {% if form.requires_supervisor_approval.value %}checked{% endif %}>
+                        <label class="checkbox-label" for="{{ form.requires_supervisor_approval.id_for_label }}">
+                            <i class="fas fa-user-check me-1"></i>
+                            {{ form.requires_supervisor_approval.label }}
+                        </label>
+                    </div>
+                    {% if form.requires_supervisor_approval.help_text %}
+                    <div class="help-text" style="margin-top: -1rem; margin-bottom: 1.5rem;">
+                        <i class="fas fa-info-circle me-1"></i>
+                        {{ form.requires_supervisor_approval.help_text }}
+                    </div>
+                    {% endif %}
+                    {% if form.requires_supervisor_approval.errors %}
+                    <div class="error-message" style="margin-bottom: 1.5rem;">
+                        <i class="fas fa-exclamation-circle"></i>
+                        {% for error in form.requires_supervisor_approval.errors %}
+                        {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    
                     <div class="form-group">
                         <label class="form-label" for="{{ form.description.id_for_label }}">
                             <i class="fas fa-align-left me-1"></i>

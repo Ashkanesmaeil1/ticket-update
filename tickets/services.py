@@ -457,6 +457,11 @@ def create_email_template(action_type, ticket, user, additional_info=None):
 
 def create_notification(recipient, title, message, notification_type, category='system', ticket=None, user_actor=None):
     """Create a notification in the database"""
+    # Self-action exclusion: Don't create notification if the actor is the same as the recipient
+    # This prevents IT Manager from receiving notifications about their own actions
+    if user_actor and recipient and user_actor.id == recipient.id:
+        return None
+    
     try:
         notification = Notification.objects.create(
             recipient=recipient,

@@ -6,8 +6,12 @@ from django.core.exceptions import ValidationError
 from django.db.models import Q, Count
 from .models import Ticket, Reply, User, Department, EmailConfig, Branch, InventoryElement, ElementSpecification, TicketTask, TaskReply, TicketCategory
 from .validators import validate_iranian_national_id, validate_iranian_mobile_number
+from .utils import normalize_national_id, normalize_employee_code, log_authentication_attempt
 import os
 import mimetypes
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class WarehouseAwareModelChoiceField(forms.ModelChoiceField):
@@ -63,11 +67,43 @@ class CustomAuthenticationForm(AuthenticationForm):
         employee_code = self.cleaned_data.get('employee_code')
         
         if national_id and employee_code:
-            # Try to authenticate using national_id and employee_code
-            user = authenticate(request=self.request, national_id=national_id, employee_code=employee_code)
+            # Normalize identifiers to handle Persian/Arabic numerals
+            normalized_national_id = normalize_national_id(national_id)
+            normalized_employee_code = normalize_employee_code(employee_code)
+            
+            # Log normalization if conversion occurred
+            if national_id != normalized_national_id or employee_code != normalized_employee_code:
+                logger.debug(
+                    f"Login form: Normalized National ID from '{national_id}' to '{normalized_national_id}', "
+                    f"Employee Code from '{employee_code}' to '{normalized_employee_code}'"
+                )
+            
+            # Update cleaned_data with normalized values
+            self.cleaned_data['national_id'] = normalized_national_id
+            self.cleaned_data['employee_code'] = normalized_employee_code
+            
+            # Try to authenticate using normalized national_id and employee_code
+            user = authenticate(request=self.request, national_id=normalized_national_id, employee_code=normalized_employee_code)
             if user is None:
+                # Log authentication failure
+                log_authentication_attempt(
+                    national_id=normalized_national_id,
+                    employee_code=normalized_employee_code,
+                    success=False,
+                    error_type='invalid_credentials',
+                    error_message='Incorrect National ID or Employee Code'
+                )
                 raise ValidationError(_('کد ملی یا کد کارمندی اشتباه است.'))
             if not user.is_active:
+                # Log inactive user attempt
+                log_authentication_attempt(
+                    national_id=normalized_national_id,
+                    employee_code=normalized_employee_code,
+                    success=False,
+                    error_type='inactive_user',
+                    error_message='User account is inactive',
+                    user_id=user.id
+                )
                 raise ValidationError(_('این حساب کاربری غیرفعال است.'))
             self.user_cache = user
         return self.cleaned_data
@@ -154,6 +190,12 @@ class TicketForm(forms.ModelForm):
             # Widget is disabled initially, JavaScript will enable it
             if not self.data:  # Only disable on GET requests
                 self.fields['ticket_category'].widget.attrs['disabled'] = True
+            # Show "Requires Supervisor Approval" on creation screen for each category option
+            def ticket_category_label(obj):
+                if getattr(obj, 'requires_supervisor_approval', False):
+                    return f"{obj.name} ({_('نیاز به تایید سرپرست')})"
+                return obj.name
+            self.fields['ticket_category'].label_from_instance = ticket_category_label
     
     def clean_ticket_category(self):
         """Dynamically validate ticket_category based on selected department"""
@@ -1584,6 +1626,16 @@ class EmployeeEditForm(forms.ModelForm):
         
         return department
     
+    def clean(self):
+        """Normalize national_id and employee_code (Persian/Arabic to English digits) for User Management edits."""
+        cleaned_data = super().clean()
+        from .utils import normalize_national_id, normalize_employee_code
+        if cleaned_data.get('national_id'):
+            cleaned_data['national_id'] = normalize_national_id(cleaned_data['national_id'].strip())
+        if cleaned_data.get('employee_code'):
+            cleaned_data['employee_code'] = normalize_employee_code(cleaned_data['employee_code'].strip())
+        return cleaned_data
+    
     def save(self, commit=True):
         """Override save to preserve department_role and critical authentication fields"""
         # #region agent log - Form save entry
@@ -1645,13 +1697,19 @@ class EmployeeEditForm(forms.ModelForm):
             'department_role_after_super': user.department_role
         })
         
-        # CRITICAL: Preserve ALL critical authentication fields
+        # CRITICAL: Preserve critical fields; allow national_id/employee_code when admin explicitly edits them
         if self.instance and self.instance.pk and original_fields:
-            # Preserve authentication fields - NEVER modify these
             user.is_active = original_fields['is_active']
-            user.national_id = original_fields['national_id']
-            user.employee_code = original_fields['employee_code']
             user.role = original_fields['role']  # Preserve role (employee, technician, it_manager)
+            # Use cleaned_data for national_id/employee_code when admin submitted new values (identity sync in User.save())
+            if self.cleaned_data.get('national_id'):
+                user.national_id = self.cleaned_data['national_id']
+            else:
+                user.national_id = original_fields['national_id']
+            if self.cleaned_data.get('employee_code'):
+                user.employee_code = self.cleaned_data['employee_code']
+            else:
+                user.employee_code = original_fields['employee_code']
             
             # Preserve password hash if not explicitly changed
             if not hasattr(self, '_password_changed') or not self._password_changed:
@@ -1713,6 +1771,16 @@ class TechnicianEditForm(forms.ModelForm):
             'phone': _('تلفن'),
             'is_active': _('فعال')
         }
+
+    def clean(self):
+        """Normalize national_id and employee_code (Persian/Arabic to English digits)."""
+        cleaned_data = super().clean()
+        from .utils import normalize_national_id, normalize_employee_code
+        if cleaned_data.get('national_id'):
+            cleaned_data['national_id'] = normalize_national_id(cleaned_data['national_id'].strip())
+        if cleaned_data.get('employee_code'):
+            cleaned_data['employee_code'] = normalize_employee_code(cleaned_data['employee_code'].strip())
+        return cleaned_data
 
 class EmailConfigForm(forms.ModelForm):
     """Form for email configuration"""
@@ -1930,7 +1998,7 @@ class TicketCategoryForm(forms.ModelForm):
     
     class Meta:
         model = TicketCategory
-        fields = ['name', 'description', 'is_active', 'sort_order']
+        fields = ['name', 'description', 'is_active', 'sort_order', 'requires_supervisor_approval']
         widgets = {
             'name': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -1948,15 +2016,20 @@ class TicketCategoryForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': _('ترتیب نمایش')
             }),
+            'requires_supervisor_approval': forms.CheckboxInput(attrs={
+                'class': 'form-check-input'
+            }),
         }
         labels = {
             'name': _('نام دسته‌بندی'),
             'description': _('توضیحات'),
             'is_active': _('فعال'),
             'sort_order': _('ترتیب نمایش'),
+            'requires_supervisor_approval': _('نیاز به تایید سرپرست'),
         }
         help_texts = {
             'sort_order': _('اعداد کمتر در ابتدا نمایش داده می‌شوند'),
+            'requires_supervisor_approval': _('در صورت فعال بودن، تیکت‌های این دسته‌بندی نیاز به تایید سرپرست بخش ایجادکننده دارند'),
         }
     
     def __init__(self, *args, **kwargs):

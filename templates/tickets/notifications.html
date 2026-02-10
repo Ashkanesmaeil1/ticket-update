@@ -2,6 +2,7 @@
 {% load i18n %}
 {% load persian_date %}
 {% load notifications_tags %}
+{% load persian_numbers %}
 
 {% block title %}{% trans "اعلان‌ها" %} - {% trans "سیستم تیکت" %}{% endblock %}
 
@@ -602,7 +603,7 @@
                 <div class="stat-icon">
                     <i class="fas fa-bell fs-icon"></i>
                 </div>
-                <div class="stat-value" id="stat-total">{{ total_unread }}</div>
+                <div class="stat-value" id="stat-total" data-value="{{ total_unread }}">{{ total_unread|persian_digits }}</div>
                 <div class="stat-label">{% trans "اعلان‌های جدید" %}</div>
             </div>
 
@@ -610,23 +611,15 @@
                 <div class="stat-icon">
                     <i class="fas fa-ticket-alt fs-icon"></i>
                 </div>
-                <div class="stat-value" id="stat-tickets">{{ unread_counts.tickets|default:0 }}</div>
+                <div class="stat-value" id="stat-tickets" data-value="{{ unread_counts.tickets|default:0 }}">{{ unread_counts.tickets|default:0|persian_digits }}</div>
                 <div class="stat-label">{% trans "اعلان‌های تیکت" %}</div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-users fs-icon"></i>
-                </div>
-                <div class="stat-value" id="stat-users">{{ unread_counts.users|default:0 }}</div>
-                <div class="stat-label">{% trans "اعلان‌های کاربران" %}</div>
             </div>
 
             <div class="stat-card">
                 <div class="stat-icon">
                     <i class="fas fa-network-wired fs-icon"></i>
                 </div>
-                <div class="stat-value" id="stat-access">{{ unread_counts.access|default:0 }}</div>
+                <div class="stat-value" id="stat-access" data-value="{{ unread_counts.access|default:0 }}">{{ unread_counts.access|default:0|persian_digits }}</div>
                 <div class="stat-label">{% trans "اعلان‌های دسترسی" %}</div>
             </div>
         </div>
@@ -634,24 +627,24 @@
         <!-- Navigation Tabs -->
         <div class="tabs-modern">
         {% for category, name in category_names.items %}
-                <button class="tab-btn {% if forloop.first %}active{% endif %}" onclick="showCategory('{{ category }}')">
-                    <i class="fas fa-{% if category == 'tickets' %}ticket-alt{% elif category == 'users' %}users{% elif category == 'access' %}network-wired{% else %}cog{% endif %}"></i>
+                <button class="tab-btn {% if category == 'tickets' %}active{% endif %}" onclick="showCategory('{{ category }}')">
+                    <i class="fas fa-{% if category == 'tickets' %}ticket-alt{% elif category == 'access' %}network-wired{% else %}cog{% endif %}"></i>
             {{ name }}
             {% for cat, count in unread_counts.items %}
               {% if cat == category and count > 0 %}
-                            <span class="tab-badge">{{ count }}</span>
+                            <span class="tab-badge" data-value="{{ count }}">{{ count|persian_digits }}</span>
               {% endif %}
             {% endfor %}
           </button>
         {% endfor %}
   </div>
 
-        <!-- Category Content -->
+        <!-- Category Content - Loaded via AJAX -->
     {% for category, name in category_names.items %}
-            <div id="category-{{ category }}" class="notification-list {% if forloop.first %}active-category{% else %}hidden-category{% endif %}">
+            <div id="category-{{ category }}" class="notification-list {% if category == 'tickets' %}active-category{% else %}hidden-category{% endif %}" data-category="{{ category }}">
                 <div class="category-header">
                     <div class="category-title">
-                        <i class="fas fa-{% if category == 'tickets' %}ticket-alt{% elif category == 'users' %}users{% elif category == 'access' %}network-wired{% else %}cog{% endif %}"></i>
+                        <i class="fas fa-{% if category == 'tickets' %}ticket-alt{% elif category == 'access' %}network-wired{% else %}cog{% endif %}"></i>
                         {{ name }}
                     </div>
                     <div class="category-actions">
@@ -670,70 +663,17 @@
         </div>
       </div>
       
-        {% for cat, has_notifications in category_has_notifications.items %}
-          {% if cat == category %}
-            {% if has_notifications %}
-              {% for notification in notifications %}
-                {% if notification.category == category %}
-                                    <div class="notification-item {% if not notification.is_read %}unread{% endif %}" id="notification-{{ notification.id }}">
-                                        <div class="notification-header-item">
-                                            <div class="notification-info">
-                                                <div class="notification-icon">
-                                                    <i class="fas fa-{% if notification.notification_type == 'login' %}sign-in-alt{% elif notification.notification_type == 'ticket_created' %}ticket-alt{% elif notification.notification_type == 'access_approved' %}check-circle{% elif notification.notification_type == 'access_rejected' %}times-circle{% else %}bell{% endif %}"></i>
-                                                </div>
-                                                <div class="notification-details">
-                                                    <div class="notification-title">{{ notification.title }}</div>
-                                                    <div class="notification-time">{{ notification.created_at|persian_date }}</div>
-                        </div>
-                      </div>
-                                            <div class="notification-actions">
-                                                <button class="btn-show-more" type="button" data-bs-toggle="collapse" data-bs-target="#details-{{ notification.id }}">
-                                                    <i class="fas fa-eye"></i>
-                          {% trans "نمایش بیشتر" %}
-                        </button>
-                                                <button class="btn-delete-notification" onclick="deleteNotification({{ notification.id }})">
-                          <i class="fas fa-trash"></i>
-                        </button>
-                      </div>
+      <!-- Loading indicator -->
+      <div class="category-loading" id="loading-{{ category }}" style="text-align: center; padding: 2rem;">
+        <i class="fas fa-spinner fa-spin fa-2x"></i>
+        <p>{% trans "در حال بارگذاری..." %}</p>
                     </div>
                     
-                    <!-- Collapsible Details -->
-                                        <div class="collapse" id="details-{{ notification.id }}">
-                                            <div class="notification-content-details">
-                        {% if notification.notification_type == 'login' %}
-                          <!-- Special display for login notifications -->
-                                                    <div class="text-center mb-3">
-                            <i class="fas fa-sign-in-alt fa-2x text-primary mb-2 fs-icon"></i>
-                            <div class="fw-bold">{{ notification.title }}</div>
-                          </div>
-                          {% endif %}
-                                                
-                                                <div class="notification-message">{{ notification.message|linebreaks }}</div>
-                                                
-                                                <div class="notification-links">
-                                                    {% if notification.ticket %}
-                                                        <a href="{% url 'tickets:ticket_detail' notification.ticket.id %}" class="btn-view-ticket">
-                                                            <i class="fas fa-external-link-alt"></i>
-                                                            {% trans "مشاهده تیکت" %}
-                                                        </a>
-                        {% endif %}
+      <!-- Content container - populated via AJAX -->
+      <div class="category-content" id="content-{{ category }}" style="display: none;"></div>
+      
                       </div>
-                    </div>
-                  </div>
-                </div>
-                {% endif %}
               {% endfor %}
-            {% else %}
-                            <div class="empty-state">
-                                <i class="fas fa-bell-slash"></i>
-                                <h3>{% trans "اعلانی در این دسته وجود ندارد" %}</h3>
-                                <p>{% trans "هیچ اعلانی در این دسته‌بندی یافت نشد" %}</p>
-              </div>
-            {% endif %}
-          {% endif %}
-        {% endfor %}
-    </div>
-    {% endfor %}
   </div>
 </div>
 
@@ -767,6 +707,24 @@ function getCsrfToken() {
     return match ? match[1] : '';
 }
 
+// Convert Latin digits to Persian digits
+function toPersianDigits(num) {
+    const persianMap = {
+        '0': '۰', '1': '۱', '2': '۲', '3': '۳', '4': '۴',
+        '5': '۵', '6': '۶', '7': '۷', '8': '۸', '9': '۹'
+    };
+    return String(num).replace(/\d/g, (digit) => persianMap[digit] || digit);
+}
+
+// Convert Persian digits to Latin digits (for calculations)
+function fromPersianDigits(str) {
+    const latinMap = {
+        '۰': '0', '۱': '1', '۲': '2', '۳': '3', '۴': '4',
+        '۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9'
+    };
+    return String(str).replace(/[۰-۹]/g, (digit) => latinMap[digit] || digit);
+}
+
 // Reusable delete modal opener
 function openDeleteModal({ title = '{% trans "تایید حذف" %}', bodyHtml = '', onConfirm }) {
     const titleEl = document.getElementById('deleteConfirmModalLabel');
@@ -784,8 +742,9 @@ function openDeleteModal({ title = '{% trans "تایید حذف" %}', bodyHtml =
     window._deleteConfirmModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
     window._deleteConfirmModal.show();
 }
-// Category switching
-function showCategory(category) {
+// Category switching with AJAX loading - Global scope function
+window.showCategory = function(category) {
+    try {
     // Hide all category content
     document.querySelectorAll('.notification-list').forEach(content => {
         content.classList.remove('active-category');
@@ -804,19 +763,272 @@ function showCategory(category) {
         selectedCategory.classList.add('active-category');
     }
 
-    // Add active class to clicked button
-    event.target.closest('.tab-btn').classList.add('active');
+        // Add active class to clicked button - use event from window if not available
+        const clickedBtn = (window.event?.target?.closest('.tab-btn')) || 
+                          (event?.target?.closest('.tab-btn')) ||
+                          document.querySelector(`[onclick*="showCategory('${category}')"]`);
+        if (clickedBtn) {
+            clickedBtn.classList.add('active');
+        }
+
+        // Load category content via AJAX if not already loaded
+        loadCategoryContent(category);
+    } catch (error) {
+        console.error('Error in showCategory:', error);
+        // Ensure tab switching still works even if loading fails
+        const selectedCategory = document.getElementById('category-' + category);
+        if (selectedCategory) {
+            selectedCategory.classList.remove('hidden-category');
+            selectedCategory.classList.add('active-category');
+        }
+    }
+};
+
+// AJAX function to load category notifications - Global scope
+window.loadCategoryContent = function(category, page = 1) {
+    try {
+        const loadingEl = document.getElementById('loading-' + category);
+        const contentEl = document.getElementById('content-' + category);
+        
+        if (!loadingEl || !contentEl) {
+            console.error('Category elements not found for:', category);
+            return;
+        }
+        
+        // Show loading indicator
+        loadingEl.style.display = 'block';
+        contentEl.style.display = 'none';
+        contentEl.innerHTML = ''; // Clear previous content
+        
+        // Fetch notifications for this category with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        
+        fetch(`/notifications/category/${category}/ajax/?page=${page}`, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            signal: controller.signal
+        })
+        .then(response => {
+            clearTimeout(timeoutId);
+            if (!response.ok) {
+                // Handle different error statuses
+                if (response.status === 403) {
+                    throw new Error('دسترسی رد شد');
+                } else if (response.status === 500) {
+                    throw new Error('خطای سرور');
+                } else {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Hide loading indicator
+            loadingEl.style.display = 'none';
+            
+            // Render notifications
+            if (data.notifications && data.notifications.length > 0) {
+                renderNotifications(category, data.notifications, data);
+                contentEl.style.display = 'block';
+            } else {
+                // Special message for tickets category if empty
+                let emptyMessage = '{% trans "هیچ اعلانی در این دسته‌بندی یافت نشد" %}';
+                let emptyTitle = '{% trans "اعلانی در این دسته وجود ندارد" %}';
+                
+                if (category === 'tickets') {
+                    emptyTitle = '{% trans "هیچ فعالیت کاربری جدیدی وجود ندارد" %}';
+                    emptyMessage = '{% trans "هیچ تیکت جدیدی از کاربران یا پاسخ جدیدی از ایجادکنندگان تیکت وجود ندارد." %}';
+                }
+                    
+                contentEl.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-bell-slash"></i>
+                        <h3>${emptyTitle}</h3>
+                        <p>${emptyMessage}</p>
+                    </div>
+                `;
+                contentEl.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            clearTimeout(timeoutId);
+            console.error('Error loading category content:', error);
+            loadingEl.style.display = 'none';
+            
+            // Show error with retry button
+            const errorMessage = error.name === 'AbortError' 
+                ? '{% trans "زمان بارگذاری به پایان رسید" %}'
+                : (error.message || '{% trans "خطایی در بارگذاری اعلان‌ها رخ داد" %}');
+                
+            contentEl.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>{% trans "خطا در بارگذاری" %}</h3>
+                    <p>${errorMessage}</p>
+                    <button class="btn-modern" onclick="loadCategoryContent('${category}', ${page})" style="margin-top: 1rem;">
+                        <i class="fas fa-redo"></i>
+                        {% trans "تلاش مجدد" %}
+                    </button>
+                </div>
+            `;
+            contentEl.style.display = 'block';
+        });
+    } catch (error) {
+        console.error('Error in loadCategoryContent:', error);
+        const loadingEl = document.getElementById('loading-' + category);
+        const contentEl = document.getElementById('content-' + category);
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (contentEl) {
+            contentEl.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>{% trans "خطا" %}</h3>
+                    <p>{% trans "خطای غیرمنتظره رخ داد" %}</p>
+                </div>
+            `;
+            contentEl.style.display = 'block';
+        }
+    }
+};
+
+// Render notifications HTML from JSON data
+function renderNotifications(category, notifications, paginationData) {
+    const contentEl = document.getElementById('content-' + category);
+    if (!contentEl) return;
+    
+    let html = '';
+    
+    notifications.forEach(notification => {
+        const isUnread = !notification.is_read;
+        const iconClass = getNotificationIcon(notification.notification_type);
+        const persianDate = formatPersianDate(notification.created_at, notification.created_at_formatted);
+        
+        html += `
+            <div class="notification-item ${isUnread ? 'unread' : ''}" id="notification-${notification.id}">
+                <div class="notification-header-item">
+                    <div class="notification-info">
+                        <div class="notification-icon">
+                            <i class="fas fa-${iconClass}"></i>
+                        </div>
+                        <div class="notification-details">
+                            <div class="notification-title">${escapeHtml(notification.title)}</div>
+                            <div class="notification-time">${persianDate}</div>
+                        </div>
+                    </div>
+                    <div class="notification-actions">
+                        <button class="btn-show-more" type="button" data-bs-toggle="collapse" data-bs-target="#details-${notification.id}">
+                            <i class="fas fa-eye"></i>
+                            {% trans "نمایش بیشتر" %}
+                        </button>
+                        <button class="btn-delete-notification" onclick="deleteNotification(${notification.id})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Collapsible Details -->
+                <div class="collapse" id="details-${notification.id}">
+                    <div class="notification-content-details">
+                        ${notification.notification_type === 'login' ? `
+                            <div class="text-center mb-3">
+                                <i class="fas fa-sign-in-alt fa-2x text-primary mb-2 fs-icon"></i>
+                                <div class="fw-bold">${escapeHtml(notification.title)}</div>
+                            </div>
+                        ` : ''}
+                        <div class="notification-message">${escapeHtml(notification.message || '').replace(/\n/g, '<br>')}</div>
+                        <div class="notification-links">
+                            ${notification.ticket_id ? `
+                                <a href="/tickets/${notification.ticket_id}/" class="btn-view-ticket">
+                                    <i class="fas fa-external-link-alt"></i>
+                                    {% trans "مشاهده تیکت" %}
+                                </a>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    // Add pagination if needed
+    if (paginationData.has_next || paginationData.has_previous) {
+        html += '<div class="pagination-container" style="margin-top: 2rem; text-align: center;">';
+        if (paginationData.has_previous) {
+            html += `<button class="btn-modern" onclick="loadCategoryContent('${category}', ${paginationData.current_page - 1})">{% trans "قبلی" %}</button>`;
+        }
+        html += `<span style="margin: 0 1rem;">صفحه ${toPersianDigits(paginationData.current_page)} از ${toPersianDigits(paginationData.total_pages)}</span>`;
+        if (paginationData.has_next) {
+            html += `<button class="btn-modern" onclick="loadCategoryContent('${category}', ${paginationData.current_page + 1})">{% trans "بعدی" %}</button>`;
+        }
+        html += '</div>';
+    }
+    
+    contentEl.innerHTML = html;
+}
+
+// Helper functions
+function getNotificationIcon(notificationType) {
+    const iconMap = {
+        'login': 'sign-in-alt',
+        'ticket_created': 'ticket-alt',
+        'access_approved': 'check-circle',
+        'access_rejected': 'times-circle',
+        'access_pending_approval': 'clock',
+        'user_created': 'user-plus',
+        'ticket_urgent': 'exclamation-triangle',
+        'status_done': 'check',
+    };
+    return iconMap[notificationType] || 'bell';
+}
+
+function formatPersianDate(isoDate, formattedDate) {
+    // Use server-formatted date if available, otherwise format client-side
+    if (formattedDate) {
+        return formattedDate;
+    }
+    
+    // Fallback client-side formatting
+    const date = new Date(isoDate);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return '{% trans "همین الان" %}';
+    if (diffMins < 60) return `${toPersianDigits(diffMins)} {% trans "دقیقه پیش" %}`;
+    if (diffHours < 24) return `${toPersianDigits(diffHours)} {% trans "ساعت پیش" %}`;
+    if (diffDays < 7) return `${toPersianDigits(diffDays)} {% trans "روز پیش" %}`;
+    
+    // Fallback to full date
+    return date.toLocaleDateString('fa-IR');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
   
   // Mark notification as read when expanded (only if it was unread)
-  document.querySelectorAll('[data-bs-toggle="collapse"]').forEach(function(button) {
-    button.addEventListener('click', function() {
-      const notificationId = this.getAttribute('data-bs-target').replace('#details-', '');
-      const notificationElement = document.querySelector(`#notification-${notificationId}`);
-      const wasUnread = notificationElement ? notificationElement.classList.contains('unread') : false;
-      // Only attempt to change counts if it was previously unread
-      markNotificationAsRead(notificationId, wasUnread);
-    });
+  // Use event delegation for dynamically loaded content
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('[data-bs-toggle="collapse"]')) {
+      try {
+        const button = e.target.closest('[data-bs-toggle="collapse"]');
+        const targetId = button.getAttribute('data-bs-target').replace('#details-', '');
+        const notificationElement = document.querySelector(`#notification-${targetId}`);
+        if (notificationElement) {
+          const wasUnread = notificationElement.classList.contains('unread');
+          markNotificationAsRead(targetId, wasUnread);
+        }
+      } catch (error) {
+        console.error('Error in notification expand handler:', error);
+      }
+    }
   });
   
   function markNotificationAsRead(notificationId, wasUnread) {
@@ -854,38 +1066,53 @@ function showCategory(category) {
   }
   
   function updateCategoryBadgeCount(category) {
+    try {
     // Find the tab for this category
-    const categoryTab = document.querySelector(`[onclick="showCategory('${category}')"]`);
+        const categoryTab = document.querySelector(`[onclick*="showCategory('${category}')"]`);
     if (!categoryTab) return;
     const badge = categoryTab.querySelector('.tab-badge');
     if (!badge) return; // nothing to update
-    const current = parseInt(badge.textContent || '0');
+    // Get numeric value from data-value attribute or parse from text
+    const currentValue = badge.getAttribute('data-value');
+    const current = currentValue ? parseInt(currentValue) : parseInt(fromPersianDigits(badge.textContent || '0'));
     if (isNaN(current)) return;
     const next = Math.max(0, current - 1);
     if (next === 0) {
       badge.remove();
     } else {
-      badge.textContent = String(next);
+      badge.setAttribute('data-value', next);
+      badge.textContent = toPersianDigits(next);
     }
     // Also update the corresponding stat card value
-    const statMap = { tickets: 'stat-tickets', users: 'stat-users', access: 'stat-access' };
+    const statMap = { tickets: 'stat-tickets', access: 'stat-access' };
     const statId = statMap[category];
     if (statId) {
       const statEl = document.getElementById(statId);
       if (statEl) {
-        const val = parseInt(statEl.textContent || '0');
-        if (!isNaN(val) && val > 0) statEl.textContent = String(val - 1);
+        const currentValue = statEl.getAttribute('data-value');
+        const val = currentValue ? parseInt(currentValue) : parseInt(fromPersianDigits(statEl.textContent || '0'));
+        if (!isNaN(val) && val > 0) {
+          const newVal = val - 1;
+          statEl.setAttribute('data-value', newVal);
+          statEl.textContent = toPersianDigits(newVal);
+        }
       }
     }
     updateNavbarBadgeVisibility();
+    } catch (error) {
+        console.error('Error in updateCategoryBadgeCount:', error);
+    }
   }
   
   function updateTotalUnreadCount() {
     const totalUnreadElement = document.getElementById('stat-total');
     if (totalUnreadElement) {
-      const currentCount = parseInt(totalUnreadElement.textContent);
+      const currentValue = totalUnreadElement.getAttribute('data-value');
+      const currentCount = currentValue ? parseInt(currentValue) : parseInt(fromPersianDigits(totalUnreadElement.textContent || '0'));
       if (currentCount > 0) {
-            totalUnreadElement.textContent = (currentCount - 1);
+        const newCount = currentCount - 1;
+        totalUnreadElement.setAttribute('data-value', newCount);
+        totalUnreadElement.textContent = toPersianDigits(newCount);
         }
     }
     updateNavbarBadgeVisibility();
@@ -897,7 +1124,8 @@ function showCategory(category) {
     const totalEl = document.getElementById('stat-total');
     const navBadge = document.querySelector('.notification-badge');
     if (!totalEl || !navBadge) return;
-    const num = parseInt(totalEl.textContent || '0');
+    const currentValue = totalEl.getAttribute('data-value');
+    const num = currentValue ? parseInt(currentValue) : parseInt(fromPersianDigits(totalEl.textContent || '0'));
     if (!isNaN(num) && num <= 0) {
         navBadge.style.display = 'none';
     } else {
@@ -908,7 +1136,10 @@ function showCategory(category) {
 
   // Toggle global mark-all-read button based on total unread
   function updateGlobalMarkAllButton() {
-    const total = parseInt((document.getElementById('stat-total')?.textContent || '0'));
+    const totalEl = document.getElementById('stat-total');
+    if (!totalEl) return;
+    const currentValue = totalEl.getAttribute('data-value');
+    const total = currentValue ? parseInt(currentValue) : parseInt(fromPersianDigits(totalEl.textContent || '0'));
     const btn = document.getElementById('btnMarkAllRead');
     if (!btn || isNaN(total)) return;
     if (total <= 0) {
@@ -955,10 +1186,23 @@ function markCategoryAsRead(category) {
             });
         
         // Update the category tab badge
-            const categoryTab = document.querySelector(`[onclick="showCategory('${category}')"]`);
+        const categoryTab = document.querySelector(`[onclick*="showCategory('${category}')"]`);
+        if (categoryTab) {
             const tabBadge = categoryTab.querySelector('.tab-badge');
         if (tabBadge) {
           tabBadge.remove();
+            }
+        }
+        
+        // Update stat card for this category
+        const statMap = { tickets: 'stat-tickets', access: 'stat-access' };
+        const statId = statMap[category];
+        if (statId) {
+          const statEl = document.getElementById(statId);
+          if (statEl) {
+            statEl.setAttribute('data-value', '0');
+            statEl.textContent = toPersianDigits(0);
+          }
         }
         
         // Update the total unread count
@@ -978,9 +1222,12 @@ function markCategoryAsRead(category) {
   function updateTotalUnreadCount() {
     const totalUnreadElement = document.getElementById('stat-total');
     if (totalUnreadElement) {
-      const currentCount = parseInt(totalUnreadElement.textContent);
+      const currentValue = totalUnreadElement.getAttribute('data-value');
+      const currentCount = currentValue ? parseInt(currentValue) : parseInt(fromPersianDigits(totalUnreadElement.textContent || '0'));
       if (currentCount > 0) {
-            totalUnreadElement.textContent = (currentCount - 1);
+        const newCount = currentCount - 1;
+        totalUnreadElement.setAttribute('data-value', newCount);
+        totalUnreadElement.textContent = toPersianDigits(newCount);
         }
     }
 }
@@ -1091,22 +1338,28 @@ function markAllAsRead() {
           // Decrement total unread by number of unread items
           const totalEl = document.getElementById('stat-total');
           if (totalEl) {
-            const current = parseInt(totalEl.textContent || '0');
-            totalEl.textContent = String(Math.max(0, current - unreadTotal));
+            const currentValue = totalEl.getAttribute('data-value');
+            const current = currentValue ? parseInt(currentValue) : parseInt(fromPersianDigits(totalEl.textContent || '0'));
+            const newTotal = Math.max(0, current - unreadTotal);
+            totalEl.setAttribute('data-value', newTotal);
+            totalEl.textContent = toPersianDigits(newTotal);
           }
           // Zero-out category stats
-          ['tickets','users','access'].forEach(cat => {
-            const id = {tickets:'stat-tickets',users:'stat-users',access:'stat-access'}[cat];
+          ['tickets','access'].forEach(cat => {
+            const id = {tickets:'stat-tickets',access:'stat-access'}[cat];
             const el = document.getElementById(id);
-            if (el) el.textContent = '0';
-            const tab = document.querySelector(`[onclick="showCategory('${cat}')"]`);
+            if (el) {
+              el.setAttribute('data-value', '0');
+              el.textContent = toPersianDigits(0);
+            }
+            const tab = document.querySelector(`[onclick*="showCategory('${cat}')"]`);
             if (tab) {
               const b = tab.querySelector('.tab-badge');
               if (b) b.remove();
             }
           });
           // Also remove system tab badge if present
-          const systemTab = document.querySelector(`[onclick="showCategory('system')"]`);
+          const systemTab = document.querySelector(`[onclick*="showCategory('system')"]`);
           if (systemTab) {
             const sb = systemTab.querySelector('.tab-badge');
             if (sb) sb.remove();
@@ -1168,15 +1421,21 @@ function markAllAsRead() {
           // Decrement total by unread in this category
           const totalEl = document.getElementById('stat-total');
           if (totalEl) {
-            const current = parseInt(totalEl.textContent || '0');
-            totalEl.textContent = String(Math.max(0, current - unreadCount));
+            const currentValue = totalEl.getAttribute('data-value');
+            const current = currentValue ? parseInt(currentValue) : parseInt(fromPersianDigits(totalEl.textContent || '0'));
+            const newTotal = Math.max(0, current - unreadCount);
+            totalEl.setAttribute('data-value', newTotal);
+            totalEl.textContent = toPersianDigits(newTotal);
           }
           updateCategoryMarkAllButton(category);
           // Zero-out this category stat and remove its badge
-          const id = {tickets:'stat-tickets',users:'stat-users',access:'stat-access'}[category];
+          const id = {tickets:'stat-tickets',access:'stat-access'}[category];
           const el = id ? document.getElementById(id) : null;
-          if (el) el.textContent = '0';
-          const tab = document.querySelector(`[onclick="showCategory('${category}')"]`);
+          if (el) {
+            el.setAttribute('data-value', '0');
+            el.textContent = toPersianDigits(0);
+          }
+          const tab = document.querySelector(`[onclick*="showCategory('${category}')"]`);
           if (tab) {
             const b = tab.querySelector('.tab-badge');
             if (b) b.remove();
@@ -1205,8 +1464,9 @@ function refreshNotifications() {
     window.location.reload();
 }
 
-// Add loading animation
+// Add loading animation and load initial category
 document.addEventListener('DOMContentLoaded', function() {
+    try {
     const cards = document.querySelectorAll('.stat-card, .notification-list');
     cards.forEach((card, index) => {
         card.style.opacity = '0';
@@ -1217,6 +1477,24 @@ document.addEventListener('DOMContentLoaded', function() {
             card.style.transform = 'translateY(0)';
         }, index * 200);
     });
+        
+        // Load the Tickets category by default (Users tab removed)
+        const ticketsCategory = document.getElementById('category-tickets');
+        if (ticketsCategory) {
+            loadCategoryContent('tickets');
+        } else {
+            // Fallback: load first available category
+            const activeCategory = document.querySelector('.notification-list.active-category');
+            if (activeCategory) {
+                const category = activeCategory.getAttribute('data-category');
+                if (category) {
+                    loadCategoryContent(category);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error in DOMContentLoaded:', error);
+    }
 });
 
 // Disable delete buttons if empty

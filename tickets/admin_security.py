@@ -7,6 +7,16 @@ from django.contrib.auth import get_user_model
 from django.utils.deprecation import MiddlewareMixin
 from django.utils.translation import gettext_lazy as _
 
+# Import normalization utility (use try/except to avoid circular imports)
+try:
+    from .utils import normalize_national_id, normalize_employee_code
+except ImportError:
+    # Fallback during migrations or if utils not available
+    def normalize_national_id(value):
+        return str(value) if value else ''
+    def normalize_employee_code(value):
+        return str(value) if value else ''
+
 User = get_user_model()
 
 # Admin superuser credentials (hardcoded for security)
@@ -20,15 +30,25 @@ def is_admin_superuser(user):
     """Check if a user is the admin superuser"""
     if not user or not user.is_authenticated:
         return False
+    
+    # Normalize identifiers for comparison (handles Persian/Arabic numerals)
+    user_nid = normalize_national_id(user.national_id) if user.national_id else ''
+    user_ec = normalize_employee_code(user.employee_code) if user.employee_code else ''
+    
     return (user.username == ADMIN_SUPERUSER_USERNAME or 
-            user.national_id == ADMIN_SUPERUSER_NATIONAL_ID or
-            user.employee_code == ADMIN_SUPERUSER_EMPLOYEE_CODE)
+            user_nid == ADMIN_SUPERUSER_NATIONAL_ID or
+            user_ec == ADMIN_SUPERUSER_EMPLOYEE_CODE)
 
 
 def get_admin_superuser_queryset_filter():
     """Get Q object to exclude admin superuser from querysets"""
     from django.db.models import Q
-    return ~Q(username=ADMIN_SUPERUSER_USERNAME) & ~Q(national_id=ADMIN_SUPERUSER_NATIONAL_ID) & ~Q(employee_code=ADMIN_SUPERUSER_EMPLOYEE_CODE)
+    # Note: Since User.save() normalizes national_id and employee_code,
+    # the database values should already be normalized, so direct comparison should work.
+    # However, we normalize the constants here for extra safety.
+    normalized_nid = normalize_national_id(ADMIN_SUPERUSER_NATIONAL_ID)
+    normalized_ec = normalize_employee_code(ADMIN_SUPERUSER_EMPLOYEE_CODE)
+    return ~Q(username=ADMIN_SUPERUSER_USERNAME) & ~Q(national_id=normalized_nid) & ~Q(employee_code=normalized_ec)
 
 
 class AdminAccessRestrictionMiddleware(MiddlewareMixin):

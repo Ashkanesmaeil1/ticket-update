@@ -956,9 +956,9 @@
                 </div>
         </div>
         
-        {% if ticket.category == 'access' %}
+        {% if ticket.ticket_category and ticket.ticket_category.requires_supervisor_approval or ticket.category == 'access' %}
             <div class="info-card-modern">
-                <div class="info-label-modern">{% trans "وضعیت تایید دسترسی شبکه" %}</div>
+                <div class="info-label-modern">{% trans "وضعیت تایید سرپرست" %}</div>
                 <div class="info-value-modern">
                         {% if ticket.access_approval_status == 'pending' %}{% trans "در انتظار تایید سرپرست" %}{% endif %}
                     {% if ticket.access_approval_status == 'approved' %}{% trans "تایید شده" %}{% endif %}

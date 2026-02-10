@@ -9,7 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponseForbidden
 from django.core.paginator import Paginator
-from django.db.models import Q, Count, Exists, OuterRef
+from django.db.models import Q, Count, Exists, OuterRef, F
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
@@ -728,7 +728,7 @@ def dashboard(request):
         elif is_admin_superuser(user):
             # Administrator dashboard - can see all tickets and manage everything
             from .services import get_it_manager_ticket_ordering
-            all_tickets = Ticket.objects.exclude(category='access', access_approval_status='pending').order_by(*get_it_manager_ticket_ordering())[:15]
+            all_tickets = Ticket.objects.exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')).order_by(*get_it_manager_ticket_ordering())[:15]
             my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
             recent_replies = Reply.objects.all().order_by('-created_at')[:3]
             unread_notifications = Notification.objects.filter(recipient=user, is_read=False).order_by('-created_at')
@@ -768,7 +768,7 @@ def dashboard(request):
                     Q(target_department__isnull=True) |  # Old tickets without target_department
                     Q(target_department=it_department) |  # Tickets for IT department
                     Q(created_by=user)  # IT manager's own tickets
-                ).exclude(category='access', access_approval_status='pending').order_by(*get_it_manager_ticket_ordering())[:15]
+                ).exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')).order_by(*get_it_manager_ticket_ordering())[:15]
                 
                 # Statistics for IT department tickets only
                 it_tickets = Ticket.objects.filter(
@@ -776,7 +776,7 @@ def dashboard(request):
                 )
             else:
                 # Fallback: if no IT department found, show all tickets (backward compatibility)
-                all_tickets = Ticket.objects.exclude(category='access', access_approval_status='pending').order_by(*get_it_manager_ticket_ordering())[:15]
+                all_tickets = Ticket.objects.exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')).order_by(*get_it_manager_ticket_ordering())[:15]
                 it_tickets = Ticket.objects.all()
             
             # Get IT manager's own created tickets
@@ -1039,7 +1039,7 @@ def ticket_list(request):
             tickets = Ticket.objects.filter(created_by=user)
     elif is_admin_superuser(user):
         # Administrator can see all tickets
-        tickets = Ticket.objects.exclude(category='access', access_approval_status='pending')
+        tickets = Ticket.objects.exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending'))
     elif user.role == 'technician':
         # Technicians should not see access tickets pending approval
         # Also filter to only show IT department tickets
@@ -1047,9 +1047,9 @@ def ticket_list(request):
         if it_department:
             tickets = Ticket.objects.filter(
                 Q(assigned_to=user) & (Q(target_department__isnull=True) | Q(target_department=it_department))
-            ).exclude(category='access', access_approval_status='pending')
+            ).exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending'))
         else:
-            tickets = Ticket.objects.filter(assigned_to=user).exclude(category='access', access_approval_status='pending')
+            tickets = Ticket.objects.filter(assigned_to=user).exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending'))
     else:  # IT Manager
         from .services import get_it_manager_ticket_ordering
         it_department = get_it_department()
@@ -1063,10 +1063,10 @@ def ticket_list(request):
                 Q(target_department__isnull=True) |  # Old tickets without target_department
                 Q(target_department=it_department) |  # Tickets for IT department
                 Q(created_by=user)  # IT manager's own tickets
-            ).exclude(category='access', access_approval_status='pending').order_by(*get_it_manager_ticket_ordering())
+            ).exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')).order_by(*get_it_manager_ticket_ordering())
         else:
             # Fallback: if no IT department found, show all tickets (backward compatibility)
-            tickets = Ticket.objects.exclude(category='access', access_approval_status='pending').order_by(*get_it_manager_ticket_ordering())
+            tickets = Ticket.objects.exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')).order_by(*get_it_manager_ticket_ordering())
     
     # Apply filters
     if search_query:
@@ -1242,11 +1242,11 @@ def ticket_detail(request, ticket_id):
             ticket = get_object_or_404(
                 Ticket.objects.filter(
                     Q(assigned_to=user) & (Q(target_department__isnull=True) | Q(target_department=it_department))
-                ).exclude(category='access', access_approval_status='pending'),
+                ).exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')),
                 id=ticket_id
             )
         else:
-            ticket = get_object_or_404(Ticket.objects.exclude(category='access', access_approval_status='pending'), id=ticket_id, assigned_to=user)
+            ticket = get_object_or_404(Ticket.objects.exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')), id=ticket_id, assigned_to=user)
     else:  # IT Manager
         # IT Manager cannot see pending access tickets until approved
         # IT Manager can only see IT department tickets
@@ -1255,11 +1255,11 @@ def ticket_detail(request, ticket_id):
             ticket = get_object_or_404(
                 Ticket.objects.filter(
                     Q(target_department__isnull=True) | Q(target_department=it_department) | Q(created_by=user)
-                ).exclude(category='access', access_approval_status='pending'),
+                ).exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')),
                 id=ticket_id
             )
         else:
-            ticket = get_object_or_404(Ticket.objects.exclude(category='access', access_approval_status='pending'), id=ticket_id)
+            ticket = get_object_or_404(Ticket.objects.exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')), id=ticket_id)
     
     # Get filtered replies based on user permissions
     try:
@@ -1277,55 +1277,73 @@ def ticket_detail(request, ticket_id):
 
     # Senior approval actions
     if request.method == 'POST' and request.user.role == 'employee' and request.user.department_role == 'senior':
-        if (request.POST.get('access_approval_action') in ['approve', 'reject'] and 
-            ticket.category == 'access' and 
-            ticket.access_approval_status == 'pending' and 
-            ticket.created_by and 
-            ticket.created_by.department and 
-            request.user.is_supervisor_of(ticket.created_by.department)):
-            action = request.POST['access_approval_action']
-            if action == 'approve':
-                ticket.access_approval_status = 'approved'
-                ticket.save(update_fields=['access_approval_status'])
-                # Create notification for IT managers about access approval
-                try:
-                    from .models import Notification
-                    it_managers = User.objects.filter(role='it_manager')
-                    for manager in it_managers:
-                        created_by_name = ticket.created_by.get_full_name() if ticket.created_by else _('نامشخص')
-                        department_display = ticket.created_by.get_department_display() if (ticket.created_by and ticket.created_by.department) else _('نامشخص')
-                        Notification.objects.create(
-                            recipient=manager,
-                            title=f"تایید دسترسی شبکه: {ticket.title}",
-                            message=f"کاربر: {created_by_name}\nسرپرست تایید کننده: {request.user.get_full_name()}\nبخش: {department_display}",
-                            notification_type='access_approved',
-                            category='access',
-                            ticket=ticket,
-                            user_actor=request.user
-                        )
-                except Exception:
-                    pass
-                # After approval, notify IT manager about the ticket
-                created_by_name = ticket.created_by.get_full_name() if ticket.created_by else _('نامشخص')
-                department_display = ticket.created_by.get_department_display() if (ticket.created_by and ticket.created_by.department) else _('نامشخص')
-                notify_it_manager(
-                    action_type='access_approved',
-                    ticket=ticket,
-                    user=request.user,
-                    additional_info=(
-                        f"تاییدکننده: {request.user.get_full_name()}\n"
-                        f"بخش: {department_display}\n"
-                        f"ایجادکننده: {created_by_name}\n"
-                        f"توضیحات: {ticket.description}"
-                    )
-                )
-                messages.success(request, _('درخواست دسترسی شبکه تایید شد و برای مدیر IT ارسال گردید.'))
+        # Check if ticket requires supervisor approval (using ticket_category.requires_supervisor_approval)
+        requires_approval = ticket.ticket_category and ticket.ticket_category.requires_supervisor_approval
+        if request.POST.get('access_approval_action') in ['approve', 'reject']:
+            # Validate all conditions and provide specific error messages
+            if not requires_approval:
+                messages.error(request, _('این تیکت نیاز به تایید سرپرست ندارد.'))
+            elif ticket.access_approval_status != 'pending':
+                messages.error(request, _('این تیکت در وضعیت انتظار تایید نیست. وضعیت فعلی: {status}').format(
+                    status=ticket.get_access_approval_status_display() if hasattr(ticket, 'get_access_approval_status_display') else ticket.access_approval_status
+                ))
+            elif not ticket.created_by:
+                messages.error(request, _('تیکت ایجادکننده ندارد.'))
+            elif not ticket.created_by.department:
+                messages.error(request, _('بخش ایجادکننده تیکت مشخص نیست.'))
+            elif not request.user.is_supervisor_of(ticket.created_by.department):
+                # Provide more detailed error message
+                creator_dept = ticket.created_by.department.name if ticket.created_by.department else _('نامشخص')
+                user_depts = [d.name for d in request.user.get_supervised_departments()] if hasattr(request.user, 'get_supervised_departments') else []
+                messages.error(request, _('شما سرپرست بخش "{dept}" نیستید. بخش‌های تحت سرپرستی شما: {supervised}').format(
+                    dept=creator_dept,
+                    supervised=', '.join(user_depts) if user_depts else _('هیچ بخشی')
+                ))
             else:
-                # On reject, delete the ticket entirely
-                ticket.delete()
-                messages.warning(request, _('درخواست دسترسی شبکه توسط سرپرست رد و حذف شد.'))
-                return redirect('tickets:ticket_list')
-            return redirect('tickets:ticket_detail', ticket_id=ticket.id)
+                # All conditions met, proceed with approval/rejection
+                action = request.POST['access_approval_action']
+                if action == 'approve':
+                    ticket.access_approval_status = 'approved'
+                    ticket.save(update_fields=['access_approval_status'])
+                    # Create notification for IT managers about access approval
+                    try:
+                        from .models import Notification
+                        it_managers = User.objects.filter(role='it_manager')
+                        for manager in it_managers:
+                            created_by_name = ticket.created_by.get_full_name() if ticket.created_by else _('نامشخص')
+                            department_display = ticket.created_by.get_department_display() if (ticket.created_by and ticket.created_by.department) else _('نامشخص')
+                            Notification.objects.create(
+                                recipient=manager,
+                                title=f"تایید دسترسی شبکه: {ticket.title}",
+                                message=f"کاربر: {created_by_name}\nسرپرست تایید کننده: {request.user.get_full_name()}\nبخش: {department_display}",
+                                notification_type='access_approved',
+                                category='access',
+                                ticket=ticket,
+                                user_actor=request.user
+                            )
+                    except Exception:
+                        pass
+                    # After approval, notify IT manager about the ticket
+                    created_by_name = ticket.created_by.get_full_name() if ticket.created_by else _('نامشخص')
+                    department_display = ticket.created_by.get_department_display() if (ticket.created_by and ticket.created_by.department) else _('نامشخص')
+                    notify_it_manager(
+                        action_type='access_approved',
+                        ticket=ticket,
+                        user=request.user,
+                        additional_info=(
+                            f"تاییدکننده: {request.user.get_full_name()}\n"
+                            f"بخش: {department_display}\n"
+                            f"ایجادکننده: {created_by_name}\n"
+                            f"توضیحات: {ticket.description}"
+                        )
+                    )
+                    messages.success(request, _('درخواست دسترسی شبکه تایید شد و برای مدیر IT ارسال گردید.'))
+                    return redirect('tickets:ticket_detail', ticket_id=ticket.id)
+                else:
+                    # On reject, delete the ticket entirely
+                    ticket.delete()
+                    messages.warning(request, _('درخواست دسترسی شبکه توسط سرپرست رد و حذف شد.'))
+                    return redirect('tickets:ticket_list')
     
     # Initialize forms
     reply_form = ReplyForm()
@@ -1471,22 +1489,23 @@ def ticket_detail(request, ticket_id):
                         additional_info=reply.content
                     )
                     
-                    # Create notification for IT managers about new reply
+                    # Create notification for IT managers about new reply (only if from ticket creator/employee)
+                    # Use create_notification which has self-exclusion built-in
                     try:
-                        from .models import Notification
+                        from .services import create_notification, get_user_role_display
                         it_managers = User.objects.filter(role='it_manager')
                         for manager in it_managers:
-                            from .services import get_user_role_display
-                            
-                            Notification.objects.create(
-                                recipient=manager,
-                                title=f"پاسخ جدید به تیکت: {ticket.title}",
-                                message=f"کاربر پاسخ دهنده: {user.get_full_name()}\nنقش: {get_user_role_display(user)}\nمحتوا: {'[پاسخ محرمانه]' if reply.is_private else reply.content[:100]}{'...' if not reply.is_private and len(reply.content) > 100 else ''}",
-                                notification_type='ticket_urgent',  # Using existing type for replies
-                                category='tickets',
-                                ticket=ticket,
-                                user_actor=user
-                            )
+                            # Only notify if reply is from ticket creator (employee), not from IT staff
+                            if user.role == 'employee' and user.id == ticket.created_by.id:
+                                create_notification(
+                                    recipient=manager,
+                                    title=f"پاسخ جدید به تیکت: {ticket.title}",
+                                    message=f"کاربر پاسخ دهنده: {user.get_full_name()}\nنقش: {get_user_role_display(user)}\nمحتوا: {'[پاسخ محرمانه]' if reply.is_private else reply.content[:100]}{'...' if not reply.is_private and len(reply.content) > 100 else ''}",
+                                    notification_type='ticket_urgent',  # Using existing type for replies
+                                    category='tickets',
+                                    ticket=ticket,
+                                    user_actor=user
+                                )
                     except Exception:
                         pass
                 
@@ -1577,7 +1596,7 @@ def ticket_detail(request, ticket_id):
         'reply_form': reply_form,
         'status_form': status_form,
         'can_change_status': can_change_status,
-        'requires_access_approval': ticket.category == 'access' and ticket.access_approval_status == 'pending',
+        'requires_access_approval': ticket.ticket_category and ticket.ticket_category.requires_supervisor_approval and ticket.access_approval_status == 'pending',
         'can_approve_access': can_approve_access,
         'came_from_department': came_from_department,
         'came_from_all_tickets': came_from_all_tickets,
@@ -1604,16 +1623,16 @@ def ticket_create(request):
                 ticket.target_department = form.cleaned_data.get('target_department')
                 ticket.ticket_category = form.cleaned_data.get('ticket_category')  # Explicitly set the new category field
                 
-                # Determine if approval is needed based on category and user role
-                if ticket.category == 'access':
+                # Determine if approval is needed based on ticket_category.requires_supervisor_approval and user role
+                if ticket.ticket_category and ticket.ticket_category.requires_supervisor_approval:
                     if user.department_role in ['senior', 'manager']:
-                        # Senior employees and managers don't need approval for Network Access tickets
+                        # Senior employees and managers don't need approval even if category requires it
                         ticket.access_approval_status = 'not_required'
                     else:
-                        # Regular employees need senior approval for Network Access tickets
+                        # Regular employees need senior approval for categories that require it
                         ticket.access_approval_status = 'pending'
                 else:
-                    # Non-Network Access tickets don't need approval
+                    # Categories that don't require approval, or legacy tickets without ticket_category
                     ticket.access_approval_status = 'not_required'
                 
                 ticket.save()
@@ -1629,9 +1648,9 @@ def ticket_create(request):
                 #     belongs ONLY to that department.
                 #   - IT Manager should only be notified when the selected department
                 #     IS the IT department (or for legacy tickets without a target_department).
-                if ticket.category == 'access':
+                if ticket.ticket_category and ticket.ticket_category.requires_supervisor_approval:
                     if user.department_role in ['senior', 'manager']:
-                        # Access tickets created by seniors/managers
+                        # Tickets requiring approval created by seniors/managers - no approval needed
                         if target_dept == it_department or not target_dept:
                             # Ticket is explicitly for IT (or legacy without target)
                             notify_it_manager(
@@ -1653,7 +1672,7 @@ def ticket_create(request):
                         print(f"🔍 Team leader notification call completed for ticket #{ticket.id}")
                         # DO NOT notify IT managers until approved
                 else:
-                    # Non-Network Access tickets
+                    # Tickets that don't require approval
                     if target_dept == it_department or not target_dept:
                         # Ticket is for IT department (or legacy without target)
                         notify_it_manager(
@@ -1761,7 +1780,7 @@ def ticket_update(request, ticket_id):
                 _prev = _pers(original_status)
                 _new = _pers(ticket.status)
                 # For access tickets pending approval, notify team leader instead of IT manager
-                if ticket.category == 'access' and getattr(ticket, 'access_approval_status', 'not_required') == 'pending':
+                if ticket.ticket_category and ticket.ticket_category.requires_supervisor_approval and getattr(ticket, 'access_approval_status', 'not_required') == 'pending':
                     from .services import notify_team_leader_access_email
                     notify_team_leader_access_email('status_change', ticket, request.user, f"وضعیت قبلی: {_prev}\nوضعیت جدید: {_new}")
                 else:
@@ -1823,7 +1842,7 @@ def ticket_update(request, ticket_id):
 
             # Fallback: generic update when no status/assignment change
             if not changes_notified:
-                if ticket.category == 'access' and getattr(ticket, 'access_approval_status', 'not_required') == 'pending':
+                if ticket.ticket_category and ticket.ticket_category.requires_supervisor_approval and getattr(ticket, 'access_approval_status', 'not_required') == 'pending':
                     from .services import notify_team_leader_access_email
                     notify_team_leader_access_email('update', ticket, request.user, "تیکت بروزرسانی شد")
                 else:
@@ -1944,7 +1963,7 @@ def ticket_delete(request, ticket_id):
             dummy_ticket = Ticket.objects.first()  # Get first ticket for template
             if dummy_ticket:
                 # If access ticket pending approval, route delete email to team leader instead of IT manager
-                if ticket.category == 'access' and getattr(ticket, 'access_approval_status', 'not_required') == 'pending':
+                if ticket.ticket_category and ticket.ticket_category.requires_supervisor_approval and getattr(ticket, 'access_approval_status', 'not_required') == 'pending':
                     from .services import notify_team_leader_access_email
                     notify_team_leader_access_email(
                         'delete',
@@ -2187,7 +2206,7 @@ def update_ticket_status(request, ticket_id):
                 # After assignment or status change in update_ticket_status
                 if assigned_to_id and assigned_user:
                     # For access tickets pending approval, notify team leader instead of IT manager
-                    if ticket.category == 'access' and getattr(ticket, 'access_approval_status', 'not_required') == 'pending':
+                    if ticket.ticket_category and ticket.ticket_category.requires_supervisor_approval and getattr(ticket, 'access_approval_status', 'not_required') == 'pending':
                         from .services import notify_team_leader_access_email
                         notify_team_leader_access_email('assignment', ticket, request.user, f"تخصیص داده شده به: {assigned_user.get_full_name() or assigned_user.username}")
                     else:
@@ -2201,7 +2220,7 @@ def update_ticket_status(request, ticket_id):
                     from tickets.services import get_status_display_persian as _pers
                     _prev = _pers(original_status)
                     _new = _pers(ticket.status)
-                    if ticket.category == 'access' and getattr(ticket, 'access_approval_status', 'not_required') == 'pending':
+                    if ticket.ticket_category and ticket.ticket_category.requires_supervisor_approval and getattr(ticket, 'access_approval_status', 'not_required') == 'pending':
                         from .services import notify_team_leader_access_email
                         notify_team_leader_access_email('status_change', ticket, request.user, f"وضعیت قبلی: {_prev}\nوضعیت جدید: {_new}")
                     else:
@@ -2292,22 +2311,22 @@ def get_ticket_activity_logs(request, ticket_id):
                 ticket = get_object_or_404(
                     Ticket.objects.filter(
                         Q(assigned_to=user) & (Q(target_department__isnull=True) | Q(target_department=it_department))
-                    ).exclude(category='access', access_approval_status='pending'),
+                    ).exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')),
                     id=ticket_id
                 )
             else:
-                ticket = get_object_or_404(Ticket.objects.exclude(category='access', access_approval_status='pending'), id=ticket_id, assigned_to=user)
+                ticket = get_object_or_404(Ticket.objects.exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')), id=ticket_id, assigned_to=user)
         else:  # IT Manager
             it_department = get_it_department()
             if it_department:
                 ticket = get_object_or_404(
                     Ticket.objects.filter(
                         Q(target_department__isnull=True) | Q(target_department=it_department) | Q(created_by=user)
-                    ).exclude(category='access', access_approval_status='pending'),
+                    ).exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')),
                     id=ticket_id
                 )
             else:
-                ticket = get_object_or_404(Ticket.objects.exclude(category='access', access_approval_status='pending'), id=ticket_id)
+                ticket = get_object_or_404(Ticket.objects.exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')), id=ticket_id)
     except Exception as e:
         logger.error(f"Error checking ticket permissions for activity logs: {e}", exc_info=True)
         return JsonResponse({'error': 'دسترسی رد شد', 'details': str(e)}, status=403)
@@ -3657,6 +3676,7 @@ def mark_category_read(request, category):
 
 @login_required
 def notifications_list(request):
+    """Main notifications page - loads only metadata, content loaded via AJAX"""
     user = request.user
     if user.role != 'it_manager':
         messages.error(request, _('دسترسی رد شد. فقط مدیر IT میتواند این بخش را دریافت کند.'))
@@ -3668,31 +3688,204 @@ def notifications_list(request):
         messages.success(request, _('تمام اعلان‌ها خوانده شدند.'))
         return redirect('tickets:notifications')
 
-    # Get all notifications
-    all_notifications = Notification.objects.filter(recipient=user).order_by('-created_at')
+    # Optimized query for counts only - no full notification data loaded
+    # Use select_related for foreign keys to avoid N+1 queries
+    base_query = Notification.objects.filter(recipient=user).select_related('ticket', 'user_actor', 'recipient')
     
-    # Get category display names
+    # Get category display names (Users tab removed)
     category_names = {
         'tickets': _('تیکت‌ها'),
-        'users': _('کاربران'),
         'system': _('سیستم'),
         'access': _('دسترسی شبکه'),
     }
     
-    # Count unread notifications by category
+    # Optimized count queries using aggregation
+    from django.db.models import Count, Q
+    
+    # Count unread notifications by category with optimized queries
     unread_counts = {}
     category_has_notifications = {}
+    
     for category in category_names.keys():
-        category_notifications = all_notifications.filter(category=category)
-        unread_counts[category] = category_notifications.filter(is_read=False).count()
-        category_has_notifications[category] = category_notifications.exists()
+        category_query = base_query.filter(category=category)
+        
+        # For tickets category, apply departmental filtering
+        if category == 'tickets' and user.department:
+            category_query = category_query.filter(
+                Q(ticket__isnull=True) | Q(ticket__target_department=user.department)
+            )
+        
+        unread_counts[category] = category_query.filter(is_read=False).count()
+        category_has_notifications[category] = category_query.exists()
     
     return render(request, 'tickets/notifications.html', {
-        'notifications': all_notifications,
+        'notifications': [],  # Empty - loaded via AJAX
         'category_names': category_names,
         'unread_counts': unread_counts,
         'category_has_notifications': category_has_notifications,
         'total_unread': sum(unread_counts.values()),
+    })
+
+
+@login_required
+def notifications_category_ajax(request, category):
+    """AJAX endpoint for loading notifications by category with pagination"""
+    user = request.user
+    if user.role != 'it_manager':
+        return JsonResponse({'error': 'دسترسی رد شد'}, status=403)
+    
+    # Redirect 'users' category to 'tickets' (Users tab decommissioned)
+    if category == 'users':
+        category = 'tickets'
+    
+    # Validate category (Users tab removed - only tickets, system, access allowed)
+    valid_categories = ['tickets', 'system', 'access']
+    if category not in valid_categories:
+        return JsonResponse({'error': 'دسته‌بندی نامعتبر'}, status=400)
+    
+    # Base query with optimized joins
+    # Use select_related carefully to avoid errors when ticket is None
+    base_query = Notification.objects.filter(
+        recipient=user,
+        category=category
+    ).select_related(
+        'user_actor',
+        'recipient'
+    ).order_by('-created_at')
+    
+    # Apply filtering for tickets category
+    if category == 'tickets':
+        # Self-action exclusion: Exclude notifications where IT Manager is the actor
+        # This ensures only user-initiated actions (ticket creation, user replies) are shown
+        base_query = base_query.exclude(user_actor=user)
+        
+        # Departmental filtering: Only show tickets that belong to IT department
+        if user.department:
+            base_query = base_query.filter(
+                Q(ticket__isnull=True) | Q(ticket__target_department_id=user.department.id)
+            )
+        
+        # Filter to only show user-initiated events from ticket creators (employees):
+        # - ticket_created: When employee creates a new ticket (user_actor is the employee)
+        # - ticket_urgent: Only when reply is from ticket creator (user_actor == ticket.created_by)
+        # Exclude internal actions like status_done, assignment, status_change that are IT-initiated
+        base_query = base_query.filter(
+            Q(notification_type='ticket_created', user_actor__isnull=False) | 
+            Q(
+                notification_type='ticket_urgent', 
+                ticket__isnull=False,
+                user_actor__isnull=False,
+                ticket__created_by_id=F('user_actor_id')  # Only show replies from ticket creator
+            )
+        )
+        
+        # Exclude notifications from technicians and IT managers (double-check for safety)
+        base_query = base_query.exclude(
+            Q(user_actor__role='technician') | Q(user_actor__role='it_manager')
+        )
+        
+        base_query = base_query.select_related(
+            'ticket',
+            'ticket__target_department',
+            'ticket__created_by',
+            'user_actor'
+        ).prefetch_related(
+            'ticket__replies'
+        )
+    else:
+        # For non-ticket categories, safely include ticket relations
+        base_query = base_query.select_related(
+            'ticket',
+            'ticket__target_department',
+            'ticket__created_by'
+        ).prefetch_related(
+            'ticket__replies'
+        )
+    
+    # Pagination - load only 20 records per page
+    try:
+        page_number = int(request.GET.get('page', 1))
+        if page_number < 1:
+            page_number = 1
+    except (ValueError, TypeError):
+        page_number = 1
+    
+    try:
+        paginator = Paginator(base_query, 20)
+        page_obj = paginator.page(page_number)
+    except Exception as e:
+        # Log error and return empty page
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Error paginating notifications: {e}')
+        page_obj = paginator.page(1) if 'paginator' in locals() else None
+        if not page_obj:
+            return JsonResponse({
+                'notifications': [],
+                'has_next': False,
+                'has_previous': False,
+                'current_page': 1,
+                'total_pages': 0,
+                'total_count': 0,
+                'error': 'خطا در بارگذاری اعلان‌ها'
+            }, status=500)
+    
+    # Serialize notifications with formatted dates
+    from tickets.templatetags.persian_date import persian_date
+    notifications_data = []
+    
+    try:
+        for notification in page_obj:
+            # Format date using the persian_date filter
+            try:
+                formatted_date = persian_date(notification.created_at)
+            except Exception as e:
+                # Fallback to ISO format if Persian date conversion fails
+                formatted_date = notification.created_at.strftime('%Y-%m-%d %H:%M')
+            
+            # Safely get ticket info
+            ticket_id = None
+            ticket_title = None
+            if notification.ticket:
+                try:
+                    ticket_id = notification.ticket.id
+                    ticket_title = notification.ticket.title
+                except Exception:
+                    pass
+            
+            notification_data = {
+                'id': notification.id,
+                'title': notification.title or '',
+                'message': notification.message or '',
+                'notification_type': notification.notification_type,
+                'is_read': notification.is_read,
+                'created_at': notification.created_at.isoformat() if notification.created_at else '',
+                'created_at_formatted': formatted_date,
+                'ticket_id': ticket_id,
+                'ticket_title': ticket_title,
+            }
+            notifications_data.append(notification_data)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Error serializing notifications: {e}')
+        return JsonResponse({
+            'notifications': [],
+            'has_next': False,
+            'has_previous': False,
+            'current_page': 1,
+            'total_pages': 0,
+            'total_count': 0,
+            'error': 'خطا در پردازش اعلان‌ها'
+        }, status=500)
+    
+    return JsonResponse({
+        'notifications': notifications_data,
+        'has_next': page_obj.has_next() if page_obj else False,
+        'has_previous': page_obj.has_previous() if page_obj else False,
+        'current_page': page_obj.number if page_obj else 1,
+        'total_pages': paginator.num_pages if 'paginator' in locals() else 0,
+        'total_count': paginator.count if 'paginator' in locals() else 0,
     })
 
 @login_required
@@ -3741,10 +3934,17 @@ def team_leader_approve_access(request, ticket_id):
         return JsonResponse({'error': 'دسترسی رد شد'}, status=403)
     
     try:
-        ticket = get_object_or_404(Ticket, id=ticket_id, category='access', access_approval_status='pending')
+        # Use dynamic category system: check ticket_category.requires_supervisor_approval instead of hard-coded category='access'
+        ticket = get_object_or_404(
+            Ticket.objects.filter(
+                ticket_category__requires_supervisor_approval=True,
+                access_approval_status='pending'
+            ),
+            id=ticket_id
+        )
         
-        # Check if team leader is from the same department
-        if user.department != ticket.created_by.department:
+        # Check if supervisor is supervisor of the ticket creator's department (not just same department)
+        if not (ticket.created_by and ticket.created_by.department and user.is_supervisor_of(ticket.created_by.department)):
             return JsonResponse({'error': 'دسترسی رد شد'}, status=403)
         
         # Approve the ticket
@@ -3809,10 +4009,17 @@ def team_leader_reject_access(request, ticket_id):
         return JsonResponse({'error': 'دسترسی رد شد'}, status=403)
     
     try:
-        ticket = get_object_or_404(Ticket, id=ticket_id, category='access', access_approval_status='pending')
+        # Use dynamic category system: check ticket_category.requires_supervisor_approval instead of hard-coded category='access'
+        ticket = get_object_or_404(
+            Ticket.objects.filter(
+                ticket_category__requires_supervisor_approval=True,
+                access_approval_status='pending'
+            ),
+            id=ticket_id
+        )
         
-        # Check if team leader is from the same department
-        if user.department != ticket.created_by.department:
+        # Check if supervisor is supervisor of the ticket creator's department (not just same department)
+        if not (ticket.created_by and ticket.created_by.department and user.is_supervisor_of(ticket.created_by.department)):
             return JsonResponse({'error': 'دسترسی رد شد'}, status=403)
         
         # Store ticket info before deletion for email/notification reference
@@ -4112,14 +4319,28 @@ def department_delete(request, department_id):
 
 @login_required
 def category_list(request):
-    """List ticket categories for supervisor's department"""
-    # Check if user is a supervisor
-    if not (request.user.role == 'employee' and request.user.department_role in ['senior', 'manager']):
-        messages.error(request, _('دسترسی رد شد. فقط سرپرست بخش میتواند این بخش را مشاهده کند.'))
+    """List ticket categories for supervisor's or IT manager's department"""
+    user = request.user
+    
+    # Check if user is a supervisor or IT manager
+    is_supervisor = (user.role == 'employee' and user.department_role in ['senior', 'manager'])
+    is_it_manager = (user.role == 'it_manager')
+    
+    if not (is_supervisor or is_it_manager):
+        messages.error(request, _('دسترسی رد شد. فقط سرپرست بخش یا مدیر IT میتواند این بخش را مشاهده کند.'))
         return redirect('tickets:dashboard')
     
-    # Get supervisor's department
-    department = request.user.department
+    # Get user's department
+    if is_it_manager:
+        # For IT Manager, use the IT department
+        department = get_it_department()
+        if not department:
+            messages.error(request, _('خطا: بخش IT یافت نشد. لطفاً با مدیر سیستم تماس بگیرید.'))
+            return redirect('tickets:dashboard')
+    else:
+        # For supervisor, use their assigned department
+        department = user.department
+    
     if not department or not department.can_receive_tickets:
         messages.error(request, _('بخش شما مجاز به دریافت تیکت نیست.'))
         return redirect('tickets:dashboard')
@@ -4135,14 +4356,28 @@ def category_list(request):
 
 @login_required
 def category_create(request):
-    """Create a new ticket category for supervisor's department"""
-    # Check if user is a supervisor
-    if not (request.user.role == 'employee' and request.user.department_role in ['senior', 'manager']):
-        messages.error(request, _('دسترسی رد شد. فقط سرپرست بخش میتواند این بخش را مشاهده کند.'))
+    """Create a new ticket category for supervisor's or IT manager's department"""
+    user = request.user
+    
+    # Check if user is a supervisor or IT manager
+    is_supervisor = (user.role == 'employee' and user.department_role in ['senior', 'manager'])
+    is_it_manager = (user.role == 'it_manager')
+    
+    if not (is_supervisor or is_it_manager):
+        messages.error(request, _('دسترسی رد شد. فقط سرپرست بخش یا مدیر IT میتواند این بخش را مشاهده کند.'))
         return redirect('tickets:dashboard')
     
-    # Get supervisor's department
-    department = request.user.department
+    # Get user's department
+    if is_it_manager:
+        # For IT Manager, use the IT department
+        department = get_it_department()
+        if not department:
+            messages.error(request, _('خطا: بخش IT یافت نشد. لطفاً با مدیر سیستم تماس بگیرید.'))
+            return redirect('tickets:dashboard')
+    else:
+        # For supervisor, use their assigned department
+        department = user.department
+    
     if not department or not department.can_receive_tickets:
         messages.error(request, _('بخش شما مجاز به دریافت تیکت نیست.'))
         return redirect('tickets:category_list')
@@ -4203,13 +4438,27 @@ def category_create(request):
 @login_required
 def category_edit(request, category_id):
     """Edit an existing ticket category"""
-    # Check if user is a supervisor
-    if not (request.user.role == 'employee' and request.user.department_role in ['senior', 'manager']):
-        messages.error(request, _('دسترسی رد شد. فقط سرپرست بخش میتواند این بخش را مشاهده کند.'))
+    user = request.user
+    
+    # Check if user is a supervisor or IT manager
+    is_supervisor = (user.role == 'employee' and user.department_role in ['senior', 'manager'])
+    is_it_manager = (user.role == 'it_manager')
+    
+    if not (is_supervisor or is_it_manager):
+        messages.error(request, _('دسترسی رد شد. فقط سرپرست بخش یا مدیر IT میتواند این بخش را مشاهده کند.'))
         return redirect('tickets:dashboard')
     
-    # Get supervisor's department
-    department = request.user.department
+    # Get user's department
+    if is_it_manager:
+        # For IT Manager, use the IT department
+        department = get_it_department()
+        if not department:
+            messages.error(request, _('خطا: بخش IT یافت نشد. لطفاً با مدیر سیستم تماس بگیرید.'))
+            return redirect('tickets:dashboard')
+    else:
+        # For supervisor, use their assigned department
+        department = user.department
+    
     if not department or not department.can_receive_tickets:
         messages.error(request, _('بخش شما مجاز به دریافت تیکت نیست.'))
         return redirect('tickets:category_list')
@@ -4240,13 +4489,27 @@ def category_edit(request, category_id):
 @login_required
 def category_delete(request, category_id):
     """Delete a ticket category"""
-    # Check if user is a supervisor
-    if not (request.user.role == 'employee' and request.user.department_role in ['senior', 'manager']):
-        messages.error(request, _('دسترسی رد شد. فقط سرپرست بخش میتواند این بخش را مشاهده کند.'))
+    user = request.user
+    
+    # Check if user is a supervisor or IT manager
+    is_supervisor = (user.role == 'employee' and user.department_role in ['senior', 'manager'])
+    is_it_manager = (user.role == 'it_manager')
+    
+    if not (is_supervisor or is_it_manager):
+        messages.error(request, _('دسترسی رد شد. فقط سرپرست بخش یا مدیر IT میتواند این بخش را مشاهده کند.'))
         return redirect('tickets:dashboard')
     
-    # Get supervisor's department
-    department = request.user.department
+    # Get user's department
+    if is_it_manager:
+        # For IT Manager, use the IT department
+        department = get_it_department()
+        if not department:
+            messages.error(request, _('خطا: بخش IT یافت نشد. لطفاً با مدیر سیستم تماس بگیرید.'))
+            return redirect('tickets:dashboard')
+    else:
+        # For supervisor, use their assigned department
+        department = user.department
+    
     if not department or not department.can_receive_tickets:
         messages.error(request, _('بخش شما مجاز به دریافت تیکت نیست.'))
         return redirect('tickets:category_list')
@@ -4934,10 +5197,9 @@ def delete_category_notifications(request, category):
         return JsonResponse({'error': 'دسترسی رد شد'}, status=403)
     
     try:
-        # Get category display name for the message
+        # Get category display name for the message (Users tab removed - no 'users' in UI)
         category_names = {
             'tickets': _('تیکت‌ها'),
-            'users': _('کاربران'),
             'system': _('سیستم'),
             'access': _('دسترسی شبکه'),
             'team_leader_access': _('درخواست‌های دسترسی شبکه'),

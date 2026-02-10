@@ -6,12 +6,19 @@ from django.db.models.signals import pre_save
 from django.dispatch import receiver
 from django.core.exceptions import ValidationError
 from .validators import validate_iranian_national_id, validate_iranian_mobile_number
+from .utils import normalize_national_id, normalize_employee_code
+import logging
+
+logger = logging.getLogger(__name__)
 
 def validate_employee_code(value):
-    """Validate that employee code is exactly 4 digits"""
-    if len(value) != 4:
+    """Validate that employee code is exactly 4 digits (normalizes Persian/Arabic numerals)"""
+    # Normalize Persian/Arabic numerals to English
+    normalized_value = normalize_employee_code(value)
+    
+    if len(normalized_value) != 4:
         raise ValidationError(_('کد کارمندی باید دقیقاً ۴ رقم باشد.'))
-    if not value.isdigit():
+    if not normalized_value.isdigit():
         raise ValidationError(_('کد کارمندی باید فقط شامل اعداد باشد.'))
 
 class Branch(models.Model):
@@ -154,6 +161,43 @@ class User(AbstractUser):
     USERNAME_FIELD = 'national_id'
     REQUIRED_FIELDS = ['employee_code', 'first_name', 'last_name']
     
+    def save(self, *args, **kwargs):
+        """
+        Override save to normalize national_id and employee_code before saving.
+        This ensures consistency regardless of input format (Persian/Arabic vs English numerals).
+        """
+        # Normalize identifiers if they are set
+        if self.national_id:
+            original_national_id = self.national_id
+            self.national_id = normalize_national_id(self.national_id)
+            if original_national_id != self.national_id:
+                logger.info(
+                    f"User {self.pk or 'new'}: National ID normalized from '{original_national_id}' to '{self.national_id}'"
+                )
+        
+        if self.employee_code:
+            original_employee_code = self.employee_code
+            self.employee_code = normalize_employee_code(self.employee_code)
+            if original_employee_code != self.employee_code:
+                logger.info(
+                    f"User {self.pk or 'new'}: Employee Code normalized from '{original_employee_code}' to '{self.employee_code}'"
+                )
+        
+        # Forced identity synchronization: username must always match national_id (login identifier).
+        # This ensures Admin panel / User Management edits to National ID are reflected in the Auth
+        # User record used by AdminModelBackend and login.
+        if self.national_id and self.username != self.national_id:
+            logger.info(
+                f"User {self.pk or 'new'}: Syncing username to national_id (was '{self.username}', now '{self.national_id}')"
+            )
+            self.username = self.national_id
+            # When save(update_fields=...) is used, include username so the sync is persisted
+            if kwargs.get('update_fields') is not None and 'username' not in kwargs['update_fields']:
+                kwargs['update_fields'] = list(kwargs['update_fields']) + ['username']
+        
+        # Call parent save
+        super().save(*args, **kwargs)
+    
     def get_full_name(self):
         """Override to return Administrator for admin superuser"""
         try:
@@ -184,16 +228,28 @@ class User(AbstractUser):
     
     def is_supervisor_of(self, department):
         """Check if this user is a supervisor of the given department"""
-        if not department or self.department_role != 'senior':
+        if not department:
             return False
+        
+        # User must be a senior/manager to be a supervisor
+        if self.department_role not in ['senior', 'manager']:
+            return False
+        
         try:
-            # Check if user is supervisor via ManyToMany or direct ForeignKey
+            # Check if user is supervisor via ManyToMany relationship
             if hasattr(self, 'supervised_departments'):
                 if department in self.supervised_departments.all():
                     return True
-            # Check ForeignKey
+            
+            # Check ForeignKey relationship (department.supervisor)
             if hasattr(department, 'supervisor') and department.supervisor == self:
                 return True
+            
+            # Check if user is supervisor of their own department
+            # This handles the case where user.department == department and user is a senior/manager
+            if self.department == department and self.department_role in ['senior', 'manager']:
+                return True
+            
             return False
         except (AttributeError, Exception):
             # Return False if there's any error (e.g., during migration or if relationship doesn't exist yet)
@@ -609,6 +665,12 @@ class Notification(models.Model):
         ordering = ['-created_at']
         verbose_name = _('اعلان')
         verbose_name_plural = _('اعلان‌ها')
+        indexes = [
+            models.Index(fields=['-created_at'], name='tickets_not_created_idx'),
+            models.Index(fields=['is_read'], name='tickets_not_is_read_idx'),
+            models.Index(fields=['recipient', '-created_at'], name='tickets_not_recip_creat_idx'),
+            models.Index(fields=['category', 'is_read'], name='tickets_not_cat_read_idx'),
+        ]
 
     def __str__(self) -> str:
         return f"{self.title} - {self.recipient.get_full_name()}"
@@ -719,6 +781,12 @@ class TicketCategory(models.Model):
         _('ترتیب نمایش'),
         default=0,
         help_text=_('ترتیب نمایش دسته‌بندی در لیست (اعداد کمتر در ابتدا نمایش داده می‌شوند)')
+    )
+    
+    requires_supervisor_approval = models.BooleanField(
+        _('نیاز به تایید سرپرست'),
+        default=False,
+        help_text=_('در صورت فعال بودن، تیکت‌های این دسته‌بندی نیاز به تایید سرپرست بخش ایجادکننده دارند')
     )
     
     created_at = models.DateTimeField(_('تاریخ ایجاد'), auto_now_add=True)

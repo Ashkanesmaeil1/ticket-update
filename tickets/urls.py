@@ -91,6 +91,7 @@ urlpatterns = [
     path('replies/', views.view_all_replies, name='view_all_replies'),
     # Notifications
     path('notifications/', views.notifications_list, name='notifications'),
+    path('notifications/category/<str:category>/ajax/', views.notifications_category_ajax, name='notifications_category_ajax'),
     path('notifications/<int:notification_id>/mark-read/', views.mark_notification_read, name='mark_notification_read'),
     path('notifications/category/<str:category>/mark-read/', views.mark_category_read, name='mark_category_read'),
     path('notifications/<int:notification_id>/delete/', views.delete_notification, name='delete_notification'),

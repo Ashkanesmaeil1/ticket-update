@@ -3,6 +3,10 @@ from django.contrib.auth.admin import UserAdmin
 from django import forms
 from django.utils.translation import gettext_lazy as _
 from .models import User, Ticket, Reply, Branch, Department, InventoryElement, ElementSpecification
+from .utils import normalize_national_id, normalize_employee_code
+import logging
+
+logger = logging.getLogger(__name__)
 
 class CustomUserCreationForm(forms.ModelForm):
     """Custom form for creating users in admin with proper department choices"""
@@ -83,6 +87,20 @@ class CustomUserCreationForm(forms.ModelForm):
         role = cleaned_data.get('role')
         department_role = cleaned_data.get('department_role')
         department = cleaned_data.get('department')
+        
+        # Normalization guard (Docker/locale): strictly convert Persian/Arabic digits to English
+        # and strip whitespace before commit, so login query (English digits) finds the match.
+        if 'national_id' in cleaned_data and cleaned_data.get('national_id'):
+            raw_nid = (cleaned_data['national_id'] or '').strip()
+            cleaned_data['national_id'] = normalize_national_id(raw_nid)
+            if raw_nid != cleaned_data['national_id']:
+                logger.debug(f"Admin form: National ID normalized from '{raw_nid}' to '{cleaned_data['national_id']}'")
+        
+        if 'employee_code' in cleaned_data and cleaned_data.get('employee_code'):
+            raw_ec = (cleaned_data['employee_code'] or '').strip()
+            cleaned_data['employee_code'] = normalize_employee_code(raw_ec)
+            if raw_ec != cleaned_data['employee_code']:
+                logger.debug(f"Admin form: Employee Code normalized from '{raw_ec}' to '{cleaned_data['employee_code']}'")
         
         # For managers, clear the department
         if department_role == 'manager':

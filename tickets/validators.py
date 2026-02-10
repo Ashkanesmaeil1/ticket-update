@@ -3,6 +3,16 @@ from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 import re
 
+# Import normalization utility (use try/except to avoid circular imports during migrations)
+try:
+    from .utils import normalize_national_id, normalize_employee_code
+except ImportError:
+    # Fallback during migrations or if utils not available
+    def normalize_national_id(value):
+        return re.sub(r'[^\d]', '', str(value)) if value else ''
+    def normalize_employee_code(value):
+        return re.sub(r'[^\d]', '', str(value)) if value else ''
+
 
 def validate_iranian_national_id(value):
     """
@@ -12,11 +22,11 @@ def validate_iranian_national_id(value):
     - Must be exactly 10 digits
     - Last digit is a check digit calculated using the official algorithm
     - Rejects obviously fake codes like all zeros
-    - Only digits allowed
+    - Only digits allowed (Persian/Arabic numerals are normalized to English)
     - Leading zeros preserved
     """
-    # Remove any non-digit characters
-    cleaned_value = re.sub(r'[^\d]', '', str(value))
+    # Normalize Persian/Arabic numerals to English, then remove any non-digit characters
+    cleaned_value = normalize_national_id(value)
     
     # Check if it's exactly 10 digits
     if len(cleaned_value) != 10:
