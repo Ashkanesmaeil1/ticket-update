@@ -22,7 +22,7 @@ from django.utils.translation import gettext_lazy as _
 from django.template.response import TemplateResponse
 from django.core.exceptions import ValidationError
 
-from .models import User, Ticket, Reply, Department, Branch, InventoryElement, ElementSpecification, Notification, TicketTask, TaskReply, TicketActivityLog, TicketCategory
+from .models import User, Ticket, Reply, Department, Branch, InventoryElement, ElementSpecification, Notification, TicketTask, TaskReply, TicketActivityLog, TicketCategory, DeadlineExtensionRequest
 from .services import notify_department_supervisor
 from .admin_security import get_admin_superuser_queryset_filter, is_admin_superuser
 
@@ -6140,16 +6140,16 @@ def ticket_task_list(request):
         if task_creators_in_supervised_depts:
             tasks = TicketTask.objects.filter(
                 Q(created_by=user) | Q(created_by__in=task_creators_in_supervised_depts)
-            ).defer('deadline')
+            ).defer('deadline').prefetch_related('extension_requests')
         else:
             # No task creators in supervised departments, only show supervisor's own tasks
-            tasks = TicketTask.objects.filter(created_by=user).defer('deadline')
+            tasks = TicketTask.objects.filter(created_by=user).defer('deadline').prefetch_related('extension_requests')
     elif is_task_creator:
         # For task creators: show only tasks they created
-        tasks = TicketTask.objects.filter(created_by=user).defer('deadline')
+        tasks = TicketTask.objects.filter(created_by=user).defer('deadline').prefetch_related('extension_requests')
     else:
         # For IT managers: show all tasks (or tasks they created - keeping current behavior)
-        tasks = TicketTask.objects.filter(created_by=user).defer('deadline')
+        tasks = TicketTask.objects.filter(created_by=user).defer('deadline').prefetch_related('extension_requests')
     
     # Apply filters
     if status_filter:
@@ -6326,10 +6326,10 @@ def ticket_task_detail(request, task_id):
     # Load task with all fields (including deadline if migration is applied)
     # If migration not applied, this will fail, but that's expected
     try:
-        task = get_object_or_404(TicketTask, id=task_id)
+        task = get_object_or_404(TicketTask.objects.prefetch_related('extension_requests'), id=task_id)
     except Exception:
         # Fallback: try without deadline field if migration not applied
-        task = get_object_or_404(TicketTask.objects.defer('deadline'), id=task_id)
+        task = get_object_or_404(TicketTask.objects.defer('deadline').prefetch_related('extension_requests'), id=task_id)
     
     # CRITICAL: Refresh task from database to ensure we have latest relationships
     task.refresh_from_db()
@@ -6731,10 +6731,10 @@ def my_ticket_tasks(request):
     # For task creators: separate into two sections
     if is_task_creator_for_tasks:
         # My Tasks: tasks assigned to this user (from team leader)
-        my_tasks_queryset = TicketTask.objects.filter(assigned_to=user).defer('deadline')
+        my_tasks_queryset = TicketTask.objects.filter(assigned_to=user).defer('deadline').prefetch_related('extension_requests')
         
         # Department Tasks: tasks created by this user (for others)
-        department_tasks_queryset = TicketTask.objects.filter(created_by=user).defer('deadline')
+        department_tasks_queryset = TicketTask.objects.filter(created_by=user).defer('deadline').prefetch_related('extension_requests')
         
         # Apply status filter to both
         if status_filter:
@@ -6768,7 +6768,7 @@ def my_ticket_tasks(request):
         }
     else:
         # Regular employees only see tasks assigned to them
-        tasks = TicketTask.objects.filter(assigned_to=user).defer('deadline')
+        tasks = TicketTask.objects.filter(assigned_to=user).defer('deadline').prefetch_related('extension_requests')
         
         # Apply status filter
         if status_filter:
@@ -6793,6 +6793,237 @@ def my_ticket_tasks(request):
         }
     
     return render(request, 'tickets/my_ticket_tasks.html', context)
+
+
+@login_required
+def request_deadline_extension(request, task_id):
+    """View for employees to request deadline extension"""
+    try:
+        task = TicketTask.objects.get(id=task_id)
+    except TicketTask.DoesNotExist:
+        messages.error(request, _('تسک یافت نشد.'))
+        return redirect('tickets:my_ticket_tasks')
+    
+    # Check if user is assigned to this task and is an employee
+    if task.assigned_to != request.user or request.user.department_role != 'employee':
+        messages.error(request, _('شما مجاز به درخواست تمدید مهلت برای این تسک نیستید.'))
+        return redirect('tickets:my_ticket_tasks')
+    
+    # Check if deadline is expired
+    if not task.is_deadline_expired():
+        messages.warning(request, _('مهلت این تسک هنوز به پایان نرسیده است.'))
+        return redirect('tickets:my_ticket_tasks')
+    
+    # Check if there's already a pending request
+    pending_request = DeadlineExtensionRequest.objects.filter(
+        task=task,
+        requested_by=request.user,
+        status='pending'
+    ).first()
+    
+    if pending_request:
+        messages.info(request, _('شما قبلاً یک درخواست تمدید مهلت در حال بررسی دارید.'))
+        return redirect('tickets:my_ticket_tasks')
+    
+    if request.method == 'POST':
+        from .forms import DeadlineExtensionRequestForm
+        form = DeadlineExtensionRequestForm(request.POST)
+        if form.is_valid():
+            extension_request = form.save(commit=False)
+            extension_request.task = task
+            extension_request.requested_by = request.user
+            extension_request.save()
+            
+            # Notify task creator
+            Notification.objects.create(
+                recipient=task.created_by,
+                title=_('درخواست تمدید مهلت'),
+                message=_('کارمند {} برای تسک "{}" درخواست تمدید مهلت داده است.').format(
+                    request.user.get_full_name(),
+                    task.title
+                ),
+                notification_type='ticket_created',
+                category='tickets'
+            )
+            
+            messages.success(request, _('درخواست تمدید مهلت شما با موفقیت ثبت شد.'))
+            return redirect('tickets:ticket_task_detail', task_id=task.id)
+    else:
+        from .forms import DeadlineExtensionRequestForm
+        form = DeadlineExtensionRequestForm()
+    
+    context = {
+        'form': form,
+        'task': task,
+    }
+    return render(request, 'tickets/request_deadline_extension.html', context)
+
+
+@login_required
+def handle_extension_request(request, request_id, action):
+    """View for task creators/supervisors to approve/reject extension requests"""
+    try:
+        extension_request = DeadlineExtensionRequest.objects.get(id=request_id)
+    except DeadlineExtensionRequest.DoesNotExist:
+        messages.error(request, _('درخواست یافت نشد.'))
+        return redirect('tickets:ticket_task_list')
+    
+    # Check if user can review this request (task creator or supervisor)
+    task = extension_request.task
+    can_review = False
+    
+    if task.created_by == request.user:
+        can_review = True
+    elif request.user.department_role in ['senior', 'manager']:
+        if task.department and request.user.is_supervisor_of(task.department):
+            can_review = True
+    
+    if not can_review:
+        messages.error(request, _('شما مجاز به بررسی این درخواست نیستید.'))
+        return redirect('tickets:ticket_task_list')
+    
+    if extension_request.status != 'pending':
+        messages.warning(request, _('این درخواست قبلاً بررسی شده است.'))
+        return redirect('tickets:ticket_task_list')
+    
+    if request.method == 'POST':
+        if action == 'approve':
+            extension_request.status = 'approved'
+            extension_request.reviewed_by = request.user
+            extension_request.reviewed_at = timezone.now()
+            extension_request.review_comment = request.POST.get('comment', '')
+            extension_request.save()
+            
+            # Update task deadline
+            task.deadline = extension_request.requested_deadline
+            task.save()
+            
+            # Notify requester
+            Notification.objects.create(
+                recipient=extension_request.requested_by,
+                title=_('درخواست تمدید مهلت تایید شد'),
+                message=_('درخواست تمدید مهلت شما برای تسک "{}" تایید شد.').format(task.title),
+                notification_type='status_done',
+                category='tickets'
+            )
+            
+            messages.success(request, _('درخواست تمدید مهلت تایید شد.'))
+        elif action == 'reject':
+            extension_request.status = 'rejected'
+            extension_request.reviewed_by = request.user
+            extension_request.reviewed_at = timezone.now()
+            extension_request.review_comment = request.POST.get('comment', '')
+            extension_request.save()
+            
+            # Notify requester
+            Notification.objects.create(
+                recipient=extension_request.requested_by,
+                title=_('درخواست تمدید مهلت رد شد'),
+                message=_('درخواست تمدید مهلت شما برای تسک "{}" رد شد.').format(task.title),
+                notification_type='status_done',
+                category='tickets'
+            )
+            
+            messages.success(request, _('درخواست تمدید مهلت رد شد.'))
+    
+    # Redirect based on referer - if coming from task extension requests page, go back there
+    # Otherwise go to general extension requests list
+    referer = request.META.get('HTTP_REFERER', '')
+    if referer and f'/tasks/{task.id}/extension-requests/' in referer:
+        return redirect('tickets:task_extension_requests', task_id=task.id)
+    return redirect('tickets:extension_requests_list')
+
+
+@login_required
+def task_extension_requests(request, task_id):
+    """View to display and manage extension requests for a specific task"""
+    try:
+        task = TicketTask.objects.prefetch_related('extension_requests', 'extension_requests__requested_by', 'extension_requests__reviewed_by').get(id=task_id)
+    except TicketTask.DoesNotExist:
+        messages.error(request, _('تسک یافت نشد.'))
+        return redirect('tickets:ticket_task_list')
+    
+    user = request.user
+    
+    # Check if user can review extension requests for this task
+    can_review = False
+    
+    if task.created_by == user:
+        can_review = True
+    elif user.role == 'it_manager':
+        can_review = True
+    elif user.department_role in ['senior', 'manager']:
+        if task.department and user.is_supervisor_of(task.department):
+            can_review = True
+    
+    if not can_review:
+        messages.error(request, _('شما مجاز به مشاهده درخواست‌های تمدید مهلت این تسک نیستید.'))
+        return redirect('tickets:ticket_task_list')
+    
+    # Get extension requests for this task
+    extension_requests = task.extension_requests.all().select_related('requested_by', 'reviewed_by').order_by('-created_at')
+    
+    context = {
+        'task': task,
+        'extension_requests': extension_requests,
+        'status_choices': DeadlineExtensionRequest.STATUS_CHOICES,
+    }
+    
+    return render(request, 'tickets/task_extension_requests.html', context)
+
+
+@login_required
+def extension_requests_list(request):
+    """View for task creators/supervisors to see pending extension requests"""
+    user = request.user
+    
+    # Get filter parameters
+    status_filter = request.GET.get('status', '')  # No default - show all if not specified
+    
+    # Get extension requests that user can review
+    extension_requests = DeadlineExtensionRequest.objects.select_related(
+        'task', 'requested_by', 'reviewed_by', 'task__assigned_to', 'task__created_by', 'task__department'
+    ).all()
+    
+    # Filter based on user permissions
+    if user.role == 'it_manager':
+        # IT managers can see all extension requests for tasks they created
+        extension_requests = extension_requests.filter(task__created_by=user)
+    elif user.department_role in ['senior', 'manager']:
+        # Supervisors can see extension requests for tasks in their supervised departments
+        supervised_depts = user.get_supervised_departments()
+        if supervised_depts:
+            extension_requests = extension_requests.filter(
+                task__department__in=[d.id for d in supervised_depts]
+            )
+        else:
+            extension_requests = extension_requests.none()
+    elif user.role == 'employee' and user.department and user.department.task_creator_id == user.id:
+        # Task creators can see extension requests for tasks they created
+        extension_requests = extension_requests.filter(task__created_by=user)
+    else:
+        # Regular employees can't see extension requests
+        extension_requests = extension_requests.none()
+    
+    # Apply status filter
+    if status_filter:
+        extension_requests = extension_requests.filter(status=status_filter)
+    
+    # Order by creation date (newest first)
+    extension_requests = extension_requests.order_by('-created_at')
+    
+    # Pagination
+    paginator = Paginator(extension_requests, 20)
+    page_number = request.GET.get('page')
+    requests_page = paginator.get_page(page_number)
+    
+    context = {
+        'extension_requests': requests_page,
+        'status_filter': status_filter,
+        'status_choices': DeadlineExtensionRequest.STATUS_CHOICES,
+    }
+    
+    return render(request, 'tickets/extension_requests_list.html', context)
 
 
 @login_required

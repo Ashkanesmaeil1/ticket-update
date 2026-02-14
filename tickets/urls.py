@@ -132,6 +132,10 @@ urlpatterns = [
     path('ticket-tasks/<int:task_id>/update-status/', views.ticket_task_update_status, name='ticket_task_update_status'),
     path('ticket-tasks/<int:task_id>/reply/', views.ticket_task_reply, name='ticket_task_reply'),
     path('my-tasks/', views.my_ticket_tasks, name='my_ticket_tasks'),
+    path('tasks/<int:task_id>/request-extension/', views.request_deadline_extension, name='request_deadline_extension'),
+    path('tasks/<int:task_id>/extension-requests/', views.task_extension_requests, name='task_extension_requests'),
+    path('extension-requests/', views.extension_requests_list, name='extension_requests_list'),
+    path('extension-requests/<int:request_id>/<str:action>/', views.handle_extension_request, name='handle_extension_request'),
     # API endpoint for getting employees by department
     path('api/departments/<int:department_id>/employees/', views.get_employees_for_department, name='get_employees_for_department'),
     

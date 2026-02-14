@@ -7,6 +7,7 @@ from django.dispatch import receiver
 from django.core.exceptions import ValidationError
 from .validators import validate_iranian_national_id, validate_iranian_mobile_number
 from .utils import normalize_national_id, normalize_employee_code
+from django.utils import timezone
 import logging
 
 logger = logging.getLogger(__name__)
@@ -603,6 +604,19 @@ class TicketTask(models.Model):
     resolved_at = models.DateTimeField(_('تاریخ انجام'), null=True, blank=True)
     deadline = models.DateTimeField(_('مهلت انجام'), null=True, blank=True, help_text=_('تاریخ و زمان مهلت انجام تسک'))
     
+    def is_deadline_expired(self):
+        """Check if the task deadline has expired"""
+        if not self.deadline:
+            return False
+        return timezone.now() > self.deadline
+    
+    def has_pending_extension_request(self, user):
+        """Check if user has a pending extension request for this task"""
+        return self.extension_requests.filter(
+            requested_by=user,
+            status='pending'
+        ).exists()
+    
     def __str__(self):
         return f"Task #{self.id} - {self.title} ({self.get_status_display()})"
     
@@ -628,6 +642,33 @@ class TaskReply(models.Model):
         ordering = ['created_at']
         verbose_name = _("پاسخ تسک")
         verbose_name_plural = _("پاسخ‌های تسک")
+
+
+class DeadlineExtensionRequest(models.Model):
+    """Model for deadline extension requests from employees"""
+    STATUS_CHOICES = [
+        ('pending', _('در انتظار بررسی')),
+        ('approved', _('تایید شده')),
+        ('rejected', _('رد شده')),
+    ]
+    
+    task = models.ForeignKey(TicketTask, on_delete=models.CASCADE, related_name='extension_requests', verbose_name=_('تسک'))
+    requested_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='extension_requests', verbose_name=_('درخواست‌دهنده'))
+    requested_deadline = models.DateTimeField(_('مهلت درخواستی'), help_text=_('مهلت جدید مورد درخواست'))
+    reason = models.TextField(_('دلیل درخواست'), help_text=_('توضیح دلیل درخواست تمدید مهلت'))
+    status = models.CharField(_('وضعیت'), max_length=20, choices=STATUS_CHOICES, default='pending')
+    reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_extensions', verbose_name=_('بررسی کننده'))
+    review_comment = models.TextField(_('نظر بررسی'), blank=True, null=True)
+    created_at = models.DateTimeField(_('تاریخ ایجاد'), auto_now_add=True)
+    reviewed_at = models.DateTimeField(_('تاریخ بررسی'), null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = _("درخواست تمدید مهلت")
+        verbose_name_plural = _("درخواست‌های تمدید مهلت")
+    
+    def __str__(self):
+        return f"Extension Request for Task #{self.task.id} - {self.get_status_display()}"
 
 
 class Notification(models.Model):

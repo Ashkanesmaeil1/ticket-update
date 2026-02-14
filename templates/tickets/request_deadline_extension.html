@@ -1,0 +1,266 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+{% load persian_date %}
+{% load persian_numbers %}
+
+{% block title %}{% trans "درخواست تمدید مهلت" %} - {{ task.title }} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .request-extension-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 700px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .request-extension-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .request-extension-header h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+
+    .request-extension-header .task-info {
+        font-size: 1rem;
+        opacity: 0.9;
+        margin-top: 0.5rem;
+    }
+
+    .request-extension-content {
+        padding: 2rem;
+    }
+
+    .form-group-custom {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-group-custom label {
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+
+    .form-control:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+
+    .btn-submit {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: white;
+        padding: 0.75rem 2rem;
+        font-weight: 600;
+        border-radius: 12px;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .btn-submit:hover {
+        color: white;
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-cancel {
+        background: #6c757d;
+        border: none;
+        color: white;
+        padding: 0.75rem 2rem;
+        font-weight: 600;
+        border-radius: 12px;
+        transition: background 0.2s ease;
+    }
+
+    .btn-cancel:hover {
+        background: #5a6268;
+        color: white;
+    }
+
+    .form-text {
+        font-size: 0.875rem;
+        color: #6b7280;
+        margin-top: 0.25rem;
+    }
+
+    .form-error {
+        color: #dc3545;
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="request-extension-container">
+        <div class="request-extension-header">
+            <h1><i class="fas fa-clock me-2"></i>{% trans "درخواست تمدید مهلت" %}</h1>
+            <div class="task-info">
+                {% trans "تسک" %}: {{ task.title }}
+                {% if task.deadline %}
+                <span class="me-3">| {% trans "مهلت فعلی" %}: {{ task.deadline|persian_date }}</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="request-extension-content">
+            <form method="post" action="" novalidate>
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger" role="alert">
+                    {% for error in form.non_field_errors %}
+                    {{ error }}
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <div class="form-group-custom">
+                    <label for="deadline-date-input" class="form-label">
+                        <i class="fas fa-clock me-2"></i>
+                        {{ form.deadline_date.label }}
+                    </label>
+                    <div class="deadline-date-wrapper" style="position: relative; width: 100%;">
+                        <input type="text" name="deadline_date" id="deadline-date-input" class="form-control {% if form.deadline_date.errors %}is-invalid{% endif %}" placeholder="{% trans 'برای انتخاب تاریخ و زمان کلیک کنید' %}" readonly autocomplete="off" required value="{{ form.deadline_date.value|default:'' }}" style="padding-left: 2.5rem; padding-right: 0.75rem;">
+                        <i class="fas fa-calendar-alt" id="calendar-icon-inside-input" style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280; pointer-events: none; z-index: 5;"></i>
+                    </div>
+                    <style>
+                        #deadline-date-input {
+                            background: #fff !important;
+                            background-image: none !important;
+                            padding-left: 2.5rem !important;
+                            padding-right: 0.75rem !important;
+                            position: relative !important;
+                        }
+                        #calendar-icon-inside-input {
+                            display: inline-block !important;
+                            visibility: visible !important;
+                            opacity: 1 !important;
+                            position: absolute !important;
+                            left: 0.75rem !important;
+                            top: 50% !important;
+                            transform: translateY(-50%) !important;
+                            color: #6b7280 !important;
+                            pointer-events: none !important;
+                            z-index: 5 !important;
+                        }
+                        .deadline-date-wrapper #deadline-date-input::before,
+                        .deadline-date-wrapper #deadline-date-input::after {
+                            display: none !important;
+                            content: '' !important;
+                        }
+                        .deadline-date-wrapper .fa-calendar-alt:not(#calendar-icon-inside-input),
+                        .deadline-date-wrapper .fa-calendar:not(#calendar-icon-inside-input),
+                        .deadline-date-wrapper button,
+                        .deadline-date-wrapper .btn {
+                            display: none !important;
+                        }
+                    </style>
+                    {% if form.deadline_date.help_text %}
+                    <div class="form-text">{{ form.deadline_date.help_text }}</div>
+                    {% endif %}
+                    {% if form.deadline_date.errors %}
+                    <div class="form-error">{{ form.deadline_date.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group-custom">
+                    <label for="id_reason">{{ form.reason.label }}</label>
+                    <textarea name="reason"
+                              id="id_reason"
+                              rows="4"
+                              class="form-control {% if form.reason.errors %}is-invalid{% endif %}"
+                              placeholder="{% trans 'دلیل درخواست تمدید را شرح دهید...' %}">{{ form.reason.value|default:'' }}</textarea>
+                    {% if form.reason.errors %}
+                    <div class="form-error">{{ form.reason.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="d-flex gap-2 justify-content-end flex-wrap mt-4">
+                    <a href="{% url 'tickets:ticket_task_detail' task.id %}" class="btn btn-cancel">{% trans "انصراف" %}</a>
+                    <button type="submit" class="btn btn-submit">
+                        <i class="fas fa-paper-plane me-1"></i>{% trans "ثبت درخواست" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<link rel="stylesheet" href="{% static 'css/calendar_picker.css' %}?v=30">
+<script src="{% static 'js/calendar_picker.js' %}?v=30"></script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    let pickerInstance = null;
+    let initializationAttempted = false;
+
+    function initCalendarPicker() {
+        if (initializationAttempted) return;
+
+        setTimeout(function() {
+            var deadlineDateInput = document.getElementById('deadline-date-input') || document.querySelector('input[name="deadline_date"]');
+            if (!deadlineDateInput || typeof JalaliCalendarPicker === 'undefined') return;
+
+            try {
+                pickerInstance = new JalaliCalendarPicker(deadlineDateInput, {
+                    apiUrl: '{% url "tickets:calendar_api" %}',
+                    onSelect: function(dateStr, timeStr) {}
+                });
+                initializationAttempted = true;
+
+                var extensionForm = document.querySelector('form[method="post"]');
+                if (extensionForm) {
+                    extensionForm.addEventListener('submit', function() {
+                        var deadlineInput = document.getElementById('deadline-date-input');
+                        if (deadlineInput && deadlineInput.value && deadlineInput.value.trim()) {
+                            var existingHidden = extensionForm.querySelector('input[name="deadline_date"][type="hidden"]');
+                            if (existingHidden) existingHidden.remove();
+                            var hiddenInput = document.createElement('input');
+                            hiddenInput.type = 'hidden';
+                            hiddenInput.name = 'deadline_date';
+                            hiddenInput.value = deadlineInput.value;
+                            extensionForm.appendChild(hiddenInput);
+                        }
+                    });
+                }
+
+                setTimeout(function() {
+                    var wrapper = deadlineDateInput.closest('.deadline-date-wrapper');
+                    if (wrapper) {
+                        wrapper.querySelectorAll('button, .btn').forEach(btn => btn.remove());
+                        wrapper.querySelectorAll('i.fa-calendar-alt, i.fa-calendar').forEach(function(icon) {
+                            if (icon.id !== 'calendar-icon-inside-input') icon.remove();
+                        });
+                    }
+                }, 100);
+            } catch (e) {}
+        }, 100);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initCalendarPicker);
+    } else {
+        initCalendarPicker();
+    }
+    window.addEventListener('load', function() {
+        if (!pickerInstance && !document.getElementById('calendar-modal-overlay')) initCalendarPicker();
+    });
+})();
+</script>
+{% endblock %}

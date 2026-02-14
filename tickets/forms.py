@@ -4,7 +4,7 @@ from django.contrib.auth import authenticate
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
 from django.db.models import Q, Count
-from .models import Ticket, Reply, User, Department, EmailConfig, Branch, InventoryElement, ElementSpecification, TicketTask, TaskReply, TicketCategory
+from .models import Ticket, Reply, User, Department, EmailConfig, Branch, InventoryElement, ElementSpecification, TicketTask, TaskReply, TicketCategory, DeadlineExtensionRequest
 from .validators import validate_iranian_national_id, validate_iranian_mobile_number
 from .utils import normalize_national_id, normalize_employee_code, log_authentication_attempt
 import os
@@ -976,6 +976,84 @@ class TaskReplyForm(forms.ModelForm):
                 raise ValidationError(_('نوع فایل مجاز نیست. فقط تصاویر، PDF و Word مجاز است.'))
         
         return attachment
+
+class DeadlineExtensionRequestForm(forms.ModelForm):
+    """Form for requesting deadline extension"""
+    deadline_date = forms.CharField(
+        label=_('تاریخ مهلت جدید'),
+        help_text=_('فرمت: YYYY/MM/DD HH:MM (مثال: 1403/09/25 14:30)'),
+        required=True,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': _('1403/09/25 14:30')
+        })
+    )
+    
+    class Meta:
+        model = DeadlineExtensionRequest
+        fields = ['reason']
+        widgets = {
+            'reason': forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}),
+        }
+        labels = {
+            'reason': _('دلیل درخواست'),
+        }
+    
+    def clean_deadline_date(self):
+        """Convert Jalali date to Gregorian datetime"""
+        deadline_date = self.cleaned_data.get('deadline_date')
+        if not deadline_date:
+            return None
+        
+        try:
+            from .calendar_services.jalali_calendar import JalaliCalendarService
+            
+            # Parse date and time (format: YYYY/MM/DD HH:MM)
+            parts = deadline_date.strip().split()
+            if len(parts) != 2:
+                raise ValidationError(_('فرمت تاریخ و زمان صحیح نیست. از فرمت YYYY/MM/DD HH:MM استفاده کنید.'))
+            
+            date_str = parts[0]
+            time_str = parts[1]
+            
+            # Parse date
+            date_parts = date_str.split('/')
+            if len(date_parts) != 3:
+                raise ValidationError(_('فرمت تاریخ صحیح نیست. از فرمت YYYY/MM/DD استفاده کنید.'))
+            
+            year = int(date_parts[0])
+            month = int(date_parts[1])
+            day = int(date_parts[2])
+            
+            # Parse time
+            time_parts = time_str.split(':')
+            if len(time_parts) != 2:
+                raise ValidationError(_('فرمت زمان صحیح نیست. از فرمت HH:MM استفاده کنید.'))
+            
+            hour = int(time_parts[0])
+            minute = int(time_parts[1])
+            
+            # Validate time range
+            if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+                raise ValidationError(_('زمان باید در محدوده معتبر باشد.'))
+            
+            # Convert Jalali to Gregorian
+            converted_deadline = JalaliCalendarService.jalali_to_gregorian(year, month, day, hour, minute)
+            return converted_deadline
+            
+        except ValueError as e:
+            raise ValidationError(_('فرمت تاریخ و زمان صحیح نیست. از فرمت YYYY/MM/DD HH:MM استفاده کنید.'))
+        except Exception as e:
+            raise ValidationError(_('خطا در تبدیل تاریخ. لطفاً تاریخ را بررسی کنید.'))
+    
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        converted_deadline = self.cleaned_data.get('deadline_date')
+        if converted_deadline:
+            instance.requested_deadline = converted_deadline
+        if commit:
+            instance.save()
+        return instance
 
 class TaskStatusForm(forms.ModelForm):
     """Form for updating task status and priority (IT Manager only)"""

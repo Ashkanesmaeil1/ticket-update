@@ -62,7 +62,7 @@
         background: white;
         border-radius: 12px;
         overflow: hidden;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
 
     .table {
@@ -229,17 +229,17 @@
             <!-- Tabs for Task Creators -->
             <ul class="nav nav-tabs mb-4" style="border-bottom: 2px solid #e2e8f0;">
                 <li class="nav-item">
-                    <a class="nav-link {% if current_section == 'my_tasks' %}active{% endif %}" 
-                       href="?section=my_tasks{% if status_filter %}&status={{ status_filter }}{% endif %}" 
-                       style="color: {% if current_section == 'my_tasks' %}#6366f1{% else %}#6b7280{% endif %}; font-weight: {% if current_section == 'my_tasks' %}600{% else %}400{% endif %};">
+                    <a class="nav-link {% if current_section == 'my_tasks' %}active{% endif %}"
+                        href="?section=my_tasks{% if status_filter %}&status={{ status_filter }}{% endif %}"
+                        style="color: {% if current_section == 'my_tasks' %}#6366f1{% else %}#6b7280{% endif %}; font-weight: {% if current_section == 'my_tasks' %}600{% else %}400{% endif %};">
                         <i class="fas fa-user-check me-2"></i>
                         {% trans "تسک‌های من" %}
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if current_section == 'department_tasks' %}active{% endif %}" 
-                       href="?section=department_tasks{% if status_filter %}&status={{ status_filter }}{% endif %}" 
-                       style="color: {% if current_section == 'department_tasks' %}#6366f1{% else %}#6b7280{% endif %}; font-weight: {% if current_section == 'department_tasks' %}600{% else %}400{% endif %};">
+                    <a class="nav-link {% if current_section == 'department_tasks' %}active{% endif %}"
+                        href="?section=department_tasks{% if status_filter %}&status={{ status_filter }}{% endif %}"
+                        style="color: {% if current_section == 'department_tasks' %}#6366f1{% else %}#6b7280{% endif %}; font-weight: {% if current_section == 'department_tasks' %}600{% else %}400{% endif %};">
                         <i class="fas fa-building me-2"></i>
                         {% trans "تسک‌های بخش" %}
                     </a>
@@ -258,7 +258,7 @@
                         <select name="status" class="form-select">
                             <option value="">{% trans "همه" %}</option>
                             {% for status_code, status_name in task_status_choices %}
-                            <option value="{{ status_code }}" {% if status_filter == status_code %}selected{% endif %}>
+                            <option value="{{ status_code }}" {% if status_filter==status_code %}selected{% endif %}>
                                 {{ status_name }}
                             </option>
                             {% endfor %}
@@ -275,179 +275,256 @@
 
             <!-- Tasks List -->
             {% if is_task_creator %}
-                <!-- My Tasks Section -->
-                {% if current_section == 'my_tasks' %}
-                    {% if my_tasks %}
-                    <div class="table-card">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>{% trans "شناسه" %}</th>
-                                        <th>{% trans "عنوان" %}</th>
-                                        <th>{% trans "بخش" %}</th>
-                                        <th>{% trans "اولویت" %}</th>
-                                        <th>{% trans "وضعیت" %}</th>
-                                        <th>{% trans "تاریخ ایجاد" %}</th>
-                                        <th>{% trans "عملیات" %}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for task in my_tasks %}
-                                    <tr>
-                                        <td><strong>#{{ task.id|persian_id }}</strong></td>
-                                        <td>{{ task.title|truncatechars:50 }}</td>
-                                        <td>{{ task.department.name|default:"-" }}</td>
-                                        <td>
-                                            <span class="badge badge-priority-{{ task.priority }}">
-                                                {{ task.get_priority_display }}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span class="badge badge-status-{{ task.status }}">
-                                                {{ task.get_status_display }}
-                                            </span>
-                                        </td>
-                                        <td>{{ task.created_at|persian_date }}</td>
-                                        <td>
-                                            <a href="{% url 'tickets:ticket_task_detail' task.id %}" class="btn btn-sm btn-primary">
-                                                <i class="fas fa-eye"></i>
-                                                {% trans "مشاهده" %}
-                                            </a>
-                                        </td>
-                                    </tr>
+            <!-- My Tasks Section -->
+            {% if current_section == 'my_tasks' %}
+            {% if my_tasks %}
+            <div class="table-card">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>{% trans "شناسه" %}</th>
+                                <th>{% trans "عنوان" %}</th>
+                                <th>{% trans "بخش" %}</th>
+                                <th>{% trans "اولویت" %}</th>
+                                <th>{% trans "وضعیت" %}</th>
+                                <th>{% trans "تاریخ ایجاد" %}</th>
+                                <th>{% trans "عملیات" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for task in my_tasks %}
+                            <tr>
+                                <td><strong>#{{ task.id|persian_id }}</strong></td>
+                                <td>{{ task.title|truncatechars:50 }}</td>
+                                <td>{{ task.department.name|default:"-" }}</td>
+                                <td>
+                                    <span class="badge badge-priority-{{ task.priority }}">
+                                        {{ task.get_priority_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge badge-status-{{ task.status }}">
+                                        {{ task.get_status_display }}
+                                    </span>
+                                </td>
+                                <td>{{ task.created_at|persian_date }}</td>
+                                <td>
+                                    {% if task.deadline and task.is_deadline_expired and user.department_role ==
+                                    'employee' %}
+                                    {% for ext_req in task.extension_requests.all %}
+                                    {% if ext_req.requested_by.id == user.id and ext_req.status == 'pending' %}
+                                    <span class="badge badge-info mb-1"
+                                        style="display: block; width: 100%; margin-bottom: 0.25rem;">
+                                        {% trans "درخواست در حال بررسی" %}
+                                    </span>
+                                    {% break %}
+                                    {% endif %}
+                                    {% empty %}
+                                    <a href="{% url 'tickets:request_deadline_extension' task.id %}"
+                                        class="btn btn-sm btn-warning mb-1"
+                                        style="display: block; width: 100%; margin-bottom: 0.25rem;">
+                                        <i class="fas fa-clock"></i>
+                                        {% trans "درخواست تمدید مهلت" %}
+                                    </a>
                                     {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- Pagination for My Tasks -->
-                    {% if my_tasks.has_other_pages %}
-                    <nav aria-label="Page navigation">
-                        <ul class="pagination justify-content-center">
-                            {% if my_tasks.has_previous %}
-                            <li class="page-item">
-                                <a class="page-link" href="?section=my_tasks&page={{ my_tasks.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{% trans "قبلی" %}</a>
-                            </li>
+                                    {% if not task.extension_requests.all %}
+                                    <a href="{% url 'tickets:request_deadline_extension' task.id %}"
+                                        class="btn btn-sm btn-warning mb-1"
+                                        style="display: block; width: 100%; margin-bottom: 0.25rem;">
+                                        <i class="fas fa-clock"></i>
+                                        {% trans "درخواست تمدید مهلت" %}
+                                    </a>
+                                    {% endif %}
+                                    {% endif %}
+                                    <a href="{% url 'tickets:ticket_task_detail' task.id %}"
+                                        class="btn btn-sm btn-primary">
+                                        <i class="fas fa-eye"></i>
+                                        {% trans "مشاهده" %}
+                                    </a>
+                                </td>
+                            </tr>
+                            <!-- Extension Request Status Messages -->
+                            {% if user.department_role == 'employee' and task.assigned_to.id == user.id %}
+                            {% for ext_req in task.extension_requests.all %}
+                            {% if ext_req.requested_by.id == user.id and ext_req.status != 'pending' %}
+                            {% if ext_req.status == 'approved' %}
+                            <tr>
+                                <td colspan="8" style="padding: 0;">
+                                    <div class="alert alert-success"
+                                        style="margin: 0.5rem 1rem; border-radius: 8px; border: none; background-color: #d1fae5; color: #065f46; padding: 1rem;">
+                                        <i class="fas fa-check-circle me-2"></i>
+                                        <strong>{% trans "آخرین درخواست تمدید شما تایید شد" %}</strong>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% elif ext_req.status == 'rejected' %}
+                            <tr>
+                                <td colspan="8" style="padding: 0;">
+                                    <div class="alert alert-danger"
+                                        style="margin: 0.5rem 1rem; border-radius: 8px; border: none; background-color: #fee2e2; color: #991b1b; padding: 1rem;">
+                                        <i class="fas fa-times-circle me-2"></i>
+                                        <strong>{% trans "آخرین درخواست تمدید شما رد شد" %}</strong>
+                                        {% if ext_req.review_comment %}
+                                        <div
+                                            style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(153, 27, 27, 0.2);">
+                                            <strong>{% trans "نظر ادمین:" %}</strong> {{ ext_req.review_comment }}
+                                        </div>
+                                        {% endif %}
+                                        <div style="margin-top: 0.5rem;">
+                                            {% trans "دوباره می‌توانید درخواست تمدید دهید" %}
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
                             {% endif %}
-                            
-                            {% for num in my_tasks.paginator.page_range %}
-                            {% if my_tasks.number == num %}
-                            <li class="page-item active">
-                                <span class="page-link">{{ num }}</span>
-                            </li>
-                            {% elif num > my_tasks.number|add:'-3' and num < my_tasks.number|add:'3' %}
-                            <li class="page-item">
-                                <a class="page-link" href="?section=my_tasks&page={{ num }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{{ num }}</a>
-                            </li>
                             {% endif %}
                             {% endfor %}
-                            
-                            {% if my_tasks.has_next %}
-                            <li class="page-item">
-                                <a class="page-link" href="?section=my_tasks&page={{ my_tasks.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{% trans "بعدی" %}</a>
-                            </li>
-                            {% endif %}
-                        </ul>
-                    </nav>
-                    {% endif %}
-                    {% else %}
-                    <div class="empty-state">
-                        <i class="fas fa-tasks fa-3x mb-3"></i>
-                        <p>{% trans "هیچ تسکی به شما تخصیص داده نشده است" %}</p>
-                    </div>
-                    {% endif %}
-
-                <!-- Department Tasks Section -->
-                {% else %}
-                    {% if department_tasks %}
-                    <div class="table-card">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>{% trans "شناسه" %}</th>
-                                        <th>{% trans "عنوان" %}</th>
-                                        <th>{% trans "بخش" %}</th>
-                                        <th>{% trans "تخصیص داده شده به" %}</th>
-                                        <th>{% trans "اولویت" %}</th>
-                                        <th>{% trans "وضعیت" %}</th>
-                                        <th>{% trans "تاریخ ایجاد" %}</th>
-                                        <th>{% trans "عملیات" %}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for task in department_tasks %}
-                                    <tr>
-                                        <td><strong>#{{ task.id|persian_id }}</strong></td>
-                                        <td>{{ task.title|truncatechars:50 }}</td>
-                                        <td>{{ task.department.name|default:"-" }}</td>
-                                        <td>{{ task.assigned_to.get_full_name|default:"-" }}</td>
-                                        <td>
-                                            <span class="badge badge-priority-{{ task.priority }}">
-                                                {{ task.get_priority_display }}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span class="badge badge-status-{{ task.status }}">
-                                                {{ task.get_status_display }}
-                                            </span>
-                                        </td>
-                                        <td>{{ task.created_at|persian_date }}</td>
-                                        <td>
-                                            <a href="{% url 'tickets:ticket_task_detail' task.id %}" class="btn btn-sm btn-primary">
-                                                <i class="fas fa-eye"></i>
-                                                {% trans "مشاهده" %}
-                                            </a>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- Pagination for Department Tasks -->
-                    {% if department_tasks.has_other_pages %}
-                    <nav aria-label="Page navigation">
-                        <ul class="pagination justify-content-center">
-                            {% if department_tasks.has_previous %}
-                            <li class="page-item">
-                                <a class="page-link" href="?section=department_tasks&page={{ department_tasks.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{% trans "قبلی" %}</a>
-                            </li>
-                            {% endif %}
-                            
-                            {% for num in department_tasks.paginator.page_range %}
-                            {% if department_tasks.number == num %}
-                            <li class="page-item active">
-                                <span class="page-link">{{ num }}</span>
-                            </li>
-                            {% elif num > department_tasks.number|add:'-3' and num < department_tasks.number|add:'3' %}
-                            <li class="page-item">
-                                <a class="page-link" href="?section=department_tasks&page={{ num }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{{ num }}</a>
-                            </li>
                             {% endif %}
                             {% endfor %}
-                            
-                            {% if department_tasks.has_next %}
-                            <li class="page-item">
-                                <a class="page-link" href="?section=department_tasks&page={{ department_tasks.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{% trans "بعدی" %}</a>
-                            </li>
-                            {% endif %}
-                        </ul>
-                    </nav>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Pagination for My Tasks -->
+            {% if my_tasks.has_other_pages %}
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if my_tasks.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link"
+                            href="?section=my_tasks&page={{ my_tasks.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{%
+                            trans "قبلی" %}</a>
+                    </li>
                     {% endif %}
-                    {% else %}
-                    <div class="empty-state">
-                        <i class="fas fa-tasks fa-3x mb-3"></i>
-                        <p>{% trans "شما هنوز تسکی ایجاد نکرده‌اید" %}</p>
-                    </div>
-                    {% endif %}
-                {% endif %}
+
+                    {% for num in my_tasks.paginator.page_range %}
+                    {% if my_tasks.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                    {% elif num > my_tasks.number|add:'-3' and num < my_tasks.number|add:'3' %} <li class="page-item">
+                        <a class="page-link"
+                            href="?section=my_tasks&page={{ num }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{{
+                            num }}</a>
+                        </li>
+                        {% endif %}
+                        {% endfor %}
+
+                        {% if my_tasks.has_next %}
+                        <li class="page-item">
+                            <a class="page-link"
+                                href="?section=my_tasks&page={{ my_tasks.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{%
+                                trans "بعدی" %}</a>
+                        </li>
+                        {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
             {% else %}
-                <!-- Regular Employee View (Single Section) -->
-                {% if tasks %}
+            <div class="empty-state">
+                <i class="fas fa-tasks fa-3x mb-3"></i>
+                <p>{% trans "هیچ تسکی به شما تخصیص داده نشده است" %}</p>
+            </div>
+            {% endif %}
+
+            <!-- Department Tasks Section -->
+            {% else %}
+            {% if department_tasks %}
+            <div class="table-card">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>{% trans "شناسه" %}</th>
+                                <th>{% trans "عنوان" %}</th>
+                                <th>{% trans "بخش" %}</th>
+                                <th>{% trans "تخصیص داده شده به" %}</th>
+                                <th>{% trans "اولویت" %}</th>
+                                <th>{% trans "وضعیت" %}</th>
+                                <th>{% trans "تاریخ ایجاد" %}</th>
+                                <th>{% trans "عملیات" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for task in department_tasks %}
+                            <tr>
+                                <td><strong>#{{ task.id|persian_id }}</strong></td>
+                                <td>{{ task.title|truncatechars:50 }}</td>
+                                <td>{{ task.department.name|default:"-" }}</td>
+                                <td>{{ task.assigned_to.get_full_name|default:"-" }}</td>
+                                <td>
+                                    <span class="badge badge-priority-{{ task.priority }}">
+                                        {{ task.get_priority_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge badge-status-{{ task.status }}">
+                                        {{ task.get_status_display }}
+                                    </span>
+                                </td>
+                                <td>{{ task.created_at|persian_date }}</td>
+                                <td>
+                                    <a href="{% url 'tickets:ticket_task_detail' task.id %}"
+                                        class="btn btn-sm btn-primary">
+                                        <i class="fas fa-eye"></i>
+                                        {% trans "مشاهده" %}
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Pagination for Department Tasks -->
+            {% if department_tasks.has_other_pages %}
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if department_tasks.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link"
+                            href="?section=department_tasks&page={{ department_tasks.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{%
+                            trans "قبلی" %}</a>
+                    </li>
+                    {% endif %}
+
+                    {% for num in department_tasks.paginator.page_range %}
+                    {% if department_tasks.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                    {% elif num > department_tasks.number|add:'-3' and num < department_tasks.number|add:'3' %} <li
+                        class="page-item">
+                        <a class="page-link"
+                            href="?section=department_tasks&page={{ num }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{{
+                            num }}</a>
+                        </li>
+                        {% endif %}
+                        {% endfor %}
+
+                        {% if department_tasks.has_next %}
+                        <li class="page-item">
+                            <a class="page-link"
+                                href="?section=department_tasks&page={{ department_tasks.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{%
+                                trans "بعدی" %}</a>
+                        </li>
+                        {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+            {% else %}
+            <div class="empty-state">
+                <i class="fas fa-tasks fa-3x mb-3"></i>
+                <p>{% trans "شما هنوز تسکی ایجاد نکرده‌اید" %}</p>
+            </div>
+            {% endif %}
+            {% endif %}
+            {% else %}
+            <!-- Regular Employee View (Single Section) -->
+            {% if tasks %}
             <div class="table-card">
                 <div class="table-responsive">
                     <table class="table table-hover">
@@ -480,7 +557,35 @@
                                 </td>
                                 <td>{{ task.created_at|persian_date }}</td>
                                 <td>
-                                    <a href="{% url 'tickets:ticket_task_detail' task.id %}" class="btn btn-sm btn-primary">
+                                    {% if task.deadline and task.is_deadline_expired and user.department_role ==
+                                    'employee' %}
+                                    {% for ext_req in task.extension_requests.all %}
+                                    {% if ext_req.requested_by.id == user.id and ext_req.status == 'pending' %}
+                                    <span class="badge badge-info mb-1"
+                                        style="display: block; width: 100%; margin-bottom: 0.25rem;">
+                                        {% trans "درخواست در حال بررسی" %}
+                                    </span>
+                                    {% elif forloop.last %}
+                                    {% if not task.extension_requests.all|length %}
+                                    <a href="{% url 'tickets:request_deadline_extension' task.id %}"
+                                        class="btn btn-sm btn-warning mb-1"
+                                        style="display: block; width: 100%; margin-bottom: 0.25rem;">
+                                        <i class="fas fa-clock"></i>
+                                        {% trans "درخواست تمدید مهلت" %}
+                                    </a>
+                                    {% endif %}
+                                    {% endif %}
+                                    {% empty %}
+                                    <a href="{% url 'tickets:request_deadline_extension' task.id %}"
+                                        class="btn btn-sm btn-warning mb-1"
+                                        style="display: block; width: 100%; margin-bottom: 0.25rem;">
+                                        <i class="fas fa-clock"></i>
+                                        {% trans "درخواست تمدید مهلت" %}
+                                    </a>
+                                    {% endfor %}
+                                    {% endif %}
+                                    <a href="{% url 'tickets:ticket_task_detail' task.id %}"
+                                        class="btn btn-sm btn-primary">
                                         <i class="fas fa-eye"></i>
                                         {% trans "مشاهده" %}
                                     </a>
@@ -498,36 +603,41 @@
                 <ul class="pagination justify-content-center">
                     {% if tasks.has_previous %}
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ tasks.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{% trans "قبلی" %}</a>
+                        <a class="page-link"
+                            href="?page={{ tasks.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{%
+                            trans "قبلی" %}</a>
                     </li>
                     {% endif %}
-                    
+
                     {% for num in tasks.paginator.page_range %}
                     {% if tasks.number == num %}
                     <li class="page-item active">
                         <span class="page-link">{{ num }}</span>
                     </li>
-                    {% elif num > tasks.number|add:'-3' and num < tasks.number|add:'3' %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ num }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{{ num }}</a>
-                    </li>
-                    {% endif %}
-                    {% endfor %}
-                    
-                    {% if tasks.has_next %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ tasks.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{% trans "بعدی" %}</a>
-                    </li>
-                    {% endif %}
+                    {% elif num > tasks.number|add:'-3' and num < tasks.number|add:'3' %} <li class="page-item">
+                        <a class="page-link"
+                            href="?page={{ num }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{{ num
+                            }}</a>
+                        </li>
+                        {% endif %}
+                        {% endfor %}
+
+                        {% if tasks.has_next %}
+                        <li class="page-item">
+                            <a class="page-link"
+                                href="?page={{ tasks.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{%
+                                trans "بعدی" %}</a>
+                        </li>
+                        {% endif %}
                 </ul>
             </nav>
             {% endif %}
-                {% else %}
-                <div class="empty-state">
-                    <i class="fas fa-tasks fa-3x mb-3"></i>
-                    <p>{% trans "هیچ تسکی به شما تخصیص داده نشده است" %}</p>
-                </div>
-                {% endif %}
+            {% else %}
+            <div class="empty-state">
+                <i class="fas fa-tasks fa-3x mb-3"></i>
+                <p>{% trans "هیچ تسکی به شما تخصیص داده نشده است" %}</p>
+            </div>
+            {% endif %}
             {% endif %}
         </div>
     </div>

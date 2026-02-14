@@ -1,0 +1,441 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+{% load persian_numbers %}
+
+{% block title %}{% trans "درخواست‌های تمدید مهلت" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .extension-requests-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 1400px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .extension-requests-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .extension-requests-header h1 {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0;
+    }
+
+    .extension-requests-content {
+        padding: 2rem;
+    }
+
+    .filter-card {
+        background: #f8fafc;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        border: 1px solid #e2e8f0;
+    }
+
+    .table-card {
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .table thead {
+        background: #f8fafc;
+    }
+
+    .table thead th {
+        border-bottom: 2px solid #e2e8f0;
+        font-weight: 600;
+        color: #374151;
+        padding: 1rem;
+    }
+
+    .table tbody tr {
+        transition: background-color 0.2s ease;
+    }
+
+    .table tbody tr:hover {
+        background-color: #f8fafc;
+    }
+
+    .table tbody td {
+        padding: 1rem;
+        vertical-align: middle;
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 0.375rem 0.75rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        border-radius: 8px;
+        text-align: center;
+    }
+
+    .badge-pending {
+        background: rgba(245, 158, 11, 0.1);
+        color: #f59e0b;
+    }
+
+    .badge-approved {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+    }
+
+    .badge-rejected {
+        background: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+    }
+
+    .btn-sm {
+        border-radius: 6px;
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+
+    .btn-success {
+        background-color: #10b981;
+        border-color: #10b981;
+        color: white;
+    }
+
+    .btn-success:hover {
+        background-color: #059669;
+        border-color: #059669;
+    }
+
+    .btn-danger {
+        background-color: #ef4444;
+        border-color: #ef4444;
+        color: white;
+    }
+
+    .btn-danger:hover {
+        background-color: #dc2626;
+        border-color: #dc2626;
+    }
+
+    .form-select {
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: #6b7280;
+    }
+
+    .modal-content {
+        border-radius: 12px;
+        border: none;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    }
+
+    .modal-header {
+        border-bottom: 1px solid #e2e8f0;
+        padding: 1.5rem;
+        background-color: #f8fafc;
+        border-radius: 12px 12px 0 0;
+    }
+
+    .modal-header .modal-title {
+        font-weight: 600;
+        color: #374151;
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+        background-color: white;
+    }
+
+    .modal-footer {
+        border-top: 1px solid #e2e8f0;
+        padding: 1.5rem !important;
+        background-color: #f8fafc;
+        border-radius: 0 0 12px 12px;
+        display: flex !important;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
+
+    .modal-footer .btn {
+        min-width: 100px;
+        font-weight: 600;
+        display: inline-block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
+
+    .modal-backdrop {
+        background-color: rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-dialog {
+        max-width: 600px;
+    }
+
+    .modal-body p {
+        margin-bottom: 0.75rem;
+        color: #374151;
+    }
+
+    .modal-body strong {
+        color: #1f2937;
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="extension-requests-container">
+        <!-- Header -->
+        <div class="extension-requests-header">
+            <h1>
+                <i class="fas fa-clock me-2"></i>
+                {% trans "درخواست‌های تمدید مهلت" %}
+            </h1>
+        </div>
+
+        <!-- Content -->
+        <div class="extension-requests-content">
+            <!-- Filters -->
+            <div class="filter-card">
+                <form method="get" class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label" style="font-weight: 600; color: #374151;">{% trans "وضعیت" %}</label>
+                        <select name="status" class="form-select">
+                            <option value="">{% trans "همه" %}</option>
+                            {% for status_code, status_name in status_choices %}
+                            <option value="{{ status_code }}" {% if status_filter == status_code %}selected{% endif %}>
+                                {{ status_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-filter me-2"></i>
+                            {% trans "فیلتر" %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Extension Requests List -->
+            {% if extension_requests %}
+            <div class="table-card">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>{% trans "شناسه" %}</th>
+                                <th>{% trans "تسک" %}</th>
+                                <th>{% trans "درخواست‌دهنده" %}</th>
+                                <th>{% trans "مهلت فعلی" %}</th>
+                                <th>{% trans "مهلت درخواستی" %}</th>
+                                <th>{% trans "دلیل" %}</th>
+                                <th>{% trans "وضعیت" %}</th>
+                                <th>{% trans "تاریخ درخواست" %}</th>
+                                <th>{% trans "عملیات" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ext_req in extension_requests %}
+                            <tr>
+                                <td><strong>#{{ ext_req.id|persian_id }}</strong></td>
+                                <td>
+                                    <a href="{% url 'tickets:ticket_task_detail' ext_req.task.id %}" style="color: #6366f1; text-decoration: none;">
+                                        {{ ext_req.task.title|truncatechars:30 }}
+                                    </a>
+                                </td>
+                                <td>{{ ext_req.requested_by.get_full_name }}</td>
+                                <td>
+                                    {% if ext_req.task.deadline %}
+                                        {{ ext_req.task.deadline|persian_date }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>{{ ext_req.requested_deadline|persian_date }}</td>
+                                <td>{{ ext_req.reason|truncatechars:30 }}</td>
+                                <td>
+                                    <span class="badge badge-{{ ext_req.status }}">
+                                        {{ ext_req.get_status_display }}
+                                    </span>
+                                </td>
+                                <td>{{ ext_req.created_at|persian_date }}</td>
+                                <td>
+                                    {% if ext_req.status == 'pending' %}
+                                        <button type="button" class="btn btn-sm btn-success me-1" data-bs-toggle="modal" data-bs-target="#approveModal{{ ext_req.id }}">
+                                            <i class="fas fa-check"></i>
+                                            {% trans "تایید" %}
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal{{ ext_req.id }}">
+                                            <i class="fas fa-times"></i>
+                                            {% trans "رد" %}
+                                        </button>
+                                    {% else %}
+                                        {% if ext_req.reviewed_by %}
+                                            <small class="text-muted">
+                                                {% trans "بررسی شده توسط" %}: {{ ext_req.reviewed_by.get_full_name }}
+                                            </small>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                            </tr>
+
+                            <!-- Approve Modal -->
+                            <div class="modal fade" id="approveModal{{ ext_req.id }}" tabindex="-1" aria-labelledby="approveModalLabel{{ ext_req.id }}" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="approveModalLabel{{ ext_req.id }}">{% trans "تایید درخواست تمدید مهلت" %}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <form method="post" action="{% url 'tickets:handle_extension_request' ext_req.id 'approve' %}">
+                                            {% csrf_token %}
+                                            <div class="modal-body">
+                                                <div class="mb-3">
+                                                    <p><strong>{% trans "تسک:" %}</strong> {{ ext_req.task.title }}</p>
+                                                    <p><strong>{% trans "درخواست‌دهنده:" %}</strong> {{ ext_req.requested_by.get_full_name }}</p>
+                                                    <p><strong>{% trans "مهلت فعلی:" %}</strong> {{ ext_req.task.deadline|persian_date|default:"-" }}</p>
+                                                    <p><strong>{% trans "مهلت درخواستی:" %}</strong> {{ ext_req.requested_deadline|persian_date }}</p>
+                                                    <p><strong>{% trans "دلیل:" %}</strong> {{ ext_req.reason }}</p>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label for="approve_comment{{ ext_req.id }}" class="form-label">{% trans "نظر (اختیاری)" %}</label>
+                                                    <textarea name="comment" id="approve_comment{{ ext_req.id }}" class="form-control" rows="3" placeholder="{% trans 'نظر خود را وارد کنید...' %}"></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.5rem; padding: 1rem 1.5rem;">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                                    <i class="fas fa-times me-1"></i>
+                                                    {% trans "لغو" %}
+                                                </button>
+                                                <button type="submit" class="btn btn-success" style="min-width: 120px;">
+                                                    <i class="fas fa-check me-1"></i>
+                                                    {% trans "تایید" %}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Reject Modal -->
+                            <div class="modal fade" id="rejectModal{{ ext_req.id }}" tabindex="-1" aria-labelledby="rejectModalLabel{{ ext_req.id }}" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="rejectModalLabel{{ ext_req.id }}">{% trans "رد درخواست تمدید مهلت" %}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <form method="post" action="{% url 'tickets:handle_extension_request' ext_req.id 'reject' %}">
+                                            {% csrf_token %}
+                                            <div class="modal-body">
+                                                <div class="mb-3">
+                                                    <p><strong>{% trans "تسک:" %}</strong> {{ ext_req.task.title }}</p>
+                                                    <p><strong>{% trans "درخواست‌دهنده:" %}</strong> {{ ext_req.requested_by.get_full_name }}</p>
+                                                    <p><strong>{% trans "مهلت درخواستی:" %}</strong> {{ ext_req.requested_deadline|persian_date }}</p>
+                                                    <p><strong>{% trans "دلیل:" %}</strong> {{ ext_req.reason }}</p>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label for="reject_comment{{ ext_req.id }}" class="form-label">{% trans "دلیل رد (اختیاری)" %}</label>
+                                                    <textarea name="comment" id="reject_comment{{ ext_req.id }}" class="form-control" rows="3" placeholder="{% trans 'دلیل رد درخواست را وارد کنید...' %}"></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.5rem; padding: 1rem 1.5rem;">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                                    <i class="fas fa-times me-1"></i>
+                                                    {% trans "لغو" %}
+                                                </button>
+                                                <button type="submit" class="btn btn-danger" style="min-width: 120px;">
+                                                    <i class="fas fa-times me-1"></i>
+                                                    {% trans "رد" %}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Pagination -->
+            {% if extension_requests.has_other_pages %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if extension_requests.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ extension_requests.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{% trans "قبلی" %}</a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for num in extension_requests.paginator.page_range %}
+                    {% if extension_requests.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                    {% elif num > extension_requests.number|add:'-3' and num < extension_requests.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+                    
+                    {% if extension_requests.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ extension_requests.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">{% trans "بعدی" %}</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+            {% else %}
+            <div class="empty-state">
+                <i class="fas fa-inbox fa-3x mb-3"></i>
+                <p>{% trans "هیچ درخواست تمدید مهلتی یافت نشد" %}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+// Ensure modals work correctly
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if Bootstrap is loaded
+    if (typeof bootstrap === 'undefined') {
+        console.error('Bootstrap is not loaded!');
+    } else {
+        console.log('Bootstrap is loaded successfully');
+    }
+    
+    // Ensure modal buttons are visible
+    var modalFooters = document.querySelectorAll('.modal-footer');
+    modalFooters.forEach(function(footer) {
+        footer.style.display = 'flex';
+        footer.style.visibility = 'visible';
+        footer.style.opacity = '1';
+    });
+});
+</script>
+{% endblock %}

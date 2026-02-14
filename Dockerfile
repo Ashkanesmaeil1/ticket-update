@@ -10,9 +10,9 @@ ENV DJANGO_SETTINGS_MODULE=ticket_system.settings
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc || apt-get install -y --fix-missing gcc && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
