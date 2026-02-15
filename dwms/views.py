@@ -52,16 +52,26 @@ def warehouse_selection(request):
     
     warehouses_list = []
     
-    # ADMINISTRATIVE OVERRIDE: Staff and Superusers see all warehouses
+    # ADMINISTRATIVE OVERRIDE: Staff and Superusers see ALL department warehouses
+    # Use Department.has_warehouse to ensure we show all sections with warehouse enabled,
+    # not just warehouses that were already created/accessed
     if (hasattr(user, 'is_staff') and user.is_staff) or (hasattr(user, 'is_superuser') and user.is_superuser):
         try:
-            all_warehouses = DepartmentWarehouse.objects.filter(is_active=True).select_related('department')
-            for warehouse in all_warehouses:
-                warehouses_list.append({
-                    'warehouse': warehouse,
-                    'department': warehouse.department,
-                    'access_type': 'admin',  # Administrative access
-                })
+            depts_with_warehouse = Department.objects.filter(has_warehouse=True).order_by('name')
+            for dept in depts_with_warehouse:
+                warehouse, _ = DepartmentWarehouse.objects.get_or_create(
+                    department=dept,
+                    defaults={
+                        'name': f"{dept.name} انبار",
+                        'created_by': user,
+                    }
+                )
+                if warehouse.is_active and not any(w['warehouse'].id == warehouse.id for w in warehouses_list):
+                    warehouses_list.append({
+                        'warehouse': warehouse,
+                        'department': dept,
+                        'access_type': 'admin',  # Administrative access
+                    })
         except Exception:
             pass
     
@@ -115,8 +125,9 @@ def warehouse_selection(request):
         messages.info(request, _('شما به هیچ انباری دسترسی ندارید. لطفاً با سرپرست انبار تماس بگیرید.'))
         return redirect('tickets:dashboard')
     
-    # If only one warehouse, redirect directly
-    if len(warehouses_list) == 1:
+    # If only one warehouse, redirect directly (except for staff/superuser - they should always see selection)
+    is_admin_override = (hasattr(user, 'is_staff') and user.is_staff) or (hasattr(user, 'is_superuser') and user.is_superuser)
+    if len(warehouses_list) == 1 and not is_admin_override:
         return redirect('dwms:dashboard', department_id=warehouses_list[0]['department'].id)
     
     context = {
@@ -175,9 +186,44 @@ def warehouse_dashboard(request, department_id):
     from .utils import get_warehouse_permissions
     permissions = get_warehouse_permissions(warehouse, request.user)
     
+    # Build list of accessible warehouses for switcher (when user has multi-warehouse access)
+    accessible_warehouses = []
+    user = request.user
+    if (hasattr(user, 'is_staff') and user.is_staff) or (hasattr(user, 'is_superuser') and user.is_superuser):
+        depts = Department.objects.filter(has_warehouse=True).order_by('name')
+        for dept in depts:
+            w, _ = DepartmentWarehouse.objects.get_or_create(
+                department=dept,
+                defaults={'name': f"{dept.name} انبار", 'created_by': user}
+            )
+            if w.is_active:
+                accessible_warehouses.append({'warehouse': w, 'department': dept})
+    else:
+        supervised_depts = []
+        if hasattr(user, 'get_supervised_departments'):
+            try:
+                depts = user.get_supervised_departments()
+                supervised_depts = list(depts) if depts else []
+            except Exception:
+                supervised_depts = []
+        if user.department and user.department.has_warehouse and user.department not in supervised_depts:
+            supervised_depts.append(user.department)
+        for dept in supervised_depts:
+            if dept.has_warehouse:
+                try:
+                    w = DepartmentWarehouse.objects.get(department=dept)
+                    accessible_warehouses.append({'warehouse': w, 'department': dept})
+                except DepartmentWarehouse.DoesNotExist:
+                    pass
+        from .models import WarehouseAccess
+        for acc in WarehouseAccess.objects.filter(user=user, is_active=True).select_related('warehouse', 'warehouse__department'):
+            if not any(a['warehouse'].id == acc.warehouse.id for a in accessible_warehouses):
+                accessible_warehouses.append({'warehouse': acc.warehouse, 'department': acc.warehouse.department})
+    
     context = {
         'warehouse': warehouse,
         'department': warehouse.department,
+        'accessible_warehouses': accessible_warehouses,
         'total_items': total_items,
         'total_stock_value': total_stock_value,
         'low_stock_items': low_stock_items[:5],  # Top 5

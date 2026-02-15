@@ -90,6 +90,13 @@
     <div class="dwms-header">
         <h1><i class="fas fa-warehouse"></i> {% trans "انتخاب انبار" %}</h1>
         <p>{% trans "لطفاً انباری که می‌خواهید مدیریت کنید را انتخاب کنید" %}</p>
+        {% if user.is_staff or user.is_superuser %}
+        <p style="margin-top: 0.75rem; font-size: 0.9rem; opacity: 0.95;">
+            <a href="{% url 'tickets:department_management' %}" style="color: white; text-decoration: underline;">
+                {% trans "برای فعال‌سازی انبار بخش‌های دیگر به مدیریت بخش‌ها مراجعه کنید" %}
+            </a>
+        </p>
+        {% endif %}
     </div>
 
     {% if warehouses %}

@@ -217,8 +217,33 @@
 {% block content %}
 <div class="dwms-container">
     <div class="dwms-header">
-        <h1><i class="fas fa-warehouse"></i> {{ warehouse.name }}</h1>
-        <p>{{ warehouse.department.name }}</p>
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 1rem;">
+            <div>
+                <h1><i class="fas fa-warehouse"></i> {{ warehouse.name }}</h1>
+                <p>{{ warehouse.department.name }}</p>
+            </div>
+            {% if accessible_warehouses|length > 1 %}
+            <div class="warehouse-switcher">
+                <a href="{% url 'dwms:warehouse_selection' %}" class="btn btn-light" style="white-space: nowrap;">
+                    <i class="fas fa-exchange-alt me-1"></i> {% trans "انتخاب انبار دیگر" %}
+                </a>
+                <div class="dropdown d-inline-block ms-2">
+                    <button class="btn btn-outline-light dropdown-toggle" type="button" id="warehouseDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        {% trans "همه انبارها" %} ({{ accessible_warehouses|length }})
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="warehouseDropdown">
+                        {% for item in accessible_warehouses %}
+                        <li>
+                            <a class="dropdown-item {% if item.department.id == department.id %}active{% endif %}" href="{% url 'dwms:dashboard' item.department.id %}">
+                                {{ item.warehouse.name }}
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+        </div>
     </div>
 
     <!-- Statistics -->
