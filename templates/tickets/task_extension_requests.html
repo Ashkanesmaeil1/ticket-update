@@ -218,6 +218,7 @@
                                 <td>{{ ext_req.created_at|persian_date }}</td>
                                 <td>
                                     {% if ext_req.status == 'pending' %}
+                                        {% if can_review %}
                                         <button type="button" class="btn btn-sm btn-success me-1" data-bs-toggle="modal" data-bs-target="#approveModal{{ ext_req.id }}">
                                             <i class="fas fa-check"></i>
                                             {% trans "تایید" %}
@@ -226,6 +227,7 @@
                                             <i class="fas fa-times"></i>
                                             {% trans "رد" %}
                                         </button>
+                                        {% endif %}
                                     {% else %}
                                         {% if ext_req.reviewed_by %}
                                             <small class="text-muted">

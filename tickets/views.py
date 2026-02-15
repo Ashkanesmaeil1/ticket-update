@@ -396,7 +396,37 @@ def dashboard(request):
         except Exception:
             can_create_tasks = False
         
-        if user.role == 'employee':
+        # Administrator first so admin always gets admin dashboard regardless of role field
+        if is_admin_superuser(user):
+            # Administrator dashboard - can see all tickets and manage everything
+            from .services import get_it_manager_ticket_ordering
+            all_tickets = Ticket.objects.exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')).order_by(*get_it_manager_ticket_ordering())[:15]
+            dashboard_recent_tickets = Ticket.objects.exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')).order_by('-created_at')[:5]
+            dashboard_recent_tasks = TicketTask.objects.all().order_by('-created_at')[:5]
+            my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
+            recent_replies = Reply.objects.all().order_by('-created_at')[:3]
+            unread_notifications = Notification.objects.filter(recipient=user, is_read=False).order_by('-created_at')
+            all_tickets_stats = Ticket.objects.all()
+            context = {
+                'tickets': all_tickets,
+                'all_tickets': all_tickets,
+                'dashboard_recent_tickets': dashboard_recent_tickets,
+                'dashboard_recent_tasks': dashboard_recent_tasks,
+                'my_tickets': my_tickets,
+                'recent_replies': recent_replies,
+                'total_tickets': all_tickets_stats.count(),
+                'open_tickets': all_tickets_stats.filter(status='open').count(),
+                'resolved_tickets': all_tickets_stats.filter(status='resolved').count(),
+                'in_progress_tickets': all_tickets_stats.filter(status='in_progress').count(),
+                'total_my_tickets': Ticket.objects.filter(created_by=user).count(),
+                'open_my_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
+                'resolved_my_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
+                'unread_notifications': unread_notifications[:5],
+                'unread_count': unread_notifications.count(),
+                'is_administrator': True,
+                'can_create_tasks': can_create_tasks,
+            }
+        elif user.role == 'employee':
             # Get ticket tasks: assigned to this user OR created by this user (if task creator) OR created by task creators in supervised departments (if supervisor)
             # Check if user is a task creator
             is_task_creator_for_tasks = False
@@ -725,35 +755,6 @@ def dashboard(request):
                 'can_create_tasks': can_create_tasks,
             }
         
-        elif is_admin_superuser(user):
-            # Administrator dashboard - can see all tickets and manage everything
-            from .services import get_it_manager_ticket_ordering
-            all_tickets = Ticket.objects.exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')).order_by(*get_it_manager_ticket_ordering())[:15]
-            my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
-            recent_replies = Reply.objects.all().order_by('-created_at')[:3]
-            unread_notifications = Notification.objects.filter(recipient=user, is_read=False).order_by('-created_at')
-            
-            # Statistics for all tickets
-            all_tickets_stats = Ticket.objects.all()
-            
-            context = {
-                'tickets': all_tickets,
-                'all_tickets': all_tickets,
-                'my_tickets': my_tickets,
-                'recent_replies': recent_replies,
-                'total_tickets': all_tickets_stats.count(),
-                'open_tickets': all_tickets_stats.filter(status='open').count(),
-                'resolved_tickets': all_tickets_stats.filter(status='resolved').count(),
-                'in_progress_tickets': all_tickets_stats.filter(status='in_progress').count(),
-                'total_my_tickets': Ticket.objects.filter(created_by=user).count(),
-                'open_my_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
-                'resolved_my_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
-                'unread_notifications': unread_notifications[:5],
-                'unread_count': unread_notifications.count(),
-                'is_administrator': True,
-                'can_create_tasks': can_create_tasks,
-            }
-        
         else:  # IT Manager
             # IT Manager dashboard - only IT department tickets
             from .services import get_it_manager_ticket_ordering
@@ -782,6 +783,9 @@ def dashboard(request):
             # Get IT manager's own created tickets
             my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
             
+            # 5 newest tickets for dashboard section
+            dashboard_recent_tickets = all_tickets[:5]
+            
             # Get replies for IT department tickets only
             if it_department:
                 recent_replies = Reply.objects.filter(
@@ -803,6 +807,7 @@ def dashboard(request):
             context = {
                 'tickets': all_tickets,  # Use 'tickets' to match template
                 'all_tickets': all_tickets,
+                'dashboard_recent_tickets': dashboard_recent_tickets,
                 'my_tickets': my_tickets,
                 'recent_replies': recent_replies,
                 'unread_notifications': unread_notifications,
@@ -1002,7 +1007,11 @@ def ticket_list(request):
     all_tickets_filter = request.GET.get('all_tickets', '')
     task_tickets_filter = request.GET.get('task_tickets', '')
     
-    if user.role == 'employee':
+    # Check Administrator first so admin always sees all tickets regardless of role field
+    if is_admin_superuser(user):
+        from .services import get_it_manager_ticket_ordering
+        tickets = Ticket.objects.exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')).order_by(*get_it_manager_ticket_ordering())
+    elif user.role == 'employee':
         if user.department_role == 'manager':
             # Manager can see all tickets across the company
             if all_tickets_filter:
@@ -1037,9 +1046,6 @@ def ticket_list(request):
         else:
             # Regular employees only see their own tickets
             tickets = Ticket.objects.filter(created_by=user)
-    elif is_admin_superuser(user):
-        # Administrator can see all tickets
-        tickets = Ticket.objects.exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending'))
     elif user.role == 'technician':
         # Technicians should not see access tickets pending approval
         # Also filter to only show IT department tickets
@@ -1197,7 +1203,10 @@ def ticket_detail(request, ticket_id):
     """Ticket detail view with replies"""
     user = request.user
     
-    if user.role == 'employee':
+    # Superadmin can view all tickets but cannot reply or change status
+    if is_admin_superuser(user):
+        ticket = get_object_or_404(Ticket, id=ticket_id)
+    elif user.role == 'employee':
         if user.department_role == 'manager':
             # Manager can see all tickets across the company
             ticket = get_object_or_404(Ticket, id=ticket_id)
@@ -1349,8 +1358,9 @@ def ticket_detail(request, ticket_id):
     reply_form = ReplyForm()
     
     status_form = None
-    # Allow status form for IT managers, technicians, department supervisors (seniors), and ticket responders for received tickets
+    # Superadmin cannot change status or reply
     can_change_status = False
+    can_reply = not is_admin_superuser(user)
     try:
         if user.role in ['it_manager', 'technician']:
             can_change_status = True
@@ -1386,6 +1396,11 @@ def ticket_detail(request, ticket_id):
         logger.error(traceback.format_exc())
         can_change_status = False
         status_form = None
+    
+    # Superadmin cannot change status or reply
+    if is_admin_superuser(user):
+        can_change_status = False
+        can_reply = False
     
     if request.method == 'POST':
         # Check if this is a status update form submission
@@ -1462,6 +1477,9 @@ def ticket_detail(request, ticket_id):
                     messages.error(request, _('خطا در بروزرسانی وضعیت تیکت. لطفاً اطلاعات را بررسی کنید.'))
         else:
             # This is a reply form submission
+            if is_admin_superuser(user):
+                messages.error(request, _('سوپرادمین مجاز به ثبت پاسخ تیکت نیست.'))
+                return redirect('tickets:ticket_detail', ticket_id=ticket.id)
             reply_form = ReplyForm(request.POST, request.FILES)
             reply_form.user = user  # Set user for activity logging
             if reply_form.is_valid():
@@ -1596,6 +1614,7 @@ def ticket_detail(request, ticket_id):
         'reply_form': reply_form,
         'status_form': status_form,
         'can_change_status': can_change_status,
+        'can_reply': can_reply,
         'requires_access_approval': ticket.ticket_category and ticket.ticket_category.requires_supervisor_approval and ticket.access_approval_status == 'pending',
         'can_approve_access': can_approve_access,
         'came_from_department': came_from_department,
@@ -1606,8 +1625,12 @@ def ticket_detail(request, ticket_id):
 
 @login_required
 def ticket_create(request):
-    """Create new ticket (Employees, IT Managers, Technicians)"""
+    """Create new ticket (Employees, IT Managers, Technicians). Superadmin cannot create tickets."""
     user = request.user
+    
+    if getattr(user, 'is_superuser', False):
+        messages.error(request, _('سوپرادمین مجاز به ایجاد تیکت نیست.'))
+        return redirect('tickets:dashboard')
     
     if user.role == 'employee':
         # Regular employees can only create support tickets
@@ -6103,7 +6126,8 @@ def ticket_task_list(request):
     """List all ticket tasks created by the current user (IT Manager, Supervisor, or delegated task creator)"""
     user = request.user
     
-    # Allow IT managers OR supervisors (senior/manager department_role) OR department task creators to access this view
+    # Allow SuperAdmin to see all tasks; IT managers; supervisors; or department task creators
+    is_admin = is_admin_superuser(user)
     is_it_manager = user.role == 'it_manager'
     is_supervisor = (user.role == 'employee' and user.department_role in ['senior', 'manager'])
     is_task_creator = False
@@ -6114,7 +6138,7 @@ def ticket_task_list(request):
     except Exception:
         is_task_creator = False
     
-    if not (is_it_manager or is_supervisor or is_task_creator):
+    if not (is_admin or is_it_manager or is_supervisor or is_task_creator):
         messages.error(request, _('شما اجازه دسترسی به این صفحه را ندارید.'))
         return redirect('tickets:dashboard')
     
@@ -6124,7 +6148,9 @@ def ticket_task_list(request):
     
     # Build task queryset based on user role
     # Temporarily defer 'deadline' field until migration is applied
-    if is_supervisor:
+    if is_admin:
+        tasks = TicketTask.objects.all().defer('deadline').prefetch_related('extension_requests')
+    elif is_supervisor:
         # For supervisors: show tasks created by them OR tasks created by task creators in their supervised departments
         supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
         supervised_dept_ids = [dept.id for dept in supervised_depts] if supervised_depts else []
@@ -6231,6 +6257,9 @@ def ticket_task_create(request):
         'department_role': getattr(user, 'department_role', None)
     })
     
+    if is_admin_superuser(user):
+        messages.error(request, _('سوپرادمین مجاز به ایجاد تسک نیست.'))
+        return redirect('tickets:dashboard')
     if not (is_it_manager or is_supervisor or is_task_creator):
         messages.error(request, _('شما اجازه ایجاد تسک را ندارید.'))
         return redirect('tickets:dashboard')
@@ -6396,11 +6425,17 @@ def ticket_task_detail(request, task_id):
     except Exception:
         pass
     
-    # CRITICAL: Allow ANY creator to view their tasks, regardless of current permissions
-    # Also allow assigned users and supervisors viewing task creator tasks
-    if not (is_creator or is_assigned or is_supervisor_viewing_task_creator_task):
-        messages.error(request, _('شما اجازه مشاهده این تسک را ندارید.'))
-        return redirect('tickets:dashboard')
+    # Superadmin can view all tasks but cannot make any changes
+    if is_admin_superuser(user):
+        can_update_status = False
+        can_edit_delete = False
+        can_reply = False
+    else:
+        # CRITICAL: Allow ANY creator to view their tasks, regardless of current permissions
+        # Also allow assigned users and supervisors viewing task creator tasks
+        if not (is_creator or is_assigned or is_supervisor_viewing_task_creator_task):
+            messages.error(request, _('شما اجازه مشاهده این تسک را ندارید.'))
+            return redirect('tickets:dashboard')
     
     # Get all replies for this task
     replies = task.replies.all().order_by('created_at')
@@ -6408,17 +6443,21 @@ def ticket_task_detail(request, task_id):
     # Check if user is a supervisor (for managing tasks created by task creators)
     is_supervisor = (user.role == 'employee' and user.department_role in ['senior', 'manager'])
     
-    # Check if user can update status (creator who is IT manager, supervisor, or task creator, OR supervisor viewing task creator's task)
-    can_update_status = is_it_manager_creator or is_supervisor_creator or is_task_creator or (is_supervisor_viewing_task_creator_task and is_supervisor)
+    # For non-superadmin: Check if user can update status and edit/delete
+    if not is_admin_superuser(user):
+        can_update_status = is_it_manager_creator or is_supervisor_creator or is_task_creator or (is_supervisor_viewing_task_creator_task and is_supervisor)
+        can_edit_delete = is_it_manager_creator or is_supervisor_creator or is_task_creator or (is_supervisor_viewing_task_creator_task and is_supervisor)
+        can_reply = is_assigned or is_it_manager_creator or is_supervisor_creator or is_task_creator or is_supervisor_viewing_task_creator_task
     
-    # Check if user can edit/delete (creator who is IT manager, supervisor, or task creator, OR supervisor viewing task creator's task)
-    can_edit_delete = is_it_manager_creator or is_supervisor_creator or is_task_creator or (is_supervisor_viewing_task_creator_task and is_supervisor)
+    can_view_extension_requests = can_edit_delete or can_update_status or is_admin_superuser(user)
     
     context = {
         'task': task,
         'replies': replies,
         'can_update_status': can_update_status,
         'can_edit_delete': can_edit_delete,
+        'can_reply': can_reply,
+        'can_view_extension_requests': can_view_extension_requests,
         'task_status_choices': TicketTask.STATUS_CHOICES,
         'task_priority_choices': TicketTask.PRIORITY_CHOICES,
     }
@@ -6431,6 +6470,11 @@ def ticket_task_detail(request, task_id):
 def ticket_task_update_status(request, task_id):
     """Update status and priority of a ticket task (AJAX endpoint)"""
     user = request.user
+    if is_admin_superuser(user):
+        return JsonResponse({
+            'success': False,
+            'error': _('سوپرادمین مجاز به تغییر وضعیت تسک نیست.')
+        }, status=403)
     # Temporarily defer 'deadline' field until migration is applied
     task = get_object_or_404(TicketTask.objects.defer('deadline'), id=task_id)
     
@@ -6508,7 +6552,9 @@ def ticket_task_update_status(request, task_id):
 def ticket_task_edit(request, task_id):
     """Edit a ticket task (only creator can edit)"""
     user = request.user
-    
+    if is_admin_superuser(user):
+        messages.error(request, _('سوپرادمین مجاز به ویرایش تسک نیست.'))
+        return redirect('tickets:ticket_task_list')
     # CRITICAL: Refresh user from database to ensure we have latest relationships
     user.refresh_from_db()
     
@@ -6581,6 +6627,9 @@ def ticket_task_edit(request, task_id):
 def ticket_task_delete(request, task_id):
     """Delete a ticket task (only creator can delete)"""
     user = request.user
+    if is_admin_superuser(user):
+        messages.error(request, _('سوپرادمین مجاز به حذف تسک نیست.'))
+        return redirect('tickets:ticket_task_list')
     # Temporarily defer 'deadline' field until migration is applied
     task = get_object_or_404(TicketTask.objects.defer('deadline'), id=task_id)
     
@@ -6640,6 +6689,9 @@ def ticket_task_delete(request, task_id):
 def ticket_task_reply(request, task_id):
     """Reply to a ticket task"""
     user = request.user
+    if is_admin_superuser(user):
+        messages.error(request, _('سوپرادمین مجاز به پاسخ دادن به تسک نیست.'))
+        return redirect('tickets:ticket_task_detail', task_id=task_id)
     # Temporarily defer 'deadline' field until migration is applied
     task = get_object_or_404(TicketTask.objects.defer('deadline'), id=task_id)
     
@@ -6798,6 +6850,9 @@ def my_ticket_tasks(request):
 @login_required
 def request_deadline_extension(request, task_id):
     """View for employees to request deadline extension"""
+    if is_admin_superuser(request.user):
+        messages.error(request, _('سوپرادمین مجاز به درخواست تمدید مهلت نیست.'))
+        return redirect('tickets:ticket_task_list')
     try:
         task = TicketTask.objects.get(id=task_id)
     except TicketTask.DoesNotExist:
@@ -6862,6 +6917,9 @@ def request_deadline_extension(request, task_id):
 @login_required
 def handle_extension_request(request, request_id, action):
     """View for task creators/supervisors to approve/reject extension requests"""
+    if is_admin_superuser(request.user):
+        messages.error(request, _('سوپرادمین مجاز به تایید یا رد درخواست تمدید مهلت نیست.'))
+        return redirect('tickets:ticket_task_list')
     try:
         extension_request = DeadlineExtensionRequest.objects.get(id=request_id)
     except DeadlineExtensionRequest.DoesNotExist:
@@ -6945,10 +7003,11 @@ def task_extension_requests(request, task_id):
     
     user = request.user
     
-    # Check if user can review extension requests for this task
+    # Check if user can review extension requests for this task (superadmin can view but not approve/reject)
     can_review = False
-    
-    if task.created_by == user:
+    if is_admin_superuser(user):
+        can_review = False  # View only, cannot approve/reject
+    elif task.created_by == user:
         can_review = True
     elif user.role == 'it_manager':
         can_review = True
@@ -6956,7 +7015,9 @@ def task_extension_requests(request, task_id):
         if task.department and user.is_supervisor_of(task.department):
             can_review = True
     
-    if not can_review:
+    # Allow superadmin to view; others need can_review or must be assigned/creator
+    can_view = can_review or is_admin_superuser(user)
+    if not can_view:
         messages.error(request, _('شما مجاز به مشاهده درخواست‌های تمدید مهلت این تسک نیستید.'))
         return redirect('tickets:ticket_task_list')
     
@@ -6966,6 +7027,7 @@ def task_extension_requests(request, task_id):
     context = {
         'task': task,
         'extension_requests': extension_requests,
+        'can_review': can_review,
         'status_choices': DeadlineExtensionRequest.STATUS_CHOICES,
     }
     
@@ -6986,7 +7048,10 @@ def extension_requests_list(request):
     ).all()
     
     # Filter based on user permissions
-    if user.role == 'it_manager':
+    if is_admin_superuser(user):
+        # Superadmin can see all extension requests (view only, cannot approve/reject)
+        pass
+    elif user.role == 'it_manager':
         # IT managers can see all extension requests for tasks they created
         extension_requests = extension_requests.filter(task__created_by=user)
     elif user.department_role in ['senior', 'manager']:
@@ -7017,10 +7082,12 @@ def extension_requests_list(request):
     page_number = request.GET.get('page')
     requests_page = paginator.get_page(page_number)
     
+    can_review = not is_admin_superuser(user)
     context = {
         'extension_requests': requests_page,
         'status_filter': status_filter,
         'status_choices': DeadlineExtensionRequest.STATUS_CHOICES,
+        'can_review': can_review,
     }
     
     return render(request, 'tickets/extension_requests_list.html', context)

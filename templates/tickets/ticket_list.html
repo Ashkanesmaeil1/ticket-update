@@ -781,7 +781,7 @@
             {% endif %}
         </p>
         <div class="header-actions">
-            {% if user.role == 'employee' %}
+            {% if user.role == 'employee' and not user.is_superuser %}
             <a href="{% url 'tickets:ticket_create' %}" class="btn-modern">
                 <i class="fas fa-plus"></i>
                 {% trans "تیکت جدید" %}

@@ -615,7 +615,7 @@
                             </a>
                         </li>
                     {% endif %}
-                    {% if user.role == 'employee' %}
+                    {% if user.role == 'employee' and not user.is_superuser %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == '/tickets/create/' %}active{% endif %}" href="{% url 'tickets:ticket_create' %}">
                             <i class="fas fa-plus me-2"></i>{% trans "تیکت جدید" %}

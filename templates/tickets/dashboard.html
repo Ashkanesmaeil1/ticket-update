@@ -587,9 +587,55 @@
     </div>
 
     <div class="dashboard-content">
-    <!-- Statistics Cards -->
+    <!-- Statistics Cards (Administrator first so admin always sees ticket stats) -->
         <div class="stats-grid">
-        {% if user.role == 'employee' %}
+        {% if is_administrator %}
+            <!-- Administrator Statistics -->
+                <a href="{% url 'tickets:ticket_list' %}" class="stat-card total">
+                    <div class="stat-header">
+                        <div class="stat-info">
+                            <div class="stat-label">{% trans "کل تیکت‌ها" %}</div>
+                            <div class="stat-value">{{ total_tickets|persian_digits }}</div>
+                        </div>
+                        <div class="stat-icon">
+                            <i class="fas fa-ticket-alt"></i>
+                        </div>
+                    </div>
+                </a>
+                <a href="{% url 'tickets:ticket_list' %}?status=open" class="stat-card open">
+                    <div class="stat-header">
+                        <div class="stat-info">
+                            <div class="stat-label">{% trans "تیکت‌های باز" %}</div>
+                            <div class="stat-value">{{ open_tickets|persian_digits }}</div>
+                        </div>
+                        <div class="stat-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                    </div>
+                </a>
+                <a href="{% url 'tickets:ticket_list' %}?status=in_progress" class="stat-card in-progress">
+                    <div class="stat-header">
+                        <div class="stat-info">
+                            <div class="stat-label">{% trans "در حال انجام" %}</div>
+                            <div class="stat-value">{{ in_progress_tickets|persian_digits }}</div>
+                        </div>
+                        <div class="stat-icon">
+                            <i class="fas fa-tools"></i>
+                        </div>
+                    </div>
+                </a>
+                <a href="{% url 'tickets:ticket_list' %}?status=resolved" class="stat-card resolved">
+                    <div class="stat-header">
+                        <div class="stat-info">
+                            <div class="stat-label">{% trans "تیکت های انجام شده" %}</div>
+                            <div class="stat-value">{{ resolved_tickets|persian_digits }}</div>
+                        </div>
+                        <div class="stat-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                    </div>
+                </a>
+        {% elif user.role == 'employee' %}
             {% if is_manager %}
                 <!-- Manager Statistics -->
                     <a href="{% url 'tickets:ticket_list' %}?my_tickets=1" class="stat-card total">
@@ -750,52 +796,6 @@
                             </div>
                     </a>
             {% endif %}
-        {% elif is_administrator %}
-            <!-- Administrator Statistics -->
-                <a href="{% url 'tickets:ticket_list' %}" class="stat-card total">
-                    <div class="stat-header">
-                        <div class="stat-info">
-                            <div class="stat-label">{% trans "کل تیکت‌ها" %}</div>
-                            <div class="stat-value">{{ total_tickets|persian_digits }}</div>
-                        </div>
-                        <div class="stat-icon">
-                            <i class="fas fa-ticket-alt"></i>
-                        </div>
-                    </div>
-                </a>
-                <a href="{% url 'tickets:ticket_list' %}?status=open" class="stat-card open">
-                    <div class="stat-header">
-                        <div class="stat-info">
-                            <div class="stat-label">{% trans "تیکت‌های باز" %}</div>
-                            <div class="stat-value">{{ open_tickets|persian_digits }}</div>
-                        </div>
-                        <div class="stat-icon">
-                            <i class="fas fa-clock"></i>
-                        </div>
-                    </div>
-                </a>
-                <a href="{% url 'tickets:ticket_list' %}?status=in_progress" class="stat-card in-progress">
-                    <div class="stat-header">
-                        <div class="stat-info">
-                            <div class="stat-label">{% trans "در حال انجام" %}</div>
-                            <div class="stat-value">{{ in_progress_tickets|persian_digits }}</div>
-                        </div>
-                        <div class="stat-icon">
-                            <i class="fas fa-tools"></i>
-                        </div>
-                    </div>
-                </a>
-                <a href="{% url 'tickets:ticket_list' %}?status=resolved" class="stat-card resolved">
-                    <div class="stat-header">
-                        <div class="stat-info">
-                            <div class="stat-label">{% trans "تیکت های انجام شده" %}</div>
-                            <div class="stat-value">{{ resolved_tickets|persian_digits }}</div>
-                        </div>
-                        <div class="stat-icon">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                    </div>
-                </a>
         {% else %}
             <!-- Technician/IT Manager Statistics -->
                 <a href="{% url 'tickets:ticket_list' %}?all_tickets=1" class="stat-card total">
@@ -848,8 +848,121 @@
         <!-- Content Sections -->
         <div class="content-sections">
         
-    <!-- Ticket Tasks Section - Priority -->
-            {% if user.role == 'employee' %}
+    <!-- Recent Tickets Section (Administrator / IT Manager) - like Tasks section -->
+            {% if is_administrator or user.role == 'it_manager' %}
+            <div class="section-card" id="recent-tickets" style="border: 2px solid #6366f1; background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(99, 102, 241, 0.02) 100%);">
+                <div class="section-header">
+                    <div class="section-title">
+                        <i class="fas fa-ticket-alt" style="color: #6366f1;"></i>
+                        {% trans "تیکت‌ها" %}
+                        <span style="font-size: 0.9rem; color: #6b7280; margin-right: 0.5rem;">
+                            ({{ open_tickets|default:0|persian_digits }} {% trans "باز" %} | {{ resolved_tickets|default:0|persian_digits }} {% trans "انجام شده" %})
+                        </span>
+                    </div>
+                    <a href="{% url 'tickets:ticket_list' %}" class="section-action">
+                        <i class="fas fa-eye"></i>
+                        {% trans "مشاهده همه" %}
+                    </a>
+                </div>
+                <div class="section-body">
+                    {% if dashboard_recent_tickets %}
+                    <div class="ticket-grid">
+                        {% for ticket in dashboard_recent_tickets %}
+                        <div class="ticket-item" style="border-left: 4px solid #6366f1;">
+                            <div class="ticket-id" style="background: #6366f1; color: white;">#{{ ticket.id|persian_id }}</div>
+                            <div class="ticket-content">
+                                <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
+                                <div class="ticket-meta">
+                                    <span class="ticket-badge badge-category">{{ ticket.created_by.get_full_name }}</span>
+                                    <span class="ticket-badge badge-priority-{{ ticket.priority }}">{{ ticket.get_priority_display }}</span>
+                                    <span class="ticket-badge badge-status-{{ ticket.status }}">{{ ticket.get_status_display }}</span>
+                                    <span class="ticket-date">{{ ticket.created_at|persian_date_only }}</span>
+                                </div>
+                            </div>
+                            <div class="ticket-actions">
+                                <a href="{% url 'tickets:ticket_detail' ticket.id %}" class="btn-view">
+                                    <i class="fas fa-eye"></i>
+                                    {% trans "مشاهده" %}
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <i class="fas fa-ticket-alt font-size-3rem"></i>
+                        <h6>{% trans "تیکتی یافت نشد" %}</h6>
+                        <p>{% trans "هنوز تیکتی ثبت نشده است." %}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+    <!-- Recent Tasks Section (Superadmin only) - 5 latest tasks in the system -->
+            {% if is_administrator and dashboard_recent_tasks %}
+            <div class="section-card" id="recent-tasks-superadmin" style="border: 2px solid #8b5cf6; background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(139, 92, 246, 0.02) 100%);">
+                <div class="section-header">
+                    <div class="section-title">
+                        <i class="fas fa-tasks" style="color: #8b5cf6;"></i>
+                        {% trans "تسک‌ها" %}
+                    </div>
+                    <a href="{% url 'tickets:ticket_task_list' %}" class="section-action" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                        <i class="fas fa-eye"></i>
+                        {% trans "مشاهده همه تسک‌ها" %}
+                    </a>
+                </div>
+                <div class="section-body">
+                    <div class="ticket-grid">
+                        {% for task in dashboard_recent_tasks %}
+                        <div class="ticket-item" style="border-left: 4px solid #8b5cf6;">
+                            <div class="ticket-id" style="background: #8b5cf6; color: white;">Task #{{ task.id|persian_id }}</div>
+                            <div class="ticket-content">
+                                <div class="ticket-title">{{ task.title|truncatechars:50 }}</div>
+                                <div class="ticket-meta">
+                                    {% if task.assigned_to %}
+                                    <span class="ticket-badge badge-category">{{ task.assigned_to.get_full_name }}</span>
+                                    {% endif %}
+                                    <span class="ticket-badge badge-priority-{{ task.priority }}">{{ task.get_priority_display }}</span>
+                                    <span class="ticket-badge badge-status-{{ task.status }}">{{ task.get_status_display }}</span>
+                                    <span class="ticket-date">{{ task.created_at|persian_date_only }}</span>
+                                </div>
+                            </div>
+                            <div class="ticket-actions">
+                                <a href="{% url 'tickets:ticket_task_detail' task.id %}" class="btn-view">
+                                    <i class="fas fa-eye"></i>
+                                    {% trans "مشاهده" %}
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% elif is_administrator %}
+            <div class="section-card" id="recent-tasks-superadmin" style="border: 2px solid #8b5cf6; background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(139, 92, 246, 0.02) 100%);">
+                <div class="section-header">
+                    <div class="section-title">
+                        <i class="fas fa-tasks" style="color: #8b5cf6;"></i>
+                        {% trans "تسک‌ها" %}
+                    </div>
+                    <a href="{% url 'tickets:ticket_task_list' %}" class="section-action" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                        <i class="fas fa-eye"></i>
+                        {% trans "مشاهده همه تسک‌ها" %}
+                    </a>
+                </div>
+                <div class="section-body">
+                    <div class="empty-state">
+                        <i class="fas fa-tasks font-size-3rem"></i>
+                        <h6>{% trans "تسکی در سامانه ثبت نشده است" %}</h6>
+                        <p>{% trans "هنوز هیچ تسکی در سیستم ثبت نشده است." %}</p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        
+    <!-- Ticket Tasks Section - Priority (hidden for superadmin) -->
+            {% if user.role == 'employee' and not is_administrator %}
             <div class="section-card" id="ticket-tasks" style="border: 2px solid #6366f1; background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(99, 102, 241, 0.02) 100%);">
                 <div class="section-header">
                     <div class="section-title">
@@ -949,7 +1062,7 @@
             </div>
             {% endif %}
             
-            {% if my_tickets %}
+            {% if my_tickets and not is_administrator %}
             <div class="section-card">
                 <div class="section-header">
                     <div class="section-title">
@@ -987,7 +1100,7 @@
                 </div>
             </div>
             {% endif %}
-        {% elif user.role == 'employee' and is_manager %}
+        {% elif user.role == 'employee' and is_manager and not is_administrator %}
                 <!-- Manager Dashboard - Two Sections -->
                 <div class="section-card">
                     <div class="section-header">
@@ -1029,10 +1142,12 @@
                                 <i class="fas fa-inbox font-size-3rem"></i>
                                 <h6>{% trans "تیکتی پیدا نشد" %}</h6>
                                 <p>{% trans "شما تاکنون تیکتی ایجاد نکرده‌اید." %}</p>
+                                {% if not user.is_superuser %}
                                 <a href="{% url 'tickets:ticket_create' %}" class="btn-create">
                                     <i class="fas fa-plus"></i>
                                     {% trans "ایجاد تیکت" %}
                                 </a>
+                                {% endif %}
                             </div>
                         {% endif %}
                 </div>
@@ -1084,7 +1199,7 @@
                         {% endif %}
                 </div>
             </div>
-        {% elif user.role == 'employee' and is_senior %}
+        {% elif user.role == 'employee' and is_senior and not is_administrator %}
                 <!-- Senior Dashboard - Two Sections -->
                 <div class="section-card">
                     <div class="section-header">
@@ -1126,10 +1241,12 @@
                                 <i class="fas fa-inbox font-size-3rem"></i>
                                 <h6>{% trans "تیکتی پیدا نشد" %}</h6>
                                 <p>{% trans "شما تاکنون تیکتی ایجاد نکرده‌اید." %}</p>
+                                {% if not user.is_superuser %}
                                 <a href="{% url 'tickets:ticket_create' %}" class="btn-create">
                                     <i class="fas fa-plus"></i>
                                     {% trans "ایجاد تیکت" %}
                                 </a>
+                                {% endif %}
                             </div>
                         {% endif %}
                 </div>
@@ -1289,7 +1406,7 @@
             {% endif %}
             
             <!-- Regular Employee - My Tickets Section -->
-            {% if user.role == 'employee' %}
+            {% if user.role == 'employee' and not is_administrator %}
                 {% if not is_manager and not is_senior %}
             <div class="section-card">
                 <div class="section-header">
@@ -1331,10 +1448,12 @@
                             <i class="fas fa-inbox font-size-3rem"></i>
                             <h6>{% trans "تیکتی پیدا نشد" %}</h6>
                             <p>{% trans "شما تاکنون تیکتی ایجاد نکرده‌اید." %}</p>
+                            {% if not user.is_superuser %}
                             <a href="{% url 'tickets:ticket_create' %}" class="btn-create">
                                 <i class="fas fa-plus"></i>
                                 {% trans "ایجاد تیکت" %}
                             </a>
+                            {% endif %}
                         </div>
                     {% endif %}
                 </div>
@@ -1383,56 +1502,6 @@
                     </div>
                 </div>
             </div>
-            {% endif %}
-            
-            {% if is_administrator %}
-            <!-- Administrator - All Tickets Section -->
-                <div class="section-card">
-                    <div class="section-header">
-                        <div class="section-title">
-                            <i class="fas fa-list"></i>
-                            {% trans "همه تیکت‌ها" %}
-                        </div>
-                        <a href="{% url 'tickets:ticket_list' %}" class="section-action">
-                            <i class="fas fa-eye"></i>
-                            {% trans "مشاهده همه" %}
-                        </a>
-                    </div>
-                    <div class="section-body">
-                        {% if tickets %}
-                            <div class="ticket-grid">
-                                {% for ticket in tickets %}
-                                <div class="ticket-item">
-                                    <div class="ticket-id">#{{ ticket.id|persian_id }}</div>
-                                    <div class="ticket-content">
-                                        <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
-                                        <div class="ticket-meta">
-                                            <span class="ticket-badge badge-category">{{ ticket.created_by.get_full_name }}</span>
-                                            <span class="ticket-badge badge-category">{{ ticket.created_by.get_department_and_role_display }}</span>
-                                            <span class="ticket-badge badge-category">{{ ticket.get_category_display }}</span>
-                                            <span class="ticket-badge badge-priority-{{ ticket.priority }}">{{ ticket.get_priority_display }}</span>
-                                            <span class="ticket-badge badge-status-{{ ticket.status }}">{{ ticket.get_status_display }}</span>
-                                            <span class="ticket-date">{{ ticket.created_at|persian_date_only }}</span>
-                                        </div>
-                                    </div>
-                                    <div class="ticket-actions">
-                                        <a href="{% url 'tickets:ticket_detail' ticket.id %}" class="btn-view">
-                                            <i class="fas fa-eye"></i>
-                                            {% trans "مشاهده" %}
-                                        </a>
-                                    </div>
-                                </div>
-                                {% endfor %}
-                            </div>
-                        {% else %}
-                            <div class="empty-state">
-                                <i class="fas fa-inbox font-size-3rem"></i>
-                                <h6>{% trans "تیکتی پیدا نشد" %}</h6>
-                                <p>{% trans "هیچ تیکتی در سیستم وجود ندارد." %}</p>
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
             {% endif %}
 
     <!-- Recent Activity Section -->

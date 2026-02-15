@@ -1033,7 +1033,7 @@
     </div>
     {% endif %}
 
-    <!-- Status Update Form (IT Manager/Technician/Senior for received tickets) -->
+    <!-- Status Update Form (IT Manager/Technician/Senior for received tickets) - hidden for superadmin -->
     {% if not requires_access_approval and status_form and can_change_status %}
         <div class="section-card">
             <div class="section-header">
@@ -1079,13 +1079,16 @@
                     <i class="fas fa-comments"></i>
                     <h5>{% trans "پاسخ ها" %} ({{ ticket.replies.count }})</h5>
                 </div>
+                {% if can_reply %}
                 <button class="btn-modern" type="button" data-bs-toggle="collapse" data-bs-target="#replyForm">
                     <i class="fas fa-plus"></i>
                     {% trans "ثبت پاسخ" %}
             </button>
+                {% endif %}
         </div>
             <div class="section-body">
-            <!-- Reply Form -->
+            <!-- Reply Form - hidden for superadmin -->
+            {% if can_reply %}
             <div class="collapse mb-4" id="replyForm">
                     <div class="form-modern">
                         <!-- <h6>{% trans "ثبت پاسخ" %}</h6> -->
@@ -1121,6 +1124,7 @@
                     </form>
                 </div>
             </div>
+            {% endif %}
 
             <!-- Replies List -->
             {% if ticket.replies.all %}

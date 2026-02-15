@@ -403,6 +403,42 @@
                         {% endfor %}
                     {% endif %}
                     
+                    <!-- وضعیت درخواست‌های تمدید -->
+                    {% if task.extension_requests.exists %}
+                    <div class="info-row">
+                        <div class="info-label">
+                            <i class="fas fa-calendar-plus me-2"></i>{% trans "وضعیت درخواست‌های تمدید" %}
+                        </div>
+                        <div class="info-value">
+                            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                {% for ext_req in task.extension_requests.all %}
+                                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; padding: 0.5rem; background: #f8fafc; border-radius: 8px;">
+                                    <span class="badge {% if ext_req.status == 'pending' %}badge-info{% elif ext_req.status == 'approved' %}badge-success{% else %}badge-danger{% endif %}" style="min-width: 100px; {% if ext_req.status == 'pending' %}background-color: #3b82f6; color: white;{% elif ext_req.status == 'approved' %}background-color: #10b981; color: white;{% else %}background-color: #ef4444; color: white;{% endif %}">
+                                        {% if ext_req.status == 'pending' %}<i class="fas fa-hourglass-half me-1"></i>{% trans "در انتظار بررسی" %}
+                                        {% elif ext_req.status == 'approved' %}<i class="fas fa-check me-1"></i>{% trans "تایید شده" %}
+                                        {% else %}<i class="fas fa-times me-1"></i>{% trans "رد شده" %}
+                                        {% endif %}
+                                    </span>
+                                    <span style="color: #6b7280; font-size: 0.9rem;">
+                                        {{ ext_req.requested_by.get_full_name|default:ext_req.requested_by.username }} · {{ ext_req.requested_deadline|persian_date }} · {{ ext_req.created_at|persian_date }}
+                                    </span>
+                                    {% if ext_req.status != 'pending' and ext_req.reviewed_by %}
+                                    <span style="color: #9ca3af; font-size: 0.85rem;">
+                                        {% trans "بررسی توسط" %}: {{ ext_req.reviewed_by.get_full_name|default:ext_req.reviewed_by.username }}{% if ext_req.reviewed_at %} · {{ ext_req.reviewed_at|persian_date }}{% endif %}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                                {% if can_view_extension_requests %}
+                                <a href="{% url 'tickets:task_extension_requests' task.id %}" class="btn btn-sm btn-outline-primary" style="align-self: flex-start; margin-top: 0.25rem;">
+                                    <i class="fas fa-list me-1"></i>{% trans "همه درخواست‌های تمدید" %}
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
                     {% if task.resolved_at %}
                     <div class="info-row">
                         <div class="info-label">
@@ -501,7 +537,7 @@
                 {% endif %}
 
                 <!-- Reply Button -->
-                {% if task.assigned_to == user or task.created_by == user %}
+                {% if can_reply %}
                 <div class="mt-4">
                     <a href="{% url 'tickets:ticket_task_reply' task.id %}" class="btn btn-primary">
                         <i class="fas fa-reply me-2"></i>
