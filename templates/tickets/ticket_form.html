@@ -326,6 +326,16 @@ body {
     margin: 0;
 }
 
+.supervisor-approval-notice-wrap {
+    margin-top: 0.75rem;
+}
+
+.supervisor-approval-notice-card {
+    background: linear-gradient(135deg, #e8eaf6 0%, #e3f2fd 100%);
+    border: 1px solid rgba(85, 104, 211, 0.35);
+    border-right: 4px solid #5568d3;
+}
+
 .form-actions {
     display: flex;
     justify-content: space-between;
@@ -1033,6 +1043,20 @@ body {
                                 <i class="fas fa-info-circle"></i>
                                 {% trans "پس از انتخاب بخش، دسته‌بندی‌های آن بخش نمایش داده می‌شود" %}
                             </div>
+                            <!-- Supervisor approval notice: shown when selected category requires supervisor approval -->
+                            <div id="supervisor-approval-notice" class="supervisor-approval-notice-wrap" style="display: none;">
+                                <div class="notice-card supervisor-approval-notice-card">
+                                    <div class="notice-icon">
+                                        <i class="fas fa-user-check" style="color: #5568d3;"></i>
+                                    </div>
+                                    <div class="notice-content">
+                                        <div class="notice-title">{% trans "نیاز به تایید سرپرست" %}</div>
+                                        <p class="notice-text">
+                                            {% trans "این تیکت پس از ثبت، برای تایید به سرپرست بخش ارسال می‌شود." %}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
                             <!-- Hidden field for old category (backward compatibility) -->
                             {% if form.category %}
                             <input type="hidden" name="{{ form.category.name }}" value="{{ form.category.value|default:'' }}">
@@ -1379,6 +1403,7 @@ document.addEventListener('DOMContentLoaded', function() {
             categorySelect.innerHTML = '<option value="">{% trans "ابتدا بخش را انتخاب کنید" %}</option>';
             categorySelect.disabled = true;
             categorySelect.required = false;
+            if (typeof toggleSupervisorApprovalNotice === 'function') toggleSupervisorApprovalNotice();
             return;
         }
         
@@ -1404,6 +1429,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (category.description) {
                             option.title = category.description;
                         }
+                        if (category.requires_supervisor_approval) {
+                            option.dataset.requiresSupervisorApproval = '1';
+                        }
                         categorySelect.appendChild(option);
                     });
                     categorySelect.disabled = false;
@@ -1414,10 +1442,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (existingCategoryId && categorySelect.querySelector(`option[value="${existingCategoryId}"]`)) {
                         categorySelect.value = existingCategoryId;
                     }
+                    toggleSupervisorApprovalNotice();
                 } else {
                     categorySelect.innerHTML = '<option value="">{% trans "هیچ دسته‌بندی فعالی برای این بخش یافت نشد" %}</option>';
                     categorySelect.disabled = true;
                     categorySelect.required = false;
+                    toggleSupervisorApprovalNotice();
                 }
             })
             .catch(error => {
@@ -1425,7 +1455,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 categorySelect.innerHTML = '<option value="">{% trans "خطا در بارگذاری دسته‌بندی‌ها" %}</option>';
                 categorySelect.disabled = true;
                 categorySelect.required = false;
+                toggleSupervisorApprovalNotice();
             });
+    }
+    
+    function toggleSupervisorApprovalNotice() {
+        const notice = document.getElementById('supervisor-approval-notice');
+        if (!notice || !categorySelect) return;
+        const selectedOption = categorySelect.options[categorySelect.selectedIndex];
+        const requiresApproval = selectedOption && selectedOption.dataset.requiresSupervisorApproval === '1';
+        notice.style.display = requiresApproval ? 'block' : 'none';
     }
     
     if (departmentSelect && categorySelect) {
@@ -1448,6 +1487,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!categorySelect.disabled && categorySelect.options.length > 1) {
                     if (categorySelect.querySelector(`option[value="${savedCategoryId}"]`)) {
                         categorySelect.value = savedCategoryId;
+                        if (typeof toggleSupervisorApprovalNotice === 'function') {
+                            toggleSupervisorApprovalNotice();
+                        }
                         clearInterval(checkAndRestore);
                     }
                 }
@@ -1484,6 +1526,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     if (categorySelect) {
         categorySelect.addEventListener('change', toggleSoftwareNotice);
+        categorySelect.addEventListener('change', toggleSupervisorApprovalNotice);
     }
     
     // File validation helpers

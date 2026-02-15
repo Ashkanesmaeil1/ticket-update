@@ -4574,7 +4574,7 @@ def get_department_categories(request, department_id):
     categories = TicketCategory.objects.filter(
         department=department,
         is_active=True
-    ).order_by('sort_order', 'name').values('id', 'name', 'description')
+    ).order_by('sort_order', 'name').values('id', 'name', 'description', 'requires_supervisor_approval')
     
     return JsonResponse({'categories': list(categories)})
 

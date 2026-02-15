@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load static %}
 {% load persian_date %}
 {% load persian_numbers %}
 {% load dwms_filters %}
@@ -252,7 +253,7 @@
     {% endif %}
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="{% static 'js/qrcode.min.js' %}"></script>
 <script>
 QRCode.toCanvas(document.getElementById('qrcode'), '{{ qr_code.code_value }}', {
     width: 200,
