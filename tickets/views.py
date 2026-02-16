@@ -2264,47 +2264,49 @@ def update_ticket_status(request, ticket_id):
                     print(f"🔍 [update_ticket_status] notify_assigned_user_ticket_assigned completed")
             else:
                 print(f"🔍 [update_ticket_status] User does NOT have permission. Role: {user.role}, Assigned user ID: {assigned_user.id}, Current user ID: {user.id}")
-                elif status and status != original_status:
-                    from tickets.services import get_status_display_persian as _pers
-                    _prev = _pers(original_status)
-                    _new = _pers(ticket.status)
-                    if ticket.ticket_category and ticket.ticket_category.requires_supervisor_approval and getattr(ticket, 'access_approval_status', 'not_required') == 'pending':
-                        from .services import notify_team_leader_access_email
-                        notify_team_leader_access_email('status_change', ticket, request.user, f"وضعیت قبلی: {_prev}\nوضعیت جدید: {_new}")
-                    else:
-                        notify_it_manager(
-                            action_type='status_change',
-                            ticket=ticket,
-                            user=request.user,
-                            additional_info=f"وضعیت قبلی: {_prev}\nوضعیت جدید: {_new}"
-                        )
-                    # Create notification for IT managers about status change
-                    try:
-                        from .models import Notification
-                        from .services import get_status_display_persian
-                        it_managers = User.objects.filter(role='it_manager')
-                        for manager in it_managers:
-                            if manager != request.user:  # Don't notify yourself
-                                Notification.objects.create(
-                                    recipient=manager,
-                                    title=f"تغییر وضعیت تیکت: {ticket.title}",
-                                    message=f"وضعیت قبلی: {_prev}\nوضعیت جدید: {_new}",
-                                    notification_type='ticket_urgent',
-                                    category='tickets',
-                                    ticket=ticket,
-                                    user_actor=request.user
-                                )
-                    except Exception:
-                        pass
-                
-                # Manual State Control: Assignment success message (no status change)
-                return JsonResponse({
-                    'success': True, 
-                    'status': ticket.status,
-                    'message': _('تیکت به کارشناس فنی تخصیص داده شد.')
-                })
         except User.DoesNotExist:
             pass
+        
+        # Handle status change notifications (independent of assignment)
+        if status and status != original_status:
+            from tickets.services import get_status_display_persian as _pers
+            _prev = _pers(original_status)
+            _new = _pers(ticket.status)
+            if ticket.ticket_category and ticket.ticket_category.requires_supervisor_approval and getattr(ticket, 'access_approval_status', 'not_required') == 'pending':
+                from .services import notify_team_leader_access_email
+                notify_team_leader_access_email('status_change', ticket, request.user, f"وضعیت قبلی: {_prev}\nوضعیت جدید: {_new}")
+            else:
+                notify_it_manager(
+                    action_type='status_change',
+                    ticket=ticket,
+                    user=request.user,
+                    additional_info=f"وضعیت قبلی: {_prev}\nوضعیت جدید: {_new}"
+                )
+            # Create notification for IT managers about status change
+            try:
+                from .models import Notification
+                from .services import get_status_display_persian
+                it_managers = User.objects.filter(role='it_manager')
+                for manager in it_managers:
+                    if manager != request.user:  # Don't notify yourself
+                        Notification.objects.create(
+                            recipient=manager,
+                            title=f"تغییر وضعیت تیکت: {ticket.title}",
+                            message=f"وضعیت قبلی: {_prev}\nوضعیت جدید: {_new}",
+                            notification_type='ticket_urgent',
+                            category='tickets',
+                            ticket=ticket,
+                            user_actor=request.user
+                        )
+            except Exception:
+                pass
+        
+        # Manual State Control: Assignment success message (no status change)
+        return JsonResponse({
+            'success': True, 
+            'status': ticket.status,
+            'message': _('تیکت به کارشناس فنی تخصیص داده شد.')
+        })
     
     # Only save if status was explicitly provided, otherwise skip save
     if status:
