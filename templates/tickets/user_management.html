@@ -317,6 +317,40 @@
         box-shadow: 0 10px 25px -5px rgba(139, 92, 246, 0.4);
     }
 
+    .btn-create-manager {
+        background: var(--user-bg);
+        color: white;
+        border: none;
+        padding: 0.5rem 1.5rem;
+        border-radius: 10px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        font-size: 0.95rem;
+    }
+
+    .btn-create-manager:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px -5px rgba(139, 92, 246, 0.4);
+        background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+    }
+
+    /* Modal z-index fix to appear above navbar */
+    #addItManagerModal {
+        z-index: 1055 !important;
+    }
+    
+    #addItManagerModal .modal-dialog {
+        z-index: 1056 !important;
+    }
+    
+    .modal-backdrop {
+        z-index: 1054 !important;
+    }
+
     .user-list {
         background: white;
         border-radius: 20px;
@@ -978,7 +1012,7 @@
 
         <!-- Technicians Tab -->
         <div id="technicians-tab" class="user-tab-content" style="display: none;">
-            <div class="row">
+            <div class="row align-items-start">
                 <!-- Technician Creation Form (modern) -->
                 <div class="col-lg-4">
                     <div class="form-card">
@@ -1092,47 +1126,128 @@
 
         <!-- Managers Tab (modern cards) -->
         <div id="managers-tab" class="user-tab-content" style="display: none;">
-            <div class="user-list">
-                <div class="list-header">
-                    <div class="list-title"><i class="fas fa-user-shield"></i>{% trans "مدیرانIT" %}</div>
-                </div>
-                {% if it_managers %}
-                <div class="user-grid">
-                                {% for manager in it_managers %}
-                    <div class="user-card">
-                        <div class="user-info">
-                            <div class="user-details">
-                                <div class="user-field"><div class="field-label">{% trans "نام" %}</div><div class="user-name">{{ manager.get_full_name }}</div>{% if manager.phone %}<div class="user-phone">{{ manager.phone }}</div>{% endif %}</div>
-                                <div class="user-field"><div class="field-label">{% trans "کد ملی" %}</div><div class="field-value">{{ manager.national_id }}</div></div>
-                                <div class="user-field"><div class="field-label">{% trans "کد کارمندی" %}</div><div class="field-value">{{ manager.employee_code }}</div></div>
-                                <div class="user-field"><div class="field-label">{% trans "بخش" %}</div><div class="field-value">{{ manager.department|default:"-" }}</div></div>
-                                <div class="user-field"><div class="field-label">{% trans "ایمیل" %}</div><div class="field-value email" title="{{ manager.email }}">{{ manager.email }}</div></div>
-                                <div class="user-field"><div class="field-label">{% trans "تاریخ عضویت" %}</div><div class="field-value">{{ manager.date_joined|persian_date_only }}</div></div>
-                                            </div>
-                            <div class="user-actions">
+            <div class="row">
+                <!-- IT Managers List (modern cards) -->
+                <div class="col-lg-12">
+                    <div class="user-list">
+                        <div class="list-header">
+                            <div class="list-title"><i class="fas fa-user-shield"></i>{% trans "لیست مدیران IT" %}</div>
+                            <button type="button" class="btn-create-manager" data-bs-toggle="modal" data-bs-target="#addItManagerModal">
+                                <i class="fas fa-plus me-2"></i>{% trans "ایجاد" %}
+                            </button>
+                        </div>
+                        {% if it_managers %}
+                        <div class="user-grid">
+                            {% for manager in it_managers %}
+                            <div class="user-card">
+                                <div class="user-info">
+                                    <div class="user-details">
+                                        <div class="user-field"><div class="field-label">{% trans "نام" %}</div><div class="user-name">{{ manager.get_full_name }}</div>{% if manager.phone %}<div class="user-phone">{{ manager.phone }}</div>{% endif %}</div>
+                                        <div class="user-field"><div class="field-label">{% trans "کد ملی" %}</div><div class="field-value">{{ manager.national_id }}</div></div>
+                                        <div class="user-field"><div class="field-label">{% trans "کد کارمندی" %}</div><div class="field-value">{{ manager.employee_code }}</div></div>
+                                        <div class="user-field"><div class="field-label">{% trans "بخش" %}</div><div class="field-value">{{ manager.department|default:"-" }}</div></div>
+                                        <div class="user-field"><div class="field-label">{% trans "ایمیل" %}</div><div class="field-value email" title="{{ manager.email }}">{{ manager.email }}</div></div>
+                                        <div class="user-field"><div class="field-label">{% trans "تاریخ عضویت" %}</div><div class="field-value">{{ manager.date_joined|persian_date_only }}</div></div>
+                                    </div>
+                                    <div class="user-actions">
                                         {% if manager != user %}
-                                <a href="{% url 'tickets:delete_user' manager.id %}" class="btn-action btn-delete" title="{% trans 'حذف کاربر' %}"><i class="fas fa-trash"></i></a>
+                                        <a href="{% url 'tickets:edit_it_manager' manager.id %}" class="btn-action btn-edit" title="{% trans 'ویرایش کاربر' %}"><i class="fas fa-edit"></i></a>
+                                        <a href="{% url 'tickets:delete_user' manager.id %}" class="btn-action btn-delete" title="{% trans 'حذف کاربر' %}"><i class="fas fa-trash"></i></a>
                                         {% else %}
                                         <span class="badge bg-secondary">{% trans "شما" %}</span>
                                         {% endif %}
+                                    </div>
+                                </div>
                             </div>
+                            {% endfor %}
                         </div>
+                        {% else %}
+                        <div class="empty-state">
+                            <i class="fas fa-user-shield"></i>
+                            <h3>{% trans "هیچ مدیرIT یافت نشد" %}</h3>
+                            <p>{% trans "هنوز هیچ مدیرIT در سیستم ثبت نشده است" %}</p>
+                        </div>
+                        {% endif %}
                     </div>
-                                {% endfor %}
-                    </div>
-                {% else %}
-                <div class="empty-state">
-                    <i class="fas fa-user-shield"></i>
-                    <h3>{% trans "هیچ مدیرIT یافت نشد" %}</h3>
-                    <p>{% trans "هنوز هیچ مدیرIT در سیستم ثبت نشده است" %}</p>
                 </div>
-                {% endif %}
             </div>
         </div>
 
-
     </div>
 </div>
+
+<!-- Modal for Adding IT Manager -->
+<div class="modal fade" id="addItManagerModal" tabindex="-1" aria-labelledby="addItManagerModalLabel" aria-hidden="true" style="z-index: 1055;">
+    <div class="modal-dialog modal-lg" style="z-index: 1056;">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; border: none;">
+                <h5 class="modal-title" id="addItManagerModalLabel">
+                    <i class="fas fa-user-shield me-2"></i>{% trans "افزودن مدیر IT جدید" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="padding: 2rem;">
+                <form method="post" data-form-type="it_manager" id="itManagerForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_type" value="it_manager">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="{{ it_manager_form.first_name.id_for_label }}"><i class="fas fa-user me-1"></i>{{ it_manager_form.first_name.label }}</label>
+                            <input type="text" name="{{ it_manager_form.first_name.name }}" id="{{ it_manager_form.first_name.id_for_label }}" class="form-control-modern {% if it_manager_form.first_name.errors %}error{% endif %}" value="{{ it_manager_form.first_name.value|default:'' }}" placeholder="{% trans 'نام' %}">
+                            {% if it_manager_form.first_name.errors %}<div class="error-message">{% for error in it_manager_form.first_name.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="{{ it_manager_form.last_name.id_for_label }}"><i class="fas fa-user me-1"></i>{{ it_manager_form.last_name.label }}</label>
+                            <input type="text" name="{{ it_manager_form.last_name.name }}" id="{{ it_manager_form.last_name.id_for_label }}" class="form-control-modern {% if it_manager_form.last_name.errors %}error{% endif %}" value="{{ it_manager_form.last_name.value|default:'' }}" placeholder="{% trans 'نام خانوادگی' %}">
+                            {% if it_manager_form.last_name.errors %}<div class="error-message">{% for error in it_manager_form.last_name.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="{{ it_manager_form.email.id_for_label }}"><i class="fas fa-envelope me-1"></i>{{ it_manager_form.email.label }}</label>
+                        <input type="email" name="{{ it_manager_form.email.name }}" id="{{ it_manager_form.email.id_for_label }}" class="form-control-modern {% if it_manager_form.email.errors %}error{% endif %}" value="{{ it_manager_form.email.value|default:'' }}" placeholder="{% trans 'ایمیل' %}">
+                        {% if it_manager_form.email.errors %}<div class="error-message">{% for error in it_manager_form.email.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="{{ it_manager_form.national_id.id_for_label }}"><i class="fas fa-id-card me-1"></i>{{ it_manager_form.national_id.label }}</label>
+                            <input type="text" name="{{ it_manager_form.national_id.name }}" id="{{ it_manager_form.national_id.id_for_label }}" class="form-control-modern {% if it_manager_form.national_id.errors %}error{% endif %}" value="{{ it_manager_form.national_id.value|default:'' }}" placeholder="{% trans 'کد ملی' %}">
+                            {% if it_manager_form.national_id.errors %}<div class="error-message">{% for error in it_manager_form.national_id.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="{{ it_manager_form.employee_code.id_for_label }}"><i class="fas fa-hashtag me-1"></i>{{ it_manager_form.employee_code.label }}</label>
+                            <input type="text" name="{{ it_manager_form.employee_code.name }}" id="{{ it_manager_form.employee_code.id_for_label }}" class="form-control-modern {% if it_manager_form.employee_code.errors %}error{% endif %}" value="{{ it_manager_form.employee_code.value|default:'' }}" placeholder="{% trans 'کد کارمندی' %}">
+                            {% if it_manager_form.employee_code.errors %}<div class="error-message">{% for error in it_manager_form.employee_code.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="{{ it_manager_form.phone.id_for_label }}"><i class="fas fa-phone me-1"></i>{{ it_manager_form.phone.label }}</label>
+                        <input type="tel" name="{{ it_manager_form.phone.name }}" id="{{ it_manager_form.phone.id_for_label }}" class="form-control-modern {% if it_manager_form.phone.errors %}error{% endif %}" value="{{ it_manager_form.phone.value|default:'' }}" placeholder="{% trans 'شماره تلفن' %}">
+                        {% if it_manager_form.phone.errors %}<div class="error-message">{% for error in it_manager_form.phone.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="{{ it_manager_form.password1.id_for_label }}"><i class="fas fa-lock me-1"></i>{{ it_manager_form.password1.label }}</label>
+                            <input type="password" name="{{ it_manager_form.password1.name }}" id="{{ it_manager_form.password1.id_for_label }}" class="form-control-modern {% if it_manager_form.password1.errors %}error{% endif %}" placeholder="{% trans 'رمز عبور' %}">
+                            {% if it_manager_form.password1.errors %}<div class="error-message">{% for error in it_manager_form.password1.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="{{ it_manager_form.password2.id_for_label }}"><i class="fas fa-lock me-1"></i>{{ it_manager_form.password2.label }}</label>
+                            <input type="password" name="{{ it_manager_form.password2.name }}" id="{{ it_manager_form.password2.id_for_label }}" class="form-control-modern {% if it_manager_form.password2.errors %}error{% endif %}" placeholder="{% trans 'تکرار رمز عبور' %}">
+                            {% if it_manager_form.password2.errors %}<div class="error-message">{% for error in it_manager_form.password2.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid #e2e8f0; padding: 1rem 2rem;">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "انصراف" %}</button>
+                <button type="submit" form="itManagerForm" class="btn btn-primary" style="background: var(--primary); border: none;">
+                    <i class="fas fa-plus me-2"></i>{% trans "ایجاد مدیر IT" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 
@@ -1248,6 +1363,27 @@ function showUserTab(tabName) {
         const technicianForm = document.querySelector('form[data-form-type="technician"]');
         if (technicianForm) {
             technicianForm.id = 'technicianForm';
+        }
+        
+        // Handle IT Manager form submission and modal
+        const itManagerForm = document.getElementById('itManagerForm');
+        const addItManagerModal = document.getElementById('addItManagerModal');
+        
+        if (itManagerForm && addItManagerModal) {
+            // Reset form when modal is opened
+            addItManagerModal.addEventListener('show.bs.modal', function() {
+                clearForm('itManagerForm');
+            });
+            
+            // Close modal on successful submission (check for success messages)
+            const urlParams = new URLSearchParams(window.location.search);
+            const successMessages = document.querySelectorAll('.alert-success, .messages .success');
+            if (successMessages.length > 0 || urlParams.get('success') === 'true') {
+                const modalInstance = bootstrap.Modal.getInstance(addItManagerModal);
+                if (modalInstance) {
+                    modalInstance.hide();
+                }
+            }
         }
     });
     

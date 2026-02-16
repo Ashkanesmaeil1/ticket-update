@@ -198,7 +198,7 @@ def get_it_department():
 from .forms import (
     CustomAuthenticationForm, TicketForm, TaskTicketForm, ReplyForm, 
     TicketStatusForm, UserCreationByManagerForm,
-    EmployeeCreationForm, TechnicianCreationForm, EmployeeEditForm, TechnicianEditForm,
+    EmployeeCreationForm, TechnicianCreationForm, ITManagerCreationForm, EmployeeEditForm, TechnicianEditForm, ITManagerEditForm,
     ITManagerProfileForm, DepartmentForm, EmailConfigForm, BranchForm,
     InventoryElementForm, ElementSpecificationForm, TicketTaskForm, TaskReplyForm, TaskStatusForm,
     SupervisorAssignmentForm, TicketCategoryForm
@@ -2510,6 +2510,7 @@ def user_management(request):
     # Initialize forms
     employee_form = None
     technician_form = None
+    it_manager_form = None
     
     if request.method == 'POST':
         form_type = request.POST.get('form_type')
@@ -2569,7 +2570,9 @@ def user_management(request):
             technician_form = TechnicianCreationForm(request.POST)
             if technician_form.is_valid():
                 try:
-                    user = technician_form.save()
+                    # Set assigned_by if current user is IT manager
+                    assigned_by = request.user if request.user.role == 'it_manager' else None
+                    user = technician_form.save(assigned_by=assigned_by)
                     # Notification: user created (admin-only)
                     try:
                         from .models import Notification
@@ -2614,6 +2617,54 @@ def user_management(request):
                 else:
                     messages.error(request, _('لطفاً خطاهای فرم را برطرف کنید.'))
                 
+        elif form_type == 'it_manager':
+            it_manager_form = ITManagerCreationForm(request.POST)
+            if it_manager_form.is_valid():
+                try:
+                    user = it_manager_form.save()
+                    # Notification: user created (admin-only)
+                    try:
+                        from .models import Notification
+                        it_manager = request.user if request.user.role == 'it_manager' else None
+                        if it_manager:
+                            Notification.objects.create(
+                                recipient=it_manager,
+                                title=f"ایجاد کاربر: {user.first_name} {user.last_name}",
+                                message=f"نقش: {user.get_role_display()}",
+                                notification_type='user_created',
+                                category='users'
+                            )
+                    except Exception:
+                        pass
+                    # Notify IT manager about IT manager creation
+                    from .services import notify_it_manager_user_management
+                    notify_it_manager_user_management(
+                        action_type='create',
+                        user=user,
+                        actor=request.user
+                    )
+                    messages.success(request, _('مدیر IT با موفقیت ایجاد شد: {} {}').format(
+                        user.first_name, user.last_name
+                    ))
+                    # Clear the form after successful creation
+                    it_manager_form = ITManagerCreationForm()
+                    return redirect('tickets:user_management')
+                except Exception as e:
+                    messages.error(request, _('خطا در ایجاد مدیر IT: {}').format(str(e)))
+            else:
+                # Debug: Print form errors to console
+                print("IT Manager form errors:", it_manager_form.errors)
+                print("IT Manager form non-field errors:", it_manager_form.non_field_errors())
+                print("IT Manager form data:", request.POST)
+                # Show specific field errors to user
+                error_messages = []
+                for field, errors in it_manager_form.errors.items():
+                    for error in errors:
+                        error_messages.append(f"{field}: {error}")
+                if error_messages:
+                    messages.error(request, _('خطاهای فرم: ') + '; '.join(error_messages))
+                else:
+                    messages.error(request, _('لطفاً خطاهای فرم را برطرف کنید.'))
 
     
     # Initialize empty forms if not POST or if validation failed
@@ -2621,6 +2672,8 @@ def user_management(request):
         employee_form = EmployeeCreationForm()
     if technician_form is None:
         technician_form = TechnicianCreationForm()
+    if it_manager_form is None:
+        it_manager_form = ITManagerCreationForm()
     
     # Get users by role
     # Exclude admin superuser from all user lists
@@ -2637,6 +2690,7 @@ def user_management(request):
     context = {
         'employee_form': employee_form,
         'technician_form': technician_form,
+        'it_manager_form': it_manager_form,
         'employees': employees,
         'technicians': technicians,
         'it_managers': it_managers,
@@ -3496,6 +3550,83 @@ def edit_technician(request, user_id):
     except Exception as e:
         import traceback
         print(f"❌ Error in edit_technician: {e}")
+        traceback.print_exc()
+        messages.error(request, _('خطا در بارگذاری صفحه ویرایش: {}').format(str(e)))
+        return redirect('tickets:user_management')
+
+@login_required
+def edit_it_manager(request, user_id):
+    """Edit IT manager information"""
+    try:
+        if not is_admin_superuser(request.user):
+            messages.error(request, _('دسترسی رد شد. فقط مدیر سیستم میتواند این بخش را دریافت کند.'))
+            return redirect('tickets:dashboard')
+        
+        user = get_object_or_404(User, id=user_id, role='it_manager')
+        
+        # Prevent editing of admin superuser
+        if is_admin_superuser(user):
+            messages.error(request, _('نمی‌توانید این کاربر را ویرایش کنید. این کاربر ادمین سیستم است.'))
+            return redirect('tickets:user_management')
+        
+        if request.method == 'POST':
+            form = ITManagerEditForm(request.POST, instance=user)
+            if form.is_valid():
+                try:
+                    form.save()
+                    # Create notification for IT managers about IT manager edit
+                    try:
+                        from .models import Notification
+                        it_managers = User.objects.filter(role='it_manager')
+                        for manager in it_managers:
+                            if manager != request.user and manager != user:  # Don't notify yourself or the edited user
+                                Notification.objects.create(
+                                    recipient=manager,
+                                    title=f"ویرایش اطلاعات مدیر IT: {user.first_name} {user.last_name}",
+                                    message=f"ویرایش شده توسط: {request.user.get_full_name()}\nکد پرسنلی: {user.employee_code}",
+                                    notification_type='user_created',  # Using existing type for user updates
+                                    category='users',
+                                    user_actor=request.user
+                                )
+                    except Exception:
+                        pass
+                    # Notify IT manager about IT manager edit
+                    from .services import notify_it_manager_user_management
+                    notify_it_manager_user_management(
+                        action_type='update',
+                        user=user,
+                        actor=request.user
+                    )
+                    messages.success(request, _('اطلاعات مدیر IT با موفقیت بروزرسانی شد: {} {}').format(
+                        user.first_name, user.last_name
+                    ))
+                    return redirect('tickets:user_management')
+                except Exception as e:
+                    messages.error(request, _('خطا در بروزرسانی اطلاعات مدیر IT: {}').format(str(e)))
+            else:
+                # Show specific field errors to user
+                error_messages = []
+                for field, errors in form.errors.items():
+                    for error in errors:
+                        error_messages.append(f"{field}: {error}")
+                if error_messages:
+                    messages.error(request, _('خطاهای فرم: ') + '; '.join(error_messages))
+                else:
+                    messages.error(request, _('لطفاً خطاهای فرم را برطرف کنید.'))
+        else:
+            form = ITManagerEditForm(instance=user)
+        
+        context = {
+            'form': form,
+            'edited_user': user,
+            'is_edit': True,
+            'form_type': 'it_manager'
+        }
+        
+        return render(request, 'tickets/edit_user.html', context)
+    except Exception as e:
+        import traceback
+        print(f"❌ Error in edit_it_manager: {e}")
         traceback.print_exc()
         messages.error(request, _('خطا در بارگذاری صفحه ویرایش: {}').format(str(e)))
         return redirect('tickets:user_management')

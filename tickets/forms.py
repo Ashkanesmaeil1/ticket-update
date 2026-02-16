@@ -1563,6 +1563,94 @@ class TechnicianCreationForm(forms.ModelForm):
     
     class Meta:
         model = User
+        fields = ['national_id', 'employee_code', 'first_name', 'last_name', 'email', 'phone', 'department']
+        widgets = {
+            'national_id': forms.TextInput(attrs={'class': 'form-control'}),
+            'employee_code': forms.TextInput(attrs={'class': 'form-control'}),
+            'first_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'last_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'department': forms.Select(attrs={'class': 'form-select'})
+        }
+        labels = {
+            'national_id': _('کد ملی'),
+            'employee_code': _('کد کارمندی'),
+            'first_name': _('نام'),
+            'last_name': _('نام خانوادگی'),
+            'email': _('ایمیل'),
+            'phone': _('تلفن'),
+            'department': _('بخش')
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filter departments to show only active IT departments
+        if 'department' in self.fields:
+            from .models import Department
+            it_depts_queryset = Department.objects.filter(
+                is_active=True,
+                department_type='technician'
+            ).order_by('name')
+            self.fields['department'].queryset = it_depts_queryset
+            self.fields['department'].required = True
+            # Set default department to IT department
+            if not self.instance.pk:  # Only for new technicians, not when editing
+                from .views import get_it_department
+                it_department = get_it_department()
+                if it_department:
+                    self.fields['department'].initial = it_department.id
+    
+    def clean_password2(self):
+        password1 = self.cleaned_data.get('password1')
+        password2 = self.cleaned_data.get('password2')
+        if password1 and password2:
+            if password1 != password2:
+                raise ValidationError(_('رمزهای عبور مطابقت ندارند.'))
+        return password2
+    
+    def clean_department(self):
+        """Validate department - required for technicians"""
+        department = self.cleaned_data.get('department')
+        if not department:
+            raise ValidationError(_('بخش برای کارشناسان فنی الزامی است.'))
+        return department
+    
+    def save(self, commit=True, assigned_by=None):
+        user = super().save(commit=False)
+        # Set role to technician
+        user.role = 'technician'
+        # Set assigned_by if provided (IT manager who created this technician)
+        if assigned_by:
+            user.assigned_by = assigned_by
+        # Ensure department is set - if not set, use IT department as default
+        if not user.department:
+            from .views import get_it_department
+            it_department = get_it_department()
+            if it_department:
+                user.department = it_department
+        password = self.cleaned_data.get('password1')
+        if password:
+            user.set_password(password)
+        if commit:
+            user.save()
+        return user
+
+class ITManagerCreationForm(forms.ModelForm):
+    """Form for creating IT managers"""
+    password1 = forms.CharField(
+        label=_('رمز عبور'),
+        widget=forms.PasswordInput(attrs={'class': 'form-control'}),
+        required=False
+    )
+    password2 = forms.CharField(
+        label=_('تکرار رمز عبور'),
+        widget=forms.PasswordInput(attrs={'class': 'form-control'}),
+        required=False
+    )
+    
+    class Meta:
+        model = User
         fields = ['national_id', 'employee_code', 'first_name', 'last_name', 'email', 'phone']
         widgets = {
             'national_id': forms.TextInput(attrs={'class': 'form-control'}),
@@ -1591,6 +1679,13 @@ class TechnicianCreationForm(forms.ModelForm):
     
     def save(self, commit=True):
         user = super().save(commit=False)
+        # Set role to IT manager
+        user.role = 'it_manager'
+        # IT managers don't have a department
+        user.department = None
+        # Set staff and superuser permissions
+        user.is_staff = True
+        user.is_superuser = True
         password = self.cleaned_data.get('password1')
         if password:
             user.set_password(password)
@@ -1878,6 +1973,53 @@ class TechnicianEditForm(forms.ModelForm):
         if cleaned_data.get('employee_code'):
             cleaned_data['employee_code'] = normalize_employee_code(cleaned_data['employee_code'].strip())
         return cleaned_data
+
+class ITManagerEditForm(forms.ModelForm):
+    """Form for editing IT managers"""
+    class Meta:
+        model = User
+        fields = ['national_id', 'employee_code', 'first_name', 'last_name', 'email', 'phone', 'is_active']
+        widgets = {
+            'national_id': forms.TextInput(attrs={'class': 'form-control'}),
+            'employee_code': forms.TextInput(attrs={'class': 'form-control'}),
+            'first_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'last_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'})
+        }
+        labels = {
+            'national_id': _('کد ملی'),
+            'employee_code': _('کد کارمندی'),
+            'first_name': _('نام'),
+            'last_name': _('نام خانوادگی'),
+            'email': _('ایمیل'),
+            'phone': _('تلفن'),
+            'is_active': _('فعال')
+        }
+
+    def clean(self):
+        """Normalize national_id and employee_code (Persian/Arabic to English digits)."""
+        cleaned_data = super().clean()
+        from .utils import normalize_national_id, normalize_employee_code
+        if cleaned_data.get('national_id'):
+            cleaned_data['national_id'] = normalize_national_id(cleaned_data['national_id'].strip())
+        if cleaned_data.get('employee_code'):
+            cleaned_data['employee_code'] = normalize_employee_code(cleaned_data['employee_code'].strip())
+        return cleaned_data
+    
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        # Ensure role remains IT manager
+        user.role = 'it_manager'
+        # IT managers don't have a department
+        user.department = None
+        # Ensure staff and superuser permissions remain
+        user.is_staff = True
+        user.is_superuser = True
+        if commit:
+            user.save()
+        return user
 
 class EmailConfigForm(forms.ModelForm):
     """Form for email configuration"""

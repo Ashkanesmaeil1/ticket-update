@@ -37,6 +37,7 @@ urlpatterns = [
     path('user-management/<int:user_id>/delete/', views.delete_user, name='delete_user'),
     path('user-management/<int:user_id>/edit-employee/', views.edit_employee, name='edit_employee'),
     path('user-management/<int:user_id>/edit-technician/', views.edit_technician, name='edit_technician'),
+    path('user-management/<int:user_id>/edit-it-manager/', views.edit_it_manager, name='edit_it_manager'),
     
     # Department management
     path('department-management/', views.department_management, name='department_management'),
