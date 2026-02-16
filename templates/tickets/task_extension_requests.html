@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load static %}
 {% load persian_date %}
 {% load persian_numbers %}
 
@@ -301,6 +302,19 @@
                                                     <label for="reject_comment{{ ext_req.id }}" class="form-label">{% trans "دلیل رد (اختیاری)" %}</label>
                                                     <textarea name="comment" id="reject_comment{{ ext_req.id }}" class="form-control" rows="3" placeholder="{% trans 'دلیل رد درخواست را وارد کنید...' %}"></textarea>
                                                 </div>
+                                                <div class="mb-3">
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input set-new-deadline-switch" type="checkbox" name="set_new_deadline" value="1" id="set_new_deadline{{ ext_req.id }}" data-target="new_deadline_wrap{{ ext_req.id }}">
+                                                        <label class="form-check-label" for="set_new_deadline{{ ext_req.id }}">{% trans "تعین مهلت" %}</label>
+                                                    </div>
+                                                    <div id="new_deadline_wrap{{ ext_req.id }}" class="mt-2 new-deadline-wrap" style="display: none;">
+                                                        <label for="new_deadline_input{{ ext_req.id }}" class="form-label">{% trans "مهلت جدید" %}</label>
+                                                        <div class="deadline-date-wrapper" style="position: relative; width: 100%;">
+                                                            <input type="text" name="new_deadline" id="new_deadline_input{{ ext_req.id }}" class="form-control reject-new-deadline-input" placeholder="{% trans 'برای انتخاب تاریخ و زمان کلیک کنید' %}" readonly autocomplete="off" value="" style="padding-left: 2.5rem; padding-right: 0.75rem;">
+                                                            <i class="fas fa-calendar-alt" style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280; pointer-events: none; z-index: 5;"></i>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                             <div class="modal-footer">
                                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
@@ -332,7 +346,6 @@
 </div>
 
 <script>
-    // Ensure modal footer buttons are visible
     document.addEventListener('DOMContentLoaded', function() {
         const modalFooters = document.querySelectorAll('.modal-footer');
         modalFooters.forEach(function(footer) {
@@ -340,6 +353,57 @@
             footer.style.visibility = 'visible';
             footer.style.opacity = '1';
         });
+        // Switch: show/hide new deadline input; clear value when unchecked; init calendar when first shown
+        var calendarApiUrl = '{% url "tickets:calendar_api" %}';
+        document.querySelectorAll('.set-new-deadline-switch').forEach(function(checkbox) {
+            checkbox.addEventListener('change', function() {
+                var wrap = document.getElementById(this.getAttribute('data-target'));
+                var input = wrap ? wrap.querySelector('input[name="new_deadline"]') : null;
+                if (wrap && input) {
+                    wrap.style.display = this.checked ? 'block' : 'none';
+                    if (!this.checked) { input.value = ''; input.removeAttribute('value'); }
+                    // Init calendar picker when user first shows the field (so it works inside Bootstrap modal)
+                    if (this.checked && typeof JalaliCalendarPicker !== 'undefined' && !input.getAttribute('data-calendar-inited')) {
+                        input.setAttribute('data-calendar-inited', '1');
+                        new JalaliCalendarPicker(input, { apiUrl: calendarApiUrl });
+                    }
+                }
+            });
+        });
+        // Also init any visible reject deadline inputs on load (e.g. if user refreshed with modal open)
+        if (typeof JalaliCalendarPicker !== 'undefined') {
+            var calendarApiUrl = '{% url "tickets:calendar_api" %}';
+            document.querySelectorAll('.reject-new-deadline-input').forEach(function(input) {
+                if (input.getAttribute('data-calendar-inited')) return;
+                var wrap = input.closest('.new-deadline-wrap');
+                if (wrap && wrap.style.display !== 'none') {
+                    input.setAttribute('data-calendar-inited', '1');
+                    new JalaliCalendarPicker(input, { apiUrl: calendarApiUrl });
+                }
+            });
+        }
     });
+</script>
+<link rel="stylesheet" href="{% static 'css/calendar_picker.css' %}?v=30">
+<script src="{% static 'js/calendar_picker.js' %}?v=30"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Ensure reject form submits new_deadline (readonly inputs may be omitted in some browsers)
+    document.querySelectorAll('form[action*="reject"]').forEach(function(form) {
+        form.addEventListener('submit', function() {
+            var wrap = form.querySelector('.new-deadline-wrap');
+            var inp = wrap ? wrap.querySelector('input[name="new_deadline"]') : null;
+            if (inp && inp.value && inp.value.trim()) {
+                var existing = form.querySelector('input[name="new_deadline"][type="hidden"]');
+                if (existing) existing.remove();
+                var hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'new_deadline';
+                hidden.value = inp.value;
+                form.appendChild(hidden);
+            }
+        });
+    });
+});
 </script>
 {% endblock %}

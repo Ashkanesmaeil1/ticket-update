@@ -169,9 +169,6 @@
                             display: none !important;
                         }
                     </style>
-                    {% if form.deadline_date.help_text %}
-                    <div class="form-text">{{ form.deadline_date.help_text }}</div>
-                    {% endif %}
                     {% if form.deadline_date.errors %}
                     <div class="form-error">{{ form.deadline_date.errors.0 }}</div>
                     {% endif %}

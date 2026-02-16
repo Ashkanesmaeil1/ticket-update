@@ -3,7 +3,7 @@
  * Clean, responsive design with smooth transitions
  */
 
-/* Modal Overlay */
+/* Modal Overlay - above Bootstrap modals (Bootstrap modal z-index is 1050) */
 .calendar-modal-overlay {
     display: none;
     position: fixed;
@@ -12,7 +12,7 @@
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.5);
-    z-index: 1050;
+    z-index: 1060;
     animation: fadeIn 0.2s ease-in-out;
 }
 
@@ -206,6 +206,19 @@
     border-color: #ef4444;
     color: #991b1b;
     font-weight: 600;
+}
+
+/* Days before today: not selectable */
+.calendar-day.disabled {
+    background: #f3f4f6;
+    color: #9ca3af;
+    cursor: not-allowed;
+    opacity: 0.6;
+    pointer-events: auto;
+}
+.calendar-day.disabled:hover {
+    background: #f3f4f6;
+    color: #9ca3af;
 }
 
 .calendar-day.selected {

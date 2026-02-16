@@ -242,9 +242,12 @@
     }
 
     @keyframes pulse {
-        0%, 100% {
+
+        0%,
+        100% {
             opacity: 1;
         }
+
         50% {
             opacity: 0.7;
         }
@@ -272,7 +275,8 @@
                             {% endif %}
                         </div>
                     </div>
-                    <span class="badge badge-priority-{{ task.priority }}" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                    <span class="badge badge-priority-{{ task.priority }}"
+                        style="font-size: 1rem; padding: 0.5rem 1rem;">
                         {{ task.get_priority_display }}
                     </span>
                 </div>
@@ -336,73 +340,87 @@
                             <i class="fas fa-clock me-2"></i>{% trans "مهلت انجام" %}
                         </div>
                         <div class="info-value">
-                            <div id="deadline-display" style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                            <div id="deadline-display"
+                                style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
                                 <span id="deadline-countdown" style="font-weight: 600;"></span>
                                 <span style="color: #9ca3af;">|</span>
                                 <span id="deadline-date" style="color: #6b7280;">{{ task.deadline|persian_date }}</span>
                                 {% if task.deadline and task.is_deadline_expired and user.department_role == 'employee' and task.assigned_to.id == user.id %}
-                                    <span id="extension-request-section">
+                                <span id="extension-request-section">
+                                    {% for ext_req in task.extension_requests.all %}
+                                    {% if ext_req.requested_by.id == user.id and ext_req.status == 'pending' %}
+                                    <span class="badge badge-info"
+                                        style="margin-right: 0.5rem; background-color: #3b82f6; color: white; padding: 0.375rem 0.75rem; border-radius: 0.375rem; font-size: 0.875rem;">
+                                        <i class="fas fa-hourglass-half me-1"></i>
+                                        {% trans "درخواست در حال بررسی" %}
+                                    </span>
+                                    {% endif %}
+                                    {% endfor %}
+                                </span>
+                                <span id="extension-request-button" style="display: none;">
+                                    <a href="{% url 'tickets:request_deadline_extension' task.id %}"
+                                        class="btn btn-sm btn-warning"
+                                        style="margin-right: 0.5rem; background-color: #f59e0b; border-color: #f59e0b; color: white; padding: 0.375rem 0.75rem; font-size: 0.875rem;">
+                                        <i class="fas fa-clock me-1"></i>
+                                        {% trans "درخواست تمدید" %}
+                                    </a>
+                                </span>
+                                <script>
+                                    (function () {
+                                        var hasPending = false;
                                         {% for ext_req in task.extension_requests.all %}
-                                            {% if ext_req.requested_by.id == user.id and ext_req.status == 'pending' %}
-                                                <span class="badge badge-info" style="margin-right: 0.5rem; background-color: #3b82f6; color: white; padding: 0.375rem 0.75rem; border-radius: 0.375rem; font-size: 0.875rem;">
-                                                    <i class="fas fa-hourglass-half me-1"></i>
-                                                    {% trans "درخواست در حال بررسی" %}
-                                                </span>
-                                            {% endif %}
+                                        {% if ext_req.requested_by.id == user.id and ext_req.status == 'pending' %}
+                                        hasPending = true;
+                                        {% endif %}
                                         {% endfor %}
-                                    </span>
-                                    <span id="extension-request-button" style="display: none;">
-                                        <a href="{% url 'tickets:request_deadline_extension' task.id %}" class="btn btn-sm btn-warning" style="margin-right: 0.5rem; background-color: #f59e0b; border-color: #f59e0b; color: white; padding: 0.375rem 0.75rem; font-size: 0.875rem;">
-                                            <i class="fas fa-clock me-1"></i>
-                                            {% trans "درخواست تمدید" %}
-                                        </a>
-                                    </span>
-                                    <script>
-                                        (function() {
-                                            var hasPending = false;
-                                            {% for ext_req in task.extension_requests.all %}
-                                                {% if ext_req.requested_by.id == user.id and ext_req.status == 'pending' %}
-                                                    hasPending = true;
-                                                {% endif %}
-                                            {% endfor %}
-                                            if (!hasPending) {
-                                                document.getElementById('extension-request-button').style.display = 'inline-block';
-                                            }
-                                        })();
-                                    </script>
+                                        if (!hasPending) {
+                                            document.getElementById('extension-request-button').style.display = 'inline-block';
+                                        }
+                                    })();
+                                </script>
                                 {% endif %}
                             </div>
                         </div>
                     </div>
                     {% endif %}
-                    
-                    <!-- Extension Request Status Messages -->
-                    {% if user.department_role == 'employee' and task.assigned_to.id == user.id %}
-                        {% for ext_req in task.extension_requests.all %}
-                            {% if ext_req.requested_by.id == user.id and ext_req.status != 'pending' %}
-                                {% if ext_req.status == 'approved' %}
-                                    <div class="alert alert-success" style="margin-top: 1rem; border-radius: 8px; border: none; background-color: #d1fae5; color: #065f46; padding: 1rem;">
-                                        <i class="fas fa-check-circle me-2"></i>
-                                        <strong>{% trans "آخرین درخواست تمدید شما تایید شد" %}</strong>
-                                    </div>
-                                {% elif ext_req.status == 'rejected' %}
-                                    <div class="alert alert-danger" style="margin-top: 1rem; border-radius: 8px; border: none; background-color: #fee2e2; color: #991b1b; padding: 1rem;">
-                                        <i class="fas fa-times-circle me-2"></i>
-                                        <strong>{% trans "آخرین درخواست تمدید شما رد شد" %}</strong>
-                                        {% if ext_req.review_comment %}
-                                            <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(153, 27, 27, 0.2);">
-                                                <strong>{% trans "نظر ادمین:" %}</strong> {{ ext_req.review_comment }}
-                                            </div>
-                                        {% endif %}
-                                        <div style="margin-top: 0.5rem;">
-                                            {% trans "دوباره می‌توانید درخواست تمدید دهید" %}
-                                        </div>
-                                    </div>
-                                {% endif %}
-                            {% endif %}
-                        {% endfor %}
+
+                    <!-- وضعیت آخرین درخواست تمدید (فقط یک بنر) -->
+                    {% if last_extension_request %}
+                    {% if last_extension_request.status == 'approved' %}
+                    <div class="alert alert-success"
+                        style="margin-top: 1rem; border-radius: 8px; border: none; background-color: #d1fae5; color: #065f46; padding: 1rem;">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>{% trans "آخرین درخواست تمدید شما تایید شد" %}</strong>
+                    </div>
+                    {% elif last_extension_request.status == 'rejected' %}
+                    {% if task.deadline != last_extension_request.requested_deadline %}
+                    <div class="alert alert-warning"
+                        style="margin-top: 1rem; border-radius: 8px; border: none; background-color: #fef3c7; color: #92400e; padding: 1rem;">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>{% trans "درخواست تمدید به تاریخ شما رد شد ولی به تاریخ جدیدی تمدید گردید" %}</strong>
+                        <div style="margin-top: 0.5rem;">
+                            <strong>{% trans "مهلت جدید:" %}</strong> {{ task.deadline|persian_date }}
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-danger"
+                        style="margin-top: 1rem; border-radius: 8px; border: none; background-color: #fee2e2; color: #991b1b; padding: 1rem;">
+                        <i class="fas fa-times-circle me-2"></i>
+                        <strong>{% trans "آخرین درخواست تمدید شما رد شد" %}</strong>
+                        {% if last_extension_request.review_comment %}
+                        <div
+                            style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(153, 27, 27, 0.2);">
+                            <strong>{% trans "نظر ادمین:" %}</strong> {{ last_extension_request.review_comment }}
+                        </div>
+                        {% endif %}
+                        <div style="margin-top: 0.5rem;">
+                            {% trans "دوباره می‌توانید درخواست تمدید دهید" %}
+                        </div>
+                    </div>
                     {% endif %}
-                    
+                    {% endif %}
+                    {% endif %}
+
                     <!-- وضعیت درخواست‌های تمدید -->
                     {% if task.extension_requests.exists %}
                     <div class="info-row">
@@ -412,25 +430,44 @@
                         <div class="info-value">
                             <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                                 {% for ext_req in task.extension_requests.all %}
-                                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; padding: 0.5rem; background: #f8fafc; border-radius: 8px;">
-                                    <span class="badge {% if ext_req.status == 'pending' %}badge-info{% elif ext_req.status == 'approved' %}badge-success{% else %}badge-danger{% endif %}" style="min-width: 100px; {% if ext_req.status == 'pending' %}background-color: #3b82f6; color: white;{% elif ext_req.status == 'approved' %}background-color: #10b981; color: white;{% else %}background-color: #ef4444; color: white;{% endif %}">
-                                        {% if ext_req.status == 'pending' %}<i class="fas fa-hourglass-half me-1"></i>{% trans "در انتظار بررسی" %}
-                                        {% elif ext_req.status == 'approved' %}<i class="fas fa-check me-1"></i>{% trans "تایید شده" %}
-                                        {% else %}<i class="fas fa-times me-1"></i>{% trans "رد شده" %}
+                                <div
+                                    style="display: flex; flex-direction: column; gap: 0.35rem; padding: 0.75rem; background: #f8fafc; border-radius: 8px;">
+                                    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                                        <span
+                                            class="badge {% if ext_req.status == 'pending' %}badge-info{% elif ext_req.status == 'approved' %}badge-success{% else %}badge-danger{% endif %}"
+                                            style="min-width: 100px; {% if ext_req.status == 'pending' %}background-color: #3b82f6; color: white;{% elif ext_req.status == 'approved' %}background-color: #10b981; color: white;{% else %}background-color: #ef4444; color: white;{% endif %}">
+                                            {% if ext_req.status == 'pending' %}<i
+                                                class="fas fa-hourglass-half me-1"></i>{% trans "در انتظار بررسی" %}
+                                            {% elif ext_req.status == 'approved' %}<i class="fas fa-check me-1"></i>{%
+                                            trans "تایید شده" %}
+                                            {% else %}<i class="fas fa-times me-1"></i>{% trans "رد شده" %}
+                                            {% endif %}
+                                        </span>
+                                        <span style="color: #6b7280; font-size: 0.9rem;">
+                                            {{ ext_req.requested_by.get_full_name|default:ext_req.requested_by.username
+                                            }}
+                                        </span>
+                                        {% if ext_req.status != 'pending' and ext_req.reviewed_by %}
+                                        <span style="color: #9ca3af; font-size: 0.85rem;">
+                                            {% trans "بررسی توسط" %}: {{
+                                            ext_req.reviewed_by.get_full_name|default:ext_req.reviewed_by.username }}{%
+                                            if ext_req.reviewed_at %} · {{ ext_req.reviewed_at|persian_date }}{% endif
+                                            %}
+                                        </span>
                                         {% endif %}
-                                    </span>
-                                    <span style="color: #6b7280; font-size: 0.9rem;">
-                                        {{ ext_req.requested_by.get_full_name|default:ext_req.requested_by.username }} · {{ ext_req.requested_deadline|persian_date }} · {{ ext_req.created_at|persian_date }}
-                                    </span>
-                                    {% if ext_req.status != 'pending' and ext_req.reviewed_by %}
-                                    <span style="color: #9ca3af; font-size: 0.85rem;">
-                                        {% trans "بررسی توسط" %}: {{ ext_req.reviewed_by.get_full_name|default:ext_req.reviewed_by.username }}{% if ext_req.reviewed_at %} · {{ ext_req.reviewed_at|persian_date }}{% endif %}
-                                    </span>
-                                    {% endif %}
+                                    </div>
+                                    <div style="display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.875rem;">
+                                        <span style="color: #475569;"><strong>{% trans "تاریخ درخواست" %}:</strong> {{
+                                            ext_req.created_at|persian_date }}</span>
+                                        <span style="color: #475569;"><strong>{% trans "مهلت درخواستی" %}:</strong> {{
+                                            ext_req.requested_deadline|persian_date }}</span>
+                                    </div>
                                 </div>
                                 {% endfor %}
                                 {% if can_view_extension_requests %}
-                                <a href="{% url 'tickets:task_extension_requests' task.id %}" class="btn btn-sm btn-outline-primary" style="align-self: flex-start; margin-top: 0.25rem;">
+                                <a href="{% url 'tickets:task_extension_requests' task.id %}"
+                                    class="btn btn-sm btn-outline-primary"
+                                    style="align-self: flex-start; margin-top: 0.25rem;">
                                     <i class="fas fa-list me-1"></i>{% trans "همه درخواست‌های تمدید" %}
                                 </a>
                                 {% endif %}
@@ -438,7 +475,7 @@
                         </div>
                     </div>
                     {% endif %}
-                    
+
                     {% if task.resolved_at %}
                     <div class="info-row">
                         <div class="info-label">
@@ -452,7 +489,8 @@
 
             <!-- Action Buttons (Creator only) -->
             {% if can_edit_delete %}
-            <div class="d-flex gap-2 mb-4" style="padding: 1rem 0; border-top: 2px solid #e2e8f0; border-bottom: 2px solid #e2e8f0;">
+            <div class="d-flex gap-2 mb-4"
+                style="padding: 1rem 0; border-top: 2px solid #e2e8f0; border-bottom: 2px solid #e2e8f0;">
                 <a href="{% url 'tickets:ticket_task_edit' task.id %}" class="btn btn-primary" style="flex: 1;">
                     <i class="fas fa-edit me-2"></i>{% trans "ویرایش تسک" %}
                 </a>
@@ -503,10 +541,9 @@
             <!-- Replies Section -->
             <div class="replies-section">
                 <h5 class="mb-3" style="color: #374151; font-weight: 600;">
-                    <i class="fas fa-comments me-2"></i>{% trans "پاسخ‌ها" %}
-                    <span class="badge" style="background: #e2e8f0; color: #6b7280; margin-right: 0.5rem;">{{ replies.count }}</span>
+                    <i class="fas fa-comments me-2"></i>{% trans "پاسخ‌ها" %} <span class="badge" style="background: #e2e8f0; color: #6b7280; margin-right: 0.5rem;">{{ replies|length }}</span>
                 </h5>
-                
+
                 {% if replies %}
                 <div class="replies-list">
                     {% for reply in replies %}
@@ -520,7 +557,8 @@
                         <div class="reply-content">{{ reply.content|linebreaks }}</div>
                         {% if reply.attachment %}
                         <div class="mt-3">
-                            <a href="{{ reply.attachment.url }}" target="_blank" class="btn btn-sm" style="background: #e2e8f0; color: #374151; border: none;">
+                            <a href="{{ reply.attachment.url }}" target="_blank" class="btn btn-sm"
+                                style="background: #e2e8f0; color: #374151; border: none;">
                                 <i class="fas fa-paperclip me-1"></i>
                                 {% trans "دانلود فایل پیوست" %}
                             </a>
@@ -552,121 +590,121 @@
 
 {% if task.deadline %}
 <script>
-(function() {
-    // Translations
-    const translations = {
-        overdue: '{% trans "تأخیر در انجام" %}',
-        remaining: '{% trans "باقی‌مانده" %}',
-        day: '{% trans "روز" %}',
-        days: '{% trans "روز" %}',
-        hour: '{% trans "ساعت" %}',
-        minute: '{% trans "دقیقه" %}'
-    };
-    
-    // Parse deadline from server (ISO format: YYYY-MM-DDTHH:mm:ss+HH:mm or YYYY-MM-DDTHH:mm:ssZ)
-    const deadlineStr = '{{ task.deadline|date:"c" }}';
-    let deadline;
-    
-    // Try parsing the ISO date string
-    if (deadlineStr) {
-        deadline = new Date(deadlineStr);
-        // Check if date is valid
-        if (isNaN(deadline.getTime())) {
-            console.error('Invalid deadline date:', deadlineStr);
-            return;
-        }
-    } else {
-        return;
-    }
-    
-    const countdownElement = document.getElementById('deadline-countdown');
-    if (!countdownElement) {
-        return;
-    }
-    
-    function updateCountdown() {
-        const now = new Date();
-        const diff = deadline - now;
-        
-        if (diff <= 0) {
-            // Overdue - simplified format
-            countdownElement.textContent = translations.overdue;
-            countdownElement.className = 'countdown-overdue';
-            return;
-        }
-        
-        // Calculate time components
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        
-        // Build simplified display string (e.g., "2 days, 4h remaining")
-        let displayParts = [];
-        if (days > 0) {
-            displayParts.push(days + ' ' + translations.days);
-        }
-        if (hours > 0) {
-            // Use full Persian word for hours
-            displayParts.push(hours + ' ' + translations.hour);
-        }
-        if (days === 0 && hours === 0 && minutes > 0) {
-            // Only show minutes if less than an hour remains, with full Persian word
-            displayParts.push(minutes + ' ' + translations.minute);
-        }
-        
-        // Simplified format: e.g. "2 روز، 4 ساعت باقی‌مانده"
-        const remainingText = displayParts.length > 0 
-            ? displayParts.join(', ') + ' ' + translations.remaining
-            : '< 1 ' + translations.minute + ' ' + translations.remaining;
-        
-        countdownElement.textContent = remainingText;
-        
-        // Set color based on urgency
-        const totalHours = diff / (1000 * 60 * 60);
-        if (totalHours < 24) {
-            countdownElement.className = 'countdown-urgent';
-        } else if (totalHours < 72) {
-            countdownElement.className = 'countdown-warning';
+    (function () {
+        // Translations
+        const translations = {
+            overdue: '{% trans "تأخیر در انجام" %}',
+            remaining: '{% trans "باقی‌مانده" %}',
+            day: '{% trans "روز" %}',
+            days: '{% trans "روز" %}',
+            hour: '{% trans "ساعت" %}',
+            minute: '{% trans "دقیقه" %}'
+        };
+
+        // Parse deadline from server (ISO format: YYYY-MM-DDTHH:mm:ss+HH:mm or YYYY-MM-DDTHH:mm:ssZ)
+        const deadlineStr = '{{ task.deadline|date:"c" }}';
+        let deadline;
+
+        // Try parsing the ISO date string
+        if (deadlineStr) {
+            deadline = new Date(deadlineStr);
+            // Check if date is valid
+            if (isNaN(deadline.getTime())) {
+                console.error('Invalid deadline date:', deadlineStr);
+                return;
+            }
         } else {
-            countdownElement.className = 'countdown-normal';
+            return;
         }
-    }
-    
-    // Update immediately
-    updateCountdown();
-    
-    // Update every second
-    setInterval(updateCountdown, 1000);
-})();
+
+        const countdownElement = document.getElementById('deadline-countdown');
+        if (!countdownElement) {
+            return;
+        }
+
+        function updateCountdown() {
+            const now = new Date();
+            const diff = deadline - now;
+
+            if (diff <= 0) {
+                // Overdue - simplified format
+                countdownElement.textContent = translations.overdue;
+                countdownElement.className = 'countdown-overdue';
+                return;
+            }
+
+            // Calculate time components
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+            // Build simplified display string (e.g., "2 days, 4h remaining")
+            let displayParts = [];
+            if (days > 0) {
+                displayParts.push(days + ' ' + translations.days);
+            }
+            if (hours > 0) {
+                // Use full Persian word for hours
+                displayParts.push(hours + ' ' + translations.hour);
+            }
+            if (days === 0 && hours === 0 && minutes > 0) {
+                // Only show minutes if less than an hour remains, with full Persian word
+                displayParts.push(minutes + ' ' + translations.minute);
+            }
+
+            // Simplified format: e.g. "2 روز، 4 ساعت باقی‌مانده"
+            const remainingText = displayParts.length > 0
+                ? displayParts.join(', ') + ' ' + translations.remaining
+                : '< 1 ' + translations.minute + ' ' + translations.remaining;
+
+            countdownElement.textContent = remainingText;
+
+            // Set color based on urgency
+            const totalHours = diff / (1000 * 60 * 60);
+            if (totalHours < 24) {
+                countdownElement.className = 'countdown-urgent';
+            } else if (totalHours < 72) {
+                countdownElement.className = 'countdown-warning';
+            } else {
+                countdownElement.className = 'countdown-normal';
+            }
+        }
+
+        // Update immediately
+        updateCountdown();
+
+        // Update every second
+        setInterval(updateCountdown, 1000);
+    })();
 </script>
 {% endif %}
 
 {% if can_update_status %}
 <script>
-document.getElementById('statusForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const formData = new FormData(this);
-    
-    fetch(this.action, {
-        method: 'POST',
-        body: formData,
-        headers: {
-            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('خطا در بروزرسانی');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('خطا در بروزرسانی');
+    document.getElementById('statusForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+
+        fetch(this.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('خطا در بروزرسانی');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('خطا در بروزرسانی');
+            });
     });
-});
 </script>
 {% endif %}
 {% endblock %}

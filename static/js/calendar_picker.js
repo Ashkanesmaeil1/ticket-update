@@ -22,6 +22,15 @@ function fromPersianNumerals(str) {
     return result;
 }
 
+/** Returns local date string YYYY-MM-DD for today (minimum selectable date; yesterday and before are disabled). */
+function getTodayDateString() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
 class JalaliCalendarPicker {
     constructor(inputElement, options = {}) {
         this.input = inputElement;
@@ -66,8 +75,9 @@ class JalaliCalendarPicker {
         this.input.style.backgroundColor = '#ffffff';
         this.input.style.paddingLeft = '2.5rem'; // Make room for icon
         
-        // Ensure the icon inside input stays visible
-        const iconInside = document.getElementById('calendar-icon-inside-input');
+        // Ensure the icon inside input stays visible (support multiple instances: icon in wrapper or global id)
+        const wrapperForIcon = this.input.closest('.deadline-date-wrapper') || this.input.parentElement;
+        const iconInside = wrapperForIcon ? wrapperForIcon.querySelector('.fa-calendar-alt, .fa-calendar') : document.getElementById('calendar-icon-inside-input');
         if (iconInside) {
             iconInside.style.display = 'inline-block';
             iconInside.style.visibility = 'visible';
@@ -84,21 +94,15 @@ class JalaliCalendarPicker {
                 const buttons = wrapper.querySelectorAll('button, .btn');
                 buttons.forEach(btn => btn.remove());
                 
-                // Remove duplicate icons (keep only the one with id="calendar-icon-inside-input")
+                // Keep only the single icon in this wrapper (for multi-instance: one icon per wrapper)
                 const allIcons = wrapper.querySelectorAll('i.fa-calendar-alt, i.fa-calendar');
                 allIcons.forEach(icon => {
-                    if (icon.id !== 'calendar-icon-inside-input') {
-                        console.log('Removing duplicate icon:', icon);
-                        icon.remove();
-                    }
+                    if (icon !== iconInside) icon.remove();
                 });
-                
-                // Ensure the correct icon stays visible
-                const correctIcon = document.getElementById('calendar-icon-inside-input');
-                if (correctIcon) {
-                    correctIcon.style.display = 'inline-block';
-                    correctIcon.style.visibility = 'visible';
-                    correctIcon.style.opacity = '1';
+                if (iconInside) {
+                    iconInside.style.display = 'inline-block';
+                    iconInside.style.visibility = 'visible';
+                    iconInside.style.opacity = '1';
                 }
             }
         };
@@ -124,8 +128,8 @@ class JalaliCalendarPicker {
         if (wrapper) {
             wrapper.style.cursor = 'pointer';
             wrapper.addEventListener('click', (e) => {
-                // Only trigger if clicking on wrapper itself or icon (not if clicking on input)
-                if (e.target === wrapper || e.target.id === 'calendar-icon-inside-input' || e.target.closest('#calendar-icon-inside-input')) {
+                const isIcon = e.target.id === 'calendar-icon-inside-input' || e.target.closest('#calendar-icon-inside-input') || (wrapper.contains(e.target) && (e.target.classList.contains('fa-calendar-alt') || e.target.classList.contains('fa-calendar')));
+                if (e.target === wrapper || isIcon) {
                     clickHandler(e);
                 }
             }, true);
@@ -593,6 +597,11 @@ class JalaliCalendarPicker {
         console.log('=== openModal START ===');
         console.log('Current year:', this.currentYear, 'Current month:', this.currentMonth);
         
+        // When reusing shared modal, re-bind select button to this instance so value goes to correct input
+        if (this.overlay) {
+            this.attachModalEventListeners();
+        }
+        
         // CRITICAL: Sync selectedDate with input value before opening modal
         // This ensures if user previously selected a date, it's preserved
         this.setInitialDateSync();
@@ -794,6 +803,8 @@ class JalaliCalendarPicker {
         
         console.log('First day of month starts on weekday:', startWeekday);
         
+        const todayStr = getTodayDateString();
+        
         // Add empty cells for days before month starts
         for (let i = 0; i < startWeekday; i++) {
             daysHtml += '<div class="calendar-day other-month"></div>';
@@ -807,11 +818,14 @@ class JalaliCalendarPicker {
                 this.selectedDate.day === dayData.day;
             
             const isToday = this.isToday(dayData);
+            const gregorianDate = (dayData.gregorian_date || '').slice(0, 10);
+            const isBeforeToday = gregorianDate && gregorianDate < todayStr;
             const classes = [
                 'calendar-day',
                 dayData.is_holiday ? 'holiday' : '',
                 isSelected ? 'selected' : '',
-                isToday ? 'today' : ''
+                isToday ? 'today' : '',
+                isBeforeToday ? 'disabled' : ''
             ].filter(c => c).join(' ');
             
             // Escape events JSON to prevent XSS
@@ -825,9 +839,11 @@ class JalaliCalendarPicker {
                      data-year="${dayData.year}" 
                      data-month="${dayData.month}" 
                      data-day="${dayData.day}"
+                     data-gregorian-date="${gregorianDate || ''}"
                      data-is-holiday="${dayData.is_holiday ? 'true' : 'false'}"
+                     data-disabled="${isBeforeToday ? 'true' : 'false'}"
                      data-events='${eventsJson}'
-                     style="cursor: pointer;">
+                     style="cursor: ${isBeforeToday ? 'not-allowed' : 'pointer'};">
                     ${dayPersian}
                 </div>
             `;
@@ -856,6 +872,9 @@ class JalaliCalendarPicker {
             dayEl.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                if (dayEl.dataset.disabled === 'true') {
+                    return;
+                }
                 console.log('Day clicked:', dayEl.dataset.day);
                 this.selectDay(dayEl);
             });
@@ -987,6 +1006,7 @@ class JalaliCalendarPicker {
         // Lock the selectedDate to prevent accidental overwrites
         // Store a copy for verification
         this._lockedSelectedDate = JSON.parse(JSON.stringify(this.selectedDate));
+        this._selectedGregorianDate = (dayElement.dataset.gregorianDate || '').slice(0, 10);
 
         // #region agent log - Hypothesis H1: Selected day is correct but later overwritten before selectDate
         try {
@@ -1129,6 +1149,16 @@ class JalaliCalendarPicker {
             day: dateToUse.day
         });
 
+        // Minimum selectable date is today (yesterday and before are not allowed)
+        const todayStr = getTodayDateString();
+        const selectedGregorian = (domSelected && domSelected.dataset.gregorianDate)
+            ? domSelected.dataset.gregorianDate.slice(0, 10)
+            : (this._selectedGregorianDate || '').slice(0, 10);
+        if (selectedGregorian && selectedGregorian < todayStr) {
+            alert('انتخاب تاریخ قبل از امروز مجاز نیست. لطفاً از امروز به بعد را انتخاب کنید.');
+            return;
+        }
+
         // #region agent log - Hypothesis H2: dateToUse (after fallback) differs from what was clicked
         try {
             // DISABLED: Telemetry endpoint causes ERR_CONNECTION_REFUSED
@@ -1154,6 +1184,16 @@ class JalaliCalendarPicker {
             timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
         } else if (hiddenTimeInput && hiddenTimeInput.value) {
             timeStr = hiddenTimeInput.value;
+        }
+        
+        // If selected date is today, time must not be before now
+        if (selectedGregorian && selectedGregorian === todayStr) {
+            const selectedDateTime = new Date(selectedGregorian + 'T' + timeStr + ':00');
+            const now = new Date();
+            if (selectedDateTime < now) {
+                alert('برای امروز نمی‌توانید ساعتی قبل از ساعت الان انتخاب کنید. لطفاً زمان فعلی یا بعد از آن را انتخاب کنید.');
+                return;
+            }
         }
         
         // Format date and time combined: "YYYY/MM/DD HH:MM"

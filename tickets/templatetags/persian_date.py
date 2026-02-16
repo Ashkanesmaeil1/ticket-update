@@ -36,11 +36,10 @@ def persian_date(value):
     # Convert to Persian calendar
     persian_date = jdatetime.datetime.fromgregorian(datetime=value)
     
-    # Format: 1402/12/25 14:30 (or just date if original was date)
-    if isinstance(value, datetime) and not isinstance(value, date):
-        formatted = persian_date.strftime('%Y/%m/%d %H:%M')
+    # Format: in RTL, put time first so visually: date (left) - time (right)
+    if isinstance(value, datetime) and type(value) is not date:
+        formatted = persian_date.strftime('%H:%M - %Y/%m/%d')
     else:
-        # For date-only fields, don't show time
         formatted = persian_date.strftime('%Y/%m/%d')
     
     # Convert digits to Persian

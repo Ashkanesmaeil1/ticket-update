@@ -893,6 +893,19 @@ class TicketTaskForm(forms.ModelForm):
                 converted_deadline = JalaliCalendarService.jalali_to_gregorian(
                     year, month, day, hour, minute
                 )
+                # Minimum allowed date is start of today (yesterday and before are not allowed)
+                from django.utils import timezone
+                now = timezone.now()
+                start_of_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                if converted_deadline < start_of_today:
+                    raise ValidationError({
+                        'deadline_date': _('تاریخ و زمان مهلت نمی‌تواند قبل از امروز باشد. لطفاً از امروز به بعد را انتخاب کنید.')
+                    })
+                # If deadline is today, time must not be before now
+                if converted_deadline.date() == now.date() and converted_deadline < now:
+                    raise ValidationError({
+                        'deadline_date': _('برای امروز نمی‌توانید ساعتی قبل از ساعت الان انتخاب کنید. لطفاً زمان فعلی یا بعد از آن را انتخاب کنید.')
+                    })
                 cleaned_data['deadline_converted'] = converted_deadline
             except ValidationError:
                 # Re-raise ValidationError as-is
@@ -1039,6 +1052,15 @@ class DeadlineExtensionRequestForm(forms.ModelForm):
             
             # Convert Jalali to Gregorian
             converted_deadline = JalaliCalendarService.jalali_to_gregorian(year, month, day, hour, minute)
+            # Minimum allowed date is start of today
+            from django.utils import timezone
+            now = timezone.now()
+            start_of_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            if converted_deadline < start_of_today:
+                raise ValidationError(_('تاریخ و زمان مهلت نمی‌تواند قبل از امروز باشد. لطفاً از امروز به بعد را انتخاب کنید.'))
+            # If deadline is today, time must not be before now
+            if converted_deadline.date() == now.date() and converted_deadline < now:
+                raise ValidationError(_('برای امروز نمی‌توانید ساعتی قبل از ساعت الان انتخاب کنید. لطفاً زمان فعلی یا بعد از آن را انتخاب کنید.'))
             return converted_deadline
             
         except ValueError as e:

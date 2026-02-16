@@ -28,6 +28,14 @@ def _latin_to_persian_digits(value_str):
     return ''.join(persian_map.get(char, char) for char in value_str)
 
 @register.filter
+def user_has_pending_extension(task, user):
+    """Check if user has a pending extension request for this task"""
+    if not task or not user:
+        return False
+    return getattr(task, 'has_pending_extension_request', lambda u: False)(user)
+
+
+@register.filter
 def persian_id(value):
     """
     Convert ID to Persian format with hash prefix preservation.

@@ -6451,6 +6451,11 @@ def ticket_task_detail(request, task_id):
     
     can_view_extension_requests = can_edit_delete or can_update_status or is_admin_superuser(user)
     
+    # آخرین درخواست تمدید کاربر برای این تسک (غیر از در انتظار) — فقط یکی نمایش داده می‌شود
+    last_extension_request = None
+    if user.department_role == 'employee' and is_assigned:
+        last_extension_request = task.extension_requests.filter(requested_by=user).exclude(status='pending').first()
+    
     context = {
         'task': task,
         'replies': replies,
@@ -6460,6 +6465,7 @@ def ticket_task_detail(request, task_id):
         'can_view_extension_requests': can_view_extension_requests,
         'task_status_choices': TicketTask.STATUS_CHOICES,
         'task_priority_choices': TicketTask.PRIORITY_CHOICES,
+        'last_extension_request': last_extension_request,
     }
     
     return render(request, 'tickets/ticket_task_detail.html', context)
@@ -6972,6 +6978,33 @@ def handle_extension_request(request, request_id, action):
             extension_request.reviewed_at = timezone.now()
             extension_request.review_comment = request.POST.get('comment', '')
             extension_request.save()
+            
+            # If reviewer chose to set a new deadline (Jalali format YYYY/MM/DD HH:MM), update task.deadline
+            if request.POST.get('set_new_deadline') and request.POST.get('new_deadline'):
+                new_deadline_str = request.POST.get('new_deadline').strip()
+                try:
+                    from .calendar_services.jalali_calendar import JalaliCalendarService
+                    parts = new_deadline_str.split()
+                    if len(parts) == 2:
+                        date_str, time_str = parts[0], parts[1]
+                        date_parts = date_str.split('/')
+                        time_parts = time_str.split(':')
+                        if len(date_parts) == 3 and len(time_parts) == 2:
+                            year, month, day = int(date_parts[0]), int(date_parts[1]), int(date_parts[2])
+                            hour, minute = int(time_parts[0]), int(time_parts[1])
+                            if 0 <= hour <= 23 and 0 <= minute <= 59:
+                                new_deadline_dt = JalaliCalendarService.jalali_to_gregorian(year, month, day, hour, minute)
+                                now = timezone.now()
+                                start_of_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                                if new_deadline_dt < start_of_today:
+                                    messages.error(request, _('تاریخ و زمان مهلت نمی‌تواند قبل از امروز باشد. لطفاً از امروز به بعد را انتخاب کنید.'))
+                                elif new_deadline_dt.date() == now.date() and new_deadline_dt < now:
+                                    messages.error(request, _('برای امروز نمی‌توانید ساعتی قبل از ساعت الان انتخاب کنید. لطفاً زمان فعلی یا بعد از آن را انتخاب کنید.'))
+                                else:
+                                    task.deadline = new_deadline_dt
+                                    task.save()
+                except (ValueError, IndexError, TypeError, ImportError):
+                    pass
             
             # Notify requester
             Notification.objects.create(
