@@ -252,7 +252,84 @@
             opacity: 0.7;
         }
     }
+
+    /* تایمر ثابت بالا سمت راست */
+    .task-page-timer {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 1050;
+        background: rgba(255, 255, 255, 0.98);
+        backdrop-filter: blur(12px);
+        border-radius: 16px;
+        padding: 1rem 1.25rem;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+        border: 1px solid rgba(99, 102, 241, 0.2);
+        min-width: 200px;
+    }
+
+    .task-page-timer .timer-label {
+        font-size: 0.75rem;
+        color: #6b7280;
+        margin-bottom: 0.35rem;
+        display: block;
+    }
+
+    .task-page-timer .timer-value {
+        font-size: 1.1rem;
+        font-weight: 700;
+        direction: ltr;
+        text-align: right;
+    }
+
+    .task-page-timer .timer-value.countdown-normal {
+        color: #10b981;
+    }
+
+    .task-page-timer .timer-value.countdown-warning {
+        color: #f59e0b;
+    }
+
+    .task-page-timer .timer-value.countdown-urgent {
+        color: #ef4444;
+    }
+
+    .task-page-timer .timer-value.countdown-overdue {
+        color: #dc2626;
+        font-weight: 700;
+    }
+
+    /* تایمر داخل نوار ناوبری */
+    .task-page-timer.navbar-timer {
+        position: static;
+        margin: 0 0.5rem;
+        padding: 0.35rem 0.65rem;
+        min-width: 120px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    }
+
+    .task-page-timer.navbar-timer .timer-label {
+        font-size: 0.65rem;
+        color: #6b7280;
+        margin-bottom: 0.15rem;
+        text-align: center;
+    }
+
+    .task-page-timer.navbar-timer .timer-value {
+        font-size: 0.9rem;
+        text-align: center;
+    }
 </style>
+{% endblock %}
+
+{% block navbar_right_extra %}
+{% if task.deadline %}
+<div class="task-page-timer navbar-timer d-flex flex-column align-items-center justify-content-center"
+    id="task-page-timer-box">
+    <span class="timer-label"><i class="fas fa-clock me-1"></i>{% trans "مهلت انجام" %}</span>
+    <span class="timer-value" id="task-page-timer-value">—</span>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -335,53 +412,7 @@
                         <div class="info-value">{{ task.created_at|persian_date }}</div>
                     </div>
                     {% if task.deadline %}
-                    <div class="info-row">
-                        <div class="info-label">
-                            <i class="fas fa-clock me-2"></i>{% trans "مهلت انجام" %}
-                        </div>
-                        <div class="info-value">
-                            <div id="deadline-display"
-                                style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-                                <span id="deadline-countdown" style="font-weight: 600;"></span>
-                                <span style="color: #9ca3af;">|</span>
-                                <span id="deadline-date" style="color: #6b7280;">{{ task.deadline|persian_date }}</span>
-                                {% if task.deadline and task.is_deadline_expired and user.department_role == 'employee' and task.assigned_to.id == user.id %}
-                                <span id="extension-request-section">
-                                    {% for ext_req in task.extension_requests.all %}
-                                    {% if ext_req.requested_by.id == user.id and ext_req.status == 'pending' %}
-                                    <span class="badge badge-info"
-                                        style="margin-right: 0.5rem; background-color: #3b82f6; color: white; padding: 0.375rem 0.75rem; border-radius: 0.375rem; font-size: 0.875rem;">
-                                        <i class="fas fa-hourglass-half me-1"></i>
-                                        {% trans "درخواست در حال بررسی" %}
-                                    </span>
-                                    {% endif %}
-                                    {% endfor %}
-                                </span>
-                                <span id="extension-request-button" style="display: none;">
-                                    <a href="{% url 'tickets:request_deadline_extension' task.id %}"
-                                        class="btn btn-sm btn-warning"
-                                        style="margin-right: 0.5rem; background-color: #f59e0b; border-color: #f59e0b; color: white; padding: 0.375rem 0.75rem; font-size: 0.875rem;">
-                                        <i class="fas fa-clock me-1"></i>
-                                        {% trans "درخواست تمدید" %}
-                                    </a>
-                                </span>
-                                <script>
-                                    (function () {
-                                        var hasPending = false;
-                                        {% for ext_req in task.extension_requests.all %}
-                                        {% if ext_req.requested_by.id == user.id and ext_req.status == 'pending' %}
-                                        hasPending = true;
-                                        {% endif %}
-                                        {% endfor %}
-                                        if (!hasPending) {
-                                            document.getElementById('extension-request-button').style.display = 'inline-block';
-                                        }
-                                    })();
-                                </script>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
+                    {% include "tickets/_task_deadline_row.html" %}
                     {% endif %}
 
                     <!-- وضعیت آخرین درخواست تمدید (فقط یک بنر) -->
@@ -436,31 +467,23 @@
                                         <span
                                             class="badge {% if ext_req.status == 'pending' %}badge-info{% elif ext_req.status == 'approved' %}badge-success{% else %}badge-danger{% endif %}"
                                             style="min-width: 100px; {% if ext_req.status == 'pending' %}background-color: #3b82f6; color: white;{% elif ext_req.status == 'approved' %}background-color: #10b981; color: white;{% else %}background-color: #ef4444; color: white;{% endif %}">
-                                            {% if ext_req.status == 'pending' %}<i
-                                                class="fas fa-hourglass-half me-1"></i>{% trans "در انتظار بررسی" %}
-                                            {% elif ext_req.status == 'approved' %}<i class="fas fa-check me-1"></i>{%
-                                            trans "تایید شده" %}
+                                            {% if ext_req.status == 'pending' %}<i class="fas fa-hourglass-half me-1"></i>{% trans "در انتظار بررسی" %}
+                                            {% elif ext_req.status == 'approved' %}<i class="fas fa-check me-1"></i>{% trans "تایید شده" %}
                                             {% else %}<i class="fas fa-times me-1"></i>{% trans "رد شده" %}
                                             {% endif %}
                                         </span>
                                         <span style="color: #6b7280; font-size: 0.9rem;">
-                                            {{ ext_req.requested_by.get_full_name|default:ext_req.requested_by.username
-                                            }}
+                                            {{ ext_req.requested_by.get_full_name|default:ext_req.requested_by.username }}
                                         </span>
                                         {% if ext_req.status != 'pending' and ext_req.reviewed_by %}
                                         <span style="color: #9ca3af; font-size: 0.85rem;">
-                                            {% trans "بررسی توسط" %}: {{
-                                            ext_req.reviewed_by.get_full_name|default:ext_req.reviewed_by.username }}{%
-                                            if ext_req.reviewed_at %} · {{ ext_req.reviewed_at|persian_date }}{% endif
-                                            %}
+                                            {% trans "بررسی توسط" %}: {{ ext_req.reviewed_by.get_full_name|default:ext_req.reviewed_by.username }}{% if ext_req.reviewed_at %} · {{ ext_req.reviewed_at|persian_date }}{% endif %}
                                         </span>
                                         {% endif %}
                                     </div>
                                     <div style="display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.875rem;">
-                                        <span style="color: #475569;"><strong>{% trans "تاریخ درخواست" %}:</strong> {{
-                                            ext_req.created_at|persian_date }}</span>
-                                        <span style="color: #475569;"><strong>{% trans "مهلت درخواستی" %}:</strong> {{
-                                            ext_req.requested_deadline|persian_date }}</span>
+                                        <span style="color: #475569;"><strong>{% trans "تاریخ درخواست" %}:</strong> {{ ext_req.created_at|persian_date }}</span>
+                                        <span style="color: #475569;"><strong>{% trans "مهلت درخواستی" %}:</strong> {{ ext_req.requested_deadline|persian_date }}</span>
                                     </div>
                                 </div>
                                 {% endfor %}
@@ -541,7 +564,8 @@
             <!-- Replies Section -->
             <div class="replies-section">
                 <h5 class="mb-3" style="color: #374151; font-weight: 600;">
-                    <i class="fas fa-comments me-2"></i>{% trans "پاسخ‌ها" %} <span class="badge" style="background: #e2e8f0; color: #6b7280; margin-right: 0.5rem;">{{ replies|length }}</span>
+                    <i class="fas fa-comments me-2"></i>{% trans "پاسخ‌ها" %} <span class="badge"
+                        style="background: #e2e8f0; color: #6b7280; margin-right: 0.5rem;">{{ replies|length }}</span>
                 </h5>
 
                 {% if replies %}
@@ -598,7 +622,8 @@
             day: '{% trans "روز" %}',
             days: '{% trans "روز" %}',
             hour: '{% trans "ساعت" %}',
-            minute: '{% trans "دقیقه" %}'
+            minute: '{% trans "دقیقه" %}',
+            remainingSuffix: '{% trans "مانده" %}'
         };
 
         // Parse deadline from server (ISO format: YYYY-MM-DDTHH:mm:ss+HH:mm or YYYY-MM-DDTHH:mm:ssZ)
@@ -618,7 +643,9 @@
         }
 
         const countdownElement = document.getElementById('deadline-countdown');
-        if (!countdownElement) {
+        const topRightTimerElement = document.getElementById('task-page-timer-value');
+        const topRightTimerBox = document.getElementById('task-page-timer-box');
+        if (!countdownElement && !topRightTimerElement) {
             return;
         }
 
@@ -628,52 +655,54 @@
 
             if (diff <= 0) {
                 // Overdue - simplified format
-                countdownElement.textContent = translations.overdue;
-                countdownElement.className = 'countdown-overdue';
+                const overdueText = translations.overdue;
+                if (countdownElement) {
+                    countdownElement.textContent = overdueText;
+                    countdownElement.className = 'countdown-overdue';
+                }
+                if (topRightTimerElement) {
+                    topRightTimerElement.textContent = overdueText;
+                    if (topRightTimerBox) topRightTimerBox.style.borderColor = 'rgba(220, 38, 38, 0.5)';
+                }
                 return;
             }
 
             // Calculate time components
-            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const totalSeconds = Math.floor(diff / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            function pad(n) { return n < 10 ? '0' + n : String(n); }
+            // Format for header timer (element 1): HH:MM:SS - unchanged
+            const remainingText = pad(hours) + ':' + pad(minutes) + ':' + pad(seconds);
+            // Format for content (element 2): "X ساعت و Y دقیقه مانده"
+            const contentCountdownText = hours + ' ' + translations.hour + ' و ' + minutes + ' ' + translations.minute + ' ' + translations.remainingSuffix;
 
-            // Build simplified display string (e.g., "2 days, 4h remaining")
-            let displayParts = [];
-            if (days > 0) {
-                displayParts.push(days + ' ' + translations.days);
-            }
-            if (hours > 0) {
-                // Use full Persian word for hours
-                displayParts.push(hours + ' ' + translations.hour);
-            }
-            if (days === 0 && hours === 0 && minutes > 0) {
-                // Only show minutes if less than an hour remains, with full Persian word
-                displayParts.push(minutes + ' ' + translations.minute);
-            }
-
-            // Simplified format: e.g. "2 روز، 4 ساعت باقی‌مانده"
-            const remainingText = displayParts.length > 0
-                ? displayParts.join(', ') + ' ' + translations.remaining
-                : '< 1 ' + translations.minute + ' ' + translations.remaining;
-
-            countdownElement.textContent = remainingText;
+            if (countdownElement) countdownElement.textContent = contentCountdownText;
 
             // Set color based on urgency
             const totalHours = diff / (1000 * 60 * 60);
+            let countdownClass = 'countdown-normal';
+            let borderColor = 'rgba(16, 185, 129, 0.4)';
             if (totalHours < 24) {
-                countdownElement.className = 'countdown-urgent';
+                countdownClass = 'countdown-urgent';
+                borderColor = 'rgba(239, 68, 68, 0.4)';
             } else if (totalHours < 72) {
-                countdownElement.className = 'countdown-warning';
-            } else {
-                countdownElement.className = 'countdown-normal';
+                countdownClass = 'countdown-warning';
+                borderColor = 'rgba(245, 158, 11, 0.4)';
             }
+            if (countdownElement) countdownElement.className = countdownClass;
+            if (topRightTimerElement) {
+                topRightTimerElement.textContent = remainingText;
+                topRightTimerElement.className = 'timer-value ' + countdownClass;
+            }
+            if (topRightTimerBox) topRightTimerBox.style.borderColor = borderColor;
         }
 
-        // Update immediately
+        // Update immediately (دیتا یک‌بار از سرور گرفته شده، بعد فقط شمارش سمت کلاینت)
         updateCountdown();
 
-        // Update every second
+        // هر ثانیه فقط به‌روزرسانی محلی، بدون درخواست به سرور
         setInterval(updateCountdown, 1000);
     })();
 </script>

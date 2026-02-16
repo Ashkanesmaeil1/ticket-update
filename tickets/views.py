@@ -6319,13 +6319,21 @@ def ticket_task_create(request):
             })
             
             task.save()
-            
+
             log_debug('E', 'tickets/views.py:ticket_task_create', 'Task after save', {
                 'task_id': task.id,
                 'task_deadline': task.deadline,
                 'task_deadline_type': type(task.deadline).__name__ if task.deadline else 'None'
             })
-            
+
+            if task.assigned_to:
+                try:
+                    from .services import send_task_assigned_email
+                    send_task_assigned_email(task, user)
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).exception('Failed to send task assigned email: %s', e)
+
             messages.success(request, _('تسک با موفقیت ایجاد شد.'))
             return redirect('tickets:ticket_task_detail', task_id=task.id)
         else:
@@ -6613,15 +6621,23 @@ def ticket_task_edit(request, task_id):
         form = TicketTaskForm(request.POST, instance=task, user=user)
         form._user = user
         if form.is_valid():
+            old_assigned_to_id = getattr(task, 'assigned_to_id', None) or (task.assigned_to.id if task.assigned_to else None)
             task = form.save(commit=False)
             # created_by should not change, keep original
             task.save()
+            if task.assigned_to_id and task.assigned_to_id != old_assigned_to_id:
+                try:
+                    from .services import send_task_assigned_email
+                    send_task_assigned_email(task, user)
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).exception('Failed to send task assigned email: %s', e)
             messages.success(request, _('تسک با موفقیت بروزرسانی شد.'))
             return redirect('tickets:ticket_task_detail', task_id=task.id)
     else:
         form = TicketTaskForm(instance=task, user=user)
         form._user = user
-    
+
     return render(request, 'tickets/ticket_task_form.html', {
         'form': form,
         'task': task,

@@ -4,7 +4,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 import os
 from django.conf import settings
-from .models import Notification, User, EmailConfig, Department
+from .models import Notification, User, EmailConfig, Department, TicketTask
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 import jdatetime
@@ -849,6 +849,280 @@ def notify_employee(action_type, ticket, user, additional_info=None, employee_em
         
     except Exception as e:
         print(f"❌ Failed to send employee email: {e}")
+
+
+def create_task_deadline_reminder_html(task, hours_remaining):
+    """Create HTML content for task deadline reminder email (8h or 2h remaining)."""
+    deadline_str = get_iranian_datetime_full(task.deadline) if task.deadline else ''
+    hours_label = '۸ ساعت' if hours_remaining == 8 else '۲ ساعت'
+    title = task.title or _('تسک')
+    priority_persian = get_priority_display_persian(task.priority) if hasattr(task, 'priority') else ''
+    status_persian = get_status_display_persian(task.status) if hasattr(task, 'status') else ''
+    html = f"""
+    <!DOCTYPE html>
+    <html dir="rtl" lang="fa">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="Content-Language" content="fa">
+        <title>یادآور مهلت تسک</title>
+        <style>
+            body {{ font-family: Tahoma, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background-color: #f5f5f5; direction: rtl; text-align: right; font-size: 16px; line-height: 1.7; }}
+            .email-container {{ max-width: 600px; margin: 0 auto; background-color: #fff; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; direction: rtl; text-align: right; }}
+            .header {{ background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 25px 20px; text-align: right; color: white; direction: rtl; }}
+            .header h1 {{ margin: 0; font-size: 22px; text-align: right; }}
+            .header p {{ margin: 0.5em 0 0 0; text-align: right; }}
+            .content {{ padding: 25px 20px; direction: rtl; text-align: right; }}
+            .content p {{ text-align: right; margin: 0 0 1em 0; }}
+            .info-section {{ background-color: #fffbeb; border-radius: 8px; padding: 16px; margin: 16px 0; border-right: 4px solid #f59e0b; direction: rtl; text-align: right; }}
+            .info-row {{ margin: 8px 0; text-align: right; direction: rtl; }}
+            .info-label {{ font-weight: bold; color: #92400e; }}
+            .deadline-highlight {{ color: #b45309; font-weight: bold; font-size: 18px; }}
+        </style>
+    </head>
+    <body style="direction: rtl; text-align: right;">
+        <div class="email-container" style="direction: rtl; text-align: right;">
+            <div class="header" style="text-align: right; direction: rtl;">
+                <h1 style="text-align: right;">⏰ یادآور مهلت تسک تیکت</h1>
+                <p style="text-align: right;">حدود {hours_label} به مهلت انجام تسک باقی مانده است.</p>
+            </div>
+            <div class="content" style="direction: rtl; text-align: right;">
+                <p style="text-align: right;">سلام،</p>
+                <p style="text-align: right;">این ایمیل یادآوری است برای تسک تیکت زیر که مهلت انجام آن به زودی به پایان می‌رسد.</p>
+                <div class="info-section" style="direction: rtl; text-align: right;">
+                    <div class="info-row" style="text-align: right;"><span class="info-label">عنوان تسک:</span> {title}</div>
+                    <div class="info-row" style="text-align: right;"><span class="info-label">شماره تسک:</span> #{task.id}</div>
+                    <div class="info-row" style="text-align: right;"><span class="info-label">اولویت:</span> {priority_persian}</div>
+                    <div class="info-row" style="text-align: right;"><span class="info-label">وضعیت:</span> {status_persian}</div>
+                    <div class="info-row" style="text-align: right;"><span class="info-label">مهلت انجام:</span> <span class="deadline-highlight">{deadline_str}</span></div>
+                </div>
+                <p style="text-align: right;">لطفاً در صورت نیاز اقدام به تکمیل یا درخواست تمدید مهلت کنید.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return html
+
+
+def send_task_deadline_reminder_email(task, hours_remaining):
+    """
+    Send deadline reminder email to the user assigned to the task (8h or 2h remaining).
+    Uses the same SMTP config as other system emails.
+    """
+    if not task or not task.assigned_to:
+        return False
+    recipient_email = getattr(task.assigned_to, 'email', None)
+    if not recipient_email or not recipient_email.strip():
+        return False
+    try:
+        html_content = create_task_deadline_reminder_html(task, hours_remaining)
+        if hours_remaining == 8:
+            subject_full = '\u202Bیادآور مهلت: ۸ ساعت تا پایان مهلت تسک\u202C'
+        else:
+            subject_full = '\u202Bیادآور مهلت: ۲ ساعت تا پایان مهلت تسک\u202C'
+        msg = MIMEMultipart('related')
+        msg['Subject'] = subject_full
+        cfg = EmailConfig.get_active()
+        if cfg and (cfg.username or cfg.from_name):
+            msg['From'] = (cfg.from_name + f' <{cfg.username}>') if (cfg.from_name and cfg.username) else (cfg.username or '')
+        msg['To'] = recipient_email
+        html_part = MIMEText(html_content, 'html', 'utf-8')
+        msg.attach(html_part)
+        smtp_host = cfg.host or getattr(settings, 'EMAIL_HOST', None)
+        smtp_port = cfg.port or getattr(settings, 'EMAIL_PORT', 587)
+        use_tls = cfg.use_tls if cfg is not None else getattr(settings, 'EMAIL_USE_TLS', True)
+        use_ssl = cfg.use_ssl if cfg is not None else getattr(settings, 'EMAIL_USE_SSL', False)
+        smtp_user = cfg.username or getattr(settings, 'EMAIL_HOST_USER', None)
+        smtp_pass = cfg.password or getattr(settings, 'EMAIL_HOST_PASSWORD', None)
+        if not smtp_host:
+            return False
+        if use_ssl:
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port)
+        else:
+            server = smtplib.SMTP(smtp_host, smtp_port)
+        try:
+            if use_tls and not use_ssl:
+                server.starttls()
+            if smtp_user and smtp_pass:
+                server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+        finally:
+            server.quit()
+        import logging
+        logging.getLogger(__name__).info(
+            'Task deadline reminder email sent: task_id=%s, hours=%s, to=%s',
+            getattr(task, 'id', None), hours_remaining, recipient_email
+        )
+        return True
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception('Failed to send task deadline reminder email: %s', e)
+        return False
+
+
+# Deadline reminder windows (hours): 8h when 7.5 < remaining <= 8.5, 2h when 1.5 < remaining <= 2.5
+TASK_DEADLINE_WINDOW_8H_MIN = 7.5
+TASK_DEADLINE_WINDOW_8H_MAX = 8.5
+TASK_DEADLINE_WINDOW_2H_MIN = 1.5
+TASK_DEADLINE_WINDOW_2H_MAX = 2.5
+
+
+def run_task_deadline_reminders(dry_run=False):
+    """
+    Check all open tasks with deadline and send 8h/2h reminder emails as needed.
+    Called automatically by the in-app scheduler and by the management command.
+    Returns (sent_8h_count, sent_2h_count).
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    now = timezone.now()
+    tasks = TicketTask.objects.filter(
+        deadline__gt=now,
+        deadline__isnull=False,
+        status__in=['open', 'in_progress', 'waiting_for_user'],
+        assigned_to__isnull=False,
+    ).exclude(
+        assigned_to__email='',
+    ).exclude(
+        assigned_to__email__isnull=True,
+    ).select_related('assigned_to')
+
+    sent_8h = 0
+    sent_2h = 0
+
+    for task in tasks:
+        remaining_seconds = (task.deadline - now).total_seconds()
+        remaining_hours = remaining_seconds / 3600.0
+
+        if remaining_hours <= TASK_DEADLINE_WINDOW_2H_MIN:
+            continue
+
+        if not task.deadline_reminder_8h_sent and (TASK_DEADLINE_WINDOW_8H_MIN < remaining_hours <= TASK_DEADLINE_WINDOW_8H_MAX):
+            if dry_run:
+                sent_8h += 1
+            else:
+                if send_task_deadline_reminder_email(task, 8):
+                    task.deadline_reminder_8h_sent = True
+                    task.save(update_fields=['deadline_reminder_8h_sent'])
+                    sent_8h += 1
+                    logger.info('Sent 8h deadline reminder for task #%s to %s', task.id, getattr(task.assigned_to, 'email', ''))
+
+        elif not task.deadline_reminder_2h_sent and (TASK_DEADLINE_WINDOW_2H_MIN < remaining_hours <= TASK_DEADLINE_WINDOW_2H_MAX):
+            if dry_run:
+                sent_2h += 1
+            else:
+                if send_task_deadline_reminder_email(task, 2):
+                    task.deadline_reminder_2h_sent = True
+                    task.save(update_fields=['deadline_reminder_2h_sent'])
+                    sent_2h += 1
+                    logger.info('Sent 2h deadline reminder for task #%s to %s', task.id, getattr(task.assigned_to, 'email', ''))
+
+    return sent_8h, sent_2h
+
+
+def create_task_assigned_email_html(task, assigned_by_user):
+    """Create HTML content for 'task assigned to you' email."""
+    deadline_str = get_iranian_datetime_full(task.deadline) if task.deadline else _('تعیین نشده')
+    title = task.title or _('تسک')
+    priority_persian = get_priority_display_persian(task.priority) if hasattr(task, 'priority') else ''
+    status_persian = get_status_display_persian(task.status) if hasattr(task, 'status') else ''
+    assigner_name = (assigned_by_user.get_full_name() or assigned_by_user.username) if assigned_by_user else _('سیستم')
+    html = f"""
+    <!DOCTYPE html>
+    <html dir="rtl" lang="fa">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>تسک جدید به شما اختصاص داده شد</title>
+        <style>
+            body {{ font-family: Tahoma, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background-color: #f5f5f5; direction: rtl; text-align: right; font-size: 16px; line-height: 1.7; }}
+            .email-container {{ max-width: 600px; margin: 0 auto; background-color: #fff; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; }}
+            .header {{ background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 25px 20px; text-align: center; color: white; }}
+            .header h1 {{ margin: 0; font-size: 22px; }}
+            .content {{ padding: 25px 20px; }}
+            .info-section {{ background-color: #eff6ff; border-radius: 8px; padding: 16px; margin: 16px 0; border-right: 4px solid #2563eb; }}
+            .info-row {{ margin: 8px 0; }}
+            .info-label {{ font-weight: bold; color: #1e40af; }}
+        </style>
+    </head>
+    <body>
+        <div class="email-container">
+            <div class="header">
+                <h1>تسک جدید به شما اختصاص داده شد</h1>
+                <p>یک تسک تیکت برای شما تعیین شده است.</p>
+            </div>
+            <div class="content">
+                <p>سلام،</p>
+                <p>تسک زیر توسط «{assigner_name}» به شما اختصاص داده شده است. لطفاً در اسرع وقت آن را بررسی کنید.</p>
+                <div class="info-section">
+                    <div class="info-row"><span class="info-label">عنوان تسک:</span> {title}</div>
+                    <div class="info-row"><span class="info-label">شماره تسک:</span> #{task.id}</div>
+                    <div class="info-row"><span class="info-label">اولویت:</span> {priority_persian}</div>
+                    <div class="info-row"><span class="info-label">وضعیت:</span> {status_persian}</div>
+                    <div class="info-row"><span class="info-label">مهلت انجام:</span> {deadline_str}</div>
+                </div>
+                <p>برای مشاهده جزئیات و اقدام، به پنل تسک‌های تیکت مراجعه کنید.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return html
+
+
+def send_task_assigned_email(task, assigned_by_user):
+    """
+    Send email to the user when a task is assigned to them (create or reassign).
+    Uses the same SMTP config as other system emails.
+    """
+    if not task or not task.assigned_to:
+        return False
+    recipient_email = getattr(task.assigned_to, 'email', None)
+    if not recipient_email or not recipient_email.strip():
+        return False
+    try:
+        html_content = create_task_assigned_email_html(task, assigned_by_user)
+        subject_full = '\u202Bتسک جدید به شما اختصاص داده شد\u202C'
+        msg = MIMEMultipart('related')
+        msg['Subject'] = subject_full
+        cfg = EmailConfig.get_active()
+        if cfg and (cfg.username or cfg.from_name):
+            msg['From'] = (cfg.from_name + f' <{cfg.username}>') if (cfg.from_name and cfg.username) else (cfg.username or '')
+        msg['To'] = recipient_email
+        html_part = MIMEText(html_content, 'html', 'utf-8')
+        msg.attach(html_part)
+        smtp_host = cfg.host or getattr(settings, 'EMAIL_HOST', None)
+        smtp_port = cfg.port or getattr(settings, 'EMAIL_PORT', 587)
+        use_tls = cfg.use_tls if cfg is not None else getattr(settings, 'EMAIL_USE_TLS', True)
+        use_ssl = cfg.use_ssl if cfg is not None else getattr(settings, 'EMAIL_USE_SSL', False)
+        smtp_user = cfg.username or getattr(settings, 'EMAIL_HOST_USER', None)
+        smtp_pass = cfg.password or getattr(settings, 'EMAIL_HOST_PASSWORD', None)
+        if not smtp_host:
+            return False
+        if use_ssl:
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port)
+        else:
+            server = smtplib.SMTP(smtp_host, smtp_port)
+        try:
+            if use_tls and not use_ssl:
+                server.starttls()
+            if smtp_user and smtp_pass:
+                server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+        finally:
+            server.quit()
+        import logging
+        logging.getLogger(__name__).info(
+            'Task assigned email sent: task_id=%s, to=%s',
+            getattr(task, 'id', None), recipient_email
+        )
+        return True
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception('Failed to send task assigned email: %s', e)
+        return False
+
 
 def create_deletion_email_template(user, additional_info=None):
     """Create a special email template for deleted tickets"""

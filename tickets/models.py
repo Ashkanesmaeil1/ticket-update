@@ -603,6 +603,25 @@ class TicketTask(models.Model):
     updated_at = models.DateTimeField(_('تاریخ بروزرسانی'), auto_now=True)
     resolved_at = models.DateTimeField(_('تاریخ انجام'), null=True, blank=True)
     deadline = models.DateTimeField(_('مهلت انجام'), null=True, blank=True, help_text=_('تاریخ و زمان مهلت انجام تسک'))
+    deadline_reminder_8h_sent = models.BooleanField(
+        _('یادآور ۸ ساعت ارسال شده'), default=False, editable=False,
+        help_text=_('آیا ایمیل یادآور ۸ ساعت مانده به مهلت ارسال شده است')
+    )
+    deadline_reminder_2h_sent = models.BooleanField(
+        _('یادآور ۲ ساعت ارسال شده'), default=False, editable=False,
+        help_text=_('آیا ایمیل یادآور ۲ ساعت مانده به مهلت ارسال شده است')
+    )
+    
+    def save(self, *args, **kwargs):
+        if self.pk and self.deadline is not None:
+            try:
+                old = TicketTask.objects.get(pk=self.pk)
+                if old.deadline != self.deadline:
+                    self.deadline_reminder_8h_sent = False
+                    self.deadline_reminder_2h_sent = False
+            except TicketTask.DoesNotExist:
+                pass
+        super().save(*args, **kwargs)
     
     def is_deadline_expired(self):
         """Check if the task deadline has expired"""
