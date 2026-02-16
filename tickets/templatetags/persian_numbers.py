@@ -1,4 +1,5 @@
 from django import template
+from tickets.services import get_status_display_persian, get_priority_display_persian
 
 register = template.Library()
 
@@ -152,3 +153,29 @@ def persian_digits(value):
     
     return result
 
+@register.filter
+def status_persian(status):
+    """
+    Convert ticket status to Persian display text.
+    
+    Examples:
+        - 'open' → 'باز'
+        - 'in_progress' → 'در حال انجام'
+        - 'resolved' → 'انجام شده'
+        - 'closed' → 'بسته'
+        - 'waiting_for_user' → 'در انتظار کاربر'
+    """
+    return get_status_display_persian(status)
+
+@register.filter
+def priority_persian(priority):
+    """
+    Convert ticket priority to Persian display text.
+    
+    Examples:
+        - 'low' → 'کم'
+        - 'medium' → 'متوسط'
+        - 'high' → 'زیاد'
+        - 'urgent' → 'فوری'
+    """
+    return get_priority_display_persian(priority)

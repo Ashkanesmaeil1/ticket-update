@@ -3,6 +3,7 @@
 {% load persian_date %}
 {% load persian_numbers %}
 {% load dwms_filters %}
+{% load static %}
 
 {% block title %}{% trans "تاریخچه حرکات" %} - {{ warehouse.name }}{% endblock %}
 
@@ -41,7 +42,8 @@
         border-collapse: collapse;
     }
 
-    th, td {
+    th,
+    td {
         padding: 1rem;
         text-align: right;
         border-bottom: 1px solid #e5e7eb;
@@ -79,11 +81,12 @@
         .movements-table {
             overflow-x: auto;
         }
-        
+
         table {
             min-width: 800px;
         }
     }
+
 </style>
 {% endblock %}
 
@@ -108,18 +111,21 @@
                 <label>{% trans "نوع حرکت" %}</label>
                 <select name="movement_type" class="form-select">
                     <option value="">{% trans "همه" %}</option>
-                    <option value="IN" {% if movement_type_filter == "IN" %}selected{% endif %}>{% trans "ورود" %}</option>
-                    <option value="OUT" {% if movement_type_filter == "OUT" %}selected{% endif %}>{% trans "خروج" %}</option>
-                    <option value="ADJUSTMENT" {% if movement_type_filter == "ADJUSTMENT" %}selected{% endif %}>{% trans "اصلاح" %}</option>
+                    <option value="IN" {% if movement_type_filter == "IN" %}selected{% endif %}>{% trans "ورود" %}
+                    </option>
+                    <option value="OUT" {% if movement_type_filter == "OUT" %}selected{% endif %}>{% trans "خروج" %}
+                    </option>
+                    <option value="ADJUSTMENT" {% if movement_type_filter == "ADJUSTMENT" %}selected{% endif %}>{% trans
+                        "اصلاح" %}</option>
                 </select>
             </div>
             <div>
                 <label>{% trans "از تاریخ" %}</label>
-                <input type="date" name="date_from" value="{{ date_from }}" class="form-control">
+                <input type="date" name="date_from" id="date-from-input" class="form-control" value="{{ date_from }}">
             </div>
             <div>
                 <label>{% trans "تا تاریخ" %}</label>
-                <input type="date" name="date_to" value="{{ date_to }}" class="form-control">
+                <input type="date" name="date_to" id="date-to-input" class="form-control" value="{{ date_to }}">
             </div>
             <div style="display: flex; align-items: flex-end;">
                 <button type="submit" class="btn btn-primary" style="width: 100%;">
@@ -171,15 +177,18 @@
     {% if page_obj.has_other_pages %}
     <div style="margin-top: 1.5rem; display: flex; justify-content: center; gap: 0.5rem;">
         {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}{% if item_filter %}&item={{ item_filter }}{% endif %}{% if movement_type_filter %}&movement_type={{ movement_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="btn btn-secondary">
+        <a href="?page={{ page_obj.previous_page_number }}{% if item_filter %}&item={{ item_filter }}{% endif %}{% if movement_type_filter %}&movement_type={{ movement_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+            class="btn btn-secondary">
             <i class="fas fa-arrow-right"></i> {% trans "قبلی" %}
         </a>
         {% endif %}
-        <span style="padding: 0.75rem 1.5rem; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+        <span
+            style="padding: 0.75rem 1.5rem; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
             {% trans "صفحه" %} {{ page_obj.number }} {% trans "از" %} {{ page_obj.paginator.num_pages }}
         </span>
         {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}{% if item_filter %}&item={{ item_filter }}{% endif %}{% if movement_type_filter %}&movement_type={{ movement_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="btn btn-secondary">
+        <a href="?page={{ page_obj.next_page_number }}{% if item_filter %}&item={{ item_filter }}{% endif %}{% if movement_type_filter %}&movement_type={{ movement_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+            class="btn btn-secondary">
             {% trans "بعدی" %} <i class="fas fa-arrow-left"></i>
         </a>
         {% endif %}
@@ -187,4 +196,3 @@
     {% endif %}
 </div>
 {% endblock %}
-

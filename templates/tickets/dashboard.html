@@ -848,8 +848,8 @@
         <!-- Content Sections -->
         <div class="content-sections">
         
-    <!-- Recent Tickets Section (Administrator / IT Manager) - like Tasks section -->
-            {% if is_administrator or user.role == 'it_manager' %}
+    <!-- Recent Tickets Section (Administrator only) - like Tasks section -->
+            {% if is_administrator %}
             <div class="section-card" id="recent-tickets" style="border: 2px solid #6366f1; background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(99, 102, 241, 0.02) 100%);">
                 <div class="section-header">
                     <div class="section-title">
@@ -1020,13 +1020,16 @@
             {% endif %}
         
         {% if user.role == 'it_manager' %}
-            <!-- IT Manager - Ticket Sections -->
-            {% if tickets %}
-            <div class="section-card">
+            <!-- IT Manager - Tickets Section -->
+            {% if dashboard_recent_tickets %}
+            <div class="section-card" id="it-manager-tickets" style="border: 2px solid #6366f1; background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(99, 102, 241, 0.02) 100%);">
                 <div class="section-header">
                     <div class="section-title">
-                        <i class="fas fa-list"></i>
-                        {% trans "تیکت‌های بخش IT" %}
+                        <i class="fas fa-ticket-alt" style="color: #6366f1;"></i>
+                        {% trans "تیکت‌ها" %}
+                        <span style="font-size: 0.9rem; color: #6b7280; margin-right: 0.5rem;">
+                            ({{ open_tickets|default:0|persian_digits }} {% trans "باز" %} | {{ resolved_tickets|default:0|persian_digits }} {% trans "انجام شده" %})
+                        </span>
                     </div>
                     <a href="{% url 'tickets:ticket_list' %}" class="section-action">
                         <i class="fas fa-eye"></i>
@@ -1035,15 +1038,13 @@
                 </div>
                 <div class="section-body">
                     <div class="ticket-grid">
-                        {% for ticket in tickets %}
-                        <div class="ticket-item">
-                            <div class="ticket-id">#{{ ticket.id|persian_id }}</div>
+                        {% for ticket in dashboard_recent_tickets %}
+                        <div class="ticket-item" style="border-left: 4px solid #6366f1;">
+                            <div class="ticket-id" style="background: #6366f1; color: white;">#{{ ticket.id|persian_id }}</div>
                             <div class="ticket-content">
                                 <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
                                 <div class="ticket-meta">
                                     <span class="ticket-badge badge-category">{{ ticket.created_by.get_full_name }}</span>
-                                    <span class="ticket-badge badge-category">{{ ticket.created_by.get_department_and_role_display }}</span>
-                                    <span class="ticket-badge badge-category">{{ ticket.get_category_display }}</span>
                                     <span class="ticket-badge badge-priority-{{ ticket.priority }}">{{ ticket.get_priority_display }}</span>
                                     <span class="ticket-badge badge-status-{{ ticket.status }}">{{ ticket.get_status_display }}</span>
                                     <span class="ticket-date">{{ ticket.created_at|persian_date_only }}</span>
@@ -1062,40 +1063,82 @@
             </div>
             {% endif %}
             
-            {% if my_tickets and not is_administrator %}
-            <div class="section-card">
+            <!-- IT Manager - Tasks Section -->
+            {% if my_created_tasks %}
+            <div class="section-card" id="it-manager-tasks" style="border: 2px solid #8b5cf6; background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(139, 92, 246, 0.02) 100%);">
                 <div class="section-header">
                     <div class="section-title">
-                        <i class="fas fa-user"></i>
-                        {% trans "تیکت‌های من" %}
+                        <i class="fas fa-tasks" style="color: #8b5cf6;"></i>
+                        {% trans "تسک‌ها" %}
+                        <span style="font-size: 0.9rem; color: #6b7280; margin-right: 0.5rem;">
+                            ({{ open_tasks_count|default:0|persian_digits }} {% trans "باز" %} | {{ resolved_tasks_count|default:0|persian_digits }} {% trans "انجام شده" %})
+                        </span>
                     </div>
-                    <a href="{% url 'tickets:ticket_list' %}?my_tickets=1" class="section-action">
-                        <i class="fas fa-eye"></i>
-                        {% trans "مشاهده همه" %}
-                    </a>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <a href="{% url 'tickets:ticket_task_list' %}" class="section-action" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                            <i class="fas fa-eye"></i>
+                            {% trans "مشاهده همه تسک‌ها" %}
+                        </a>
+                        {% if can_create_tasks %}
+                        <a href="{% url 'tickets:ticket_task_create' %}" class="section-action" style="background: rgba(22, 163, 74, 0.1); color: var(--success); border: 1px solid var(--success);">
+                            <i class="fas fa-plus"></i>
+                            {% trans "ایجاد تسک جدید" %}
+                        </a>
+                        {% endif %}
+                    </div>
                 </div>
                 <div class="section-body">
                     <div class="ticket-grid">
-                        {% for ticket in my_tickets %}
-                        <div class="ticket-item">
-                            <div class="ticket-id">#{{ ticket.id|persian_id }}</div>
+                        {% for task in my_created_tasks %}
+                        <div class="ticket-item" style="border-left: 4px solid #8b5cf6;">
+                            <div class="ticket-id" style="background: #8b5cf6; color: white;">Task #{{ task.id|persian_id }}</div>
                             <div class="ticket-content">
-                                <div class="ticket-title">{{ ticket.title|truncatechars:50 }}</div>
+                                <div class="ticket-title">{{ task.title|truncatechars:50 }}</div>
                                 <div class="ticket-meta">
-                                    <span class="ticket-badge badge-category">{{ ticket.get_category_display }}</span>
-                                    <span class="ticket-badge badge-priority-{{ ticket.priority }}">{{ ticket.get_priority_display }}</span>
-                                    <span class="ticket-badge badge-status-{{ ticket.status }}">{{ ticket.get_status_display }}</span>
-                                    <span class="ticket-date">{{ ticket.created_at|persian_date_only }}</span>
+                                    {% if task.assigned_to %}
+                                    <span class="ticket-badge badge-category">{{ task.assigned_to.get_full_name }}</span>
+                                    {% endif %}
+                                    <span class="ticket-badge badge-priority-{{ task.priority }}">{{ task.get_priority_display }}</span>
+                                    <span class="ticket-badge badge-status-{{ task.status }}">{{ task.get_status_display }}</span>
+                                    <span class="ticket-date">{{ task.created_at|persian_date_only }}</span>
                                 </div>
                             </div>
                             <div class="ticket-actions">
-                                <a href="{% url 'tickets:ticket_detail' ticket.id %}" class="btn-view">
+                                <a href="{% url 'tickets:ticket_task_detail' task.id %}" class="btn-view">
                                     <i class="fas fa-eye"></i>
                                     {% trans "مشاهده" %}
                                 </a>
                             </div>
                         </div>
                         {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="section-card" id="it-manager-tasks" style="border: 2px solid #8b5cf6; background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(139, 92, 246, 0.02) 100%);">
+                <div class="section-header">
+                    <div class="section-title">
+                        <i class="fas fa-tasks" style="color: #8b5cf6;"></i>
+                        {% trans "تسک‌ها" %}
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <a href="{% url 'tickets:ticket_task_list' %}" class="section-action" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                            <i class="fas fa-eye"></i>
+                            {% trans "مشاهده همه تسک‌ها" %}
+                        </a>
+                        {% if can_create_tasks %}
+                        <a href="{% url 'tickets:ticket_task_create' %}" class="section-action" style="background: rgba(22, 163, 74, 0.1); color: var(--success); border: 1px solid var(--success);">
+                            <i class="fas fa-plus"></i>
+                            {% trans "ایجاد تسک جدید" %}
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="section-body">
+                    <div class="empty-state">
+                        <i class="fas fa-tasks font-size-3rem"></i>
+                        <h6>{% trans "تسکی در سامانه ثبت نشده است" %}</h6>
+                        <p>{% trans "هنوز هیچ تسکی در سیستم ثبت نشده است." %}</p>
                     </div>
                 </div>
             </div>

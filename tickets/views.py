@@ -203,7 +203,7 @@ from .forms import (
     InventoryElementForm, ElementSpecificationForm, TicketTaskForm, TaskReplyForm, TaskStatusForm,
     SupervisorAssignmentForm, TicketCategoryForm
 )
-from .services import StatisticsService, notify_it_manager, notify_employee_ticket_created, notify_employee_ticket_replied, notify_employee_ticket_status_changed, notify_employee_ticket_assigned, create_it_manager_login_notification
+from .services import StatisticsService, notify_it_manager, notify_employee_ticket_created, notify_employee_ticket_replied, notify_employee_ticket_status_changed, notify_employee_ticket_assigned, notify_assigned_user_ticket_assigned, create_it_manager_login_notification
 from .models import Notification, EmailConfig
 from django.utils.translation import gettext_lazy as _
 from django.http import HttpResponseForbidden
@@ -1793,6 +1793,9 @@ def ticket_update(request, ticket_id):
             if user.role == 'employee' and hasattr(form, 'cleaned_data') and 'ticket_category' in form.cleaned_data:
                 ticket.ticket_category = form.cleaned_data.get('ticket_category')
             form.save()
+            
+            # Refresh ticket from database to ensure all relationships are loaded
+            ticket.refresh_from_db()
 
             # Send specific notifications based on what changed
             changes_notified = False
@@ -1836,6 +1839,9 @@ def ticket_update(request, ticket_id):
 
             # Assignment changed
             if ticket.assigned_to != original_assignment and ticket.assigned_to:
+                print(f"🔍 [ticket_update] Assignment changed detected!")
+                print(f"🔍 [ticket_update] Original: {original_assignment}, New: {ticket.assigned_to}")
+                print(f"🔍 [ticket_update] Ticket ID: {ticket.id}, Assigned to ID: {ticket.assigned_to.id if ticket.assigned_to else None}")
                 notify_it_manager(
                     action_type='assignment',
                     ticket=ticket,
@@ -1843,6 +1849,10 @@ def ticket_update(request, ticket_id):
                     additional_info=f"اختصاص داده شده به: {ticket.assigned_to.get_full_name()}"
                 )
                 notify_employee_ticket_assigned(ticket, request.user)
+                # Send email to the user who was assigned the ticket
+                print(f"🔍 [ticket_update] Calling notify_assigned_user_ticket_assigned...")
+                notify_assigned_user_ticket_assigned(ticket, request.user)
+                print(f"🔍 [ticket_update] notify_assigned_user_ticket_assigned completed")
                 changes_notified = True
                 
                 # Create notification for IT managers about ticket assignment
@@ -2216,18 +2226,27 @@ def update_ticket_status(request, ticket_id):
     
     # Handle assignment
     if assigned_to_id:
+        print(f"🔍 [update_ticket_status] assigned_to_id received: {assigned_to_id}")
         try:
             assigned_user = User.objects.get(id=assigned_to_id)
+            print(f"🔍 [update_ticket_status] Found user: {assigned_user.get_full_name()} (ID: {assigned_user.id})")
             if user.role == 'it_manager' or (user.role == 'technician' and assigned_user.id == user.id):
+                print(f"🔍 [update_ticket_status] User has permission to assign. Role: {user.role}")
                 ticket.assigned_to = assigned_user
                 
                 # Manual State Control: Assignment operations do not change ticket status
                 # Status must be changed explicitly via the status parameter
                 # Use update_fields to prevent signal-based status changes
                 ticket.save(update_fields=['assigned_to'])
+                print(f"🔍 [update_ticket_status] Ticket saved with assigned_to: {ticket.assigned_to_id}")
+                
+                # Refresh ticket from database to ensure assigned_to relationship is loaded
+                ticket.refresh_from_db()
+                print(f"🔍 [update_ticket_status] Ticket refreshed. assigned_to: {ticket.assigned_to}")
                 
                 # After assignment or status change in update_ticket_status
                 if assigned_to_id and assigned_user:
+                    print(f"🔍 [update_ticket_status] Condition check passed, proceeding with notifications...")
                     # For access tickets pending approval, notify team leader instead of IT manager
                     if ticket.ticket_category and ticket.ticket_category.requires_supervisor_approval and getattr(ticket, 'access_approval_status', 'not_required') == 'pending':
                         from .services import notify_team_leader_access_email
@@ -2239,6 +2258,12 @@ def update_ticket_status(request, ticket_id):
                             user=request.user,
                             additional_info=f"تخصیص داده شده به: {assigned_user.get_full_name() or assigned_user.username}"
                         )
+                    # Send email to the user who was assigned the ticket
+                    print(f"🔍 [update_ticket_status] Calling notify_assigned_user_ticket_assigned...")
+                    notify_assigned_user_ticket_assigned(ticket, request.user)
+                    print(f"🔍 [update_ticket_status] notify_assigned_user_ticket_assigned completed")
+            else:
+                print(f"🔍 [update_ticket_status] User does NOT have permission. Role: {user.role}, Assigned user ID: {assigned_user.id}, Current user ID: {user.id}")
                 elif status and status != original_status:
                     from tickets.services import get_status_display_persian as _pers
                     _prev = _pers(original_status)
@@ -7324,27 +7349,13 @@ def get_employees_for_department(request, department_id):
                     'employees': []
                 })
         
-        # Get employees from this department (filtered by permissions above)
+        # Get employees from this department (including supervisors - سرپرست بخش)
         employees = User.objects.filter(
             department=department,
             is_active=True,
             role='employee'
         )
-
-        # Exclude department heads (supervisors) - users with senior/manager role
-        employees = employees.exclude(department_role__in=['senior', 'manager'])
-        
-        # Exclude the FK supervisor of this department if exists
-        if department.supervisor:
-            employees = employees.exclude(id=department.supervisor.id)
-        
-        # Exclude users who supervise this department via M2M relationship
-        supervisors_of_dept = User.objects.filter(
-            supervised_departments=department,
-            is_active=True
-        ).values_list('id', flat=True)
-        if supervisors_of_dept:
-            employees = employees.exclude(id__in=supervisors_of_dept)
+        # Allow assigning to department supervisor - no exclusion of senior/manager
 
         # Supervisors and task creators must not be able to assign tasks to themselves
         if (is_supervisor or is_task_creator) and user and user.id:

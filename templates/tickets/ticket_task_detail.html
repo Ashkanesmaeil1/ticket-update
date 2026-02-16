@@ -467,8 +467,10 @@
                                         <span
                                             class="badge {% if ext_req.status == 'pending' %}badge-info{% elif ext_req.status == 'approved' %}badge-success{% else %}badge-danger{% endif %}"
                                             style="min-width: 100px; {% if ext_req.status == 'pending' %}background-color: #3b82f6; color: white;{% elif ext_req.status == 'approved' %}background-color: #10b981; color: white;{% else %}background-color: #ef4444; color: white;{% endif %}">
-                                            {% if ext_req.status == 'pending' %}<i class="fas fa-hourglass-half me-1"></i>{% trans "در انتظار بررسی" %}
-                                            {% elif ext_req.status == 'approved' %}<i class="fas fa-check me-1"></i>{% trans "تایید شده" %}
+                                            {% if ext_req.status == 'pending' %}<i
+                                                class="fas fa-hourglass-half me-1"></i>{% trans "در انتظار بررسی" %}
+                                            {% elif ext_req.status == 'approved' %}<i class="fas fa-check me-1"></i>{%
+                                            trans "تایید شده" %}
                                             {% else %}<i class="fas fa-times me-1"></i>{% trans "رد شده" %}
                                             {% endif %}
                                         </span>
@@ -533,7 +535,8 @@
                     {% csrf_token %}
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label" style="font-weight: 600; color: #374151;">{% trans "وضعیت" %}</label>
+                            <label class="form-label" style="font-weight: 600; color: #374151;">{% trans "وضعیت"
+                                %}</label>
                             <select name="status" class="form-select">
                                 {% for status_code, status_name in task_status_choices %}
                                 <option value="{{ status_code }}" {% if task.status == status_code %}selected{% endif %}>
@@ -543,7 +546,8 @@
                             </select>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label" style="font-weight: 600; color: #374151;">{% trans "اولویت" %}</label>
+                            <label class="form-label" style="font-weight: 600; color: #374151;">{% trans "اولویت"
+                                %}</label>
                             <select name="priority" class="form-select">
                                 {% for priority_code, priority_name in task_priority_choices %}
                                 <option value="{{ priority_code }}" {% if task.priority == priority_code %}selected{% endif %}>

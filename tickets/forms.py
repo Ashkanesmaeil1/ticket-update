@@ -638,27 +638,13 @@ class TicketTaskForm(forms.ModelForm):
         # Update assigned_to queryset based on department AND supervisor restrictions
         if 'assigned_to' in self.fields:
             if department:
-                # Start with employees from the selected department
+                # Start with employees from the selected department (including supervisors/senior/manager)
                 employee_queryset = User.objects.filter(
                     department=department,
                     is_active=True,
                     role='employee'
                 )
-
-                # Exclude department heads (supervisors) - users with senior/manager role
-                employee_queryset = employee_queryset.exclude(department_role__in=['senior', 'manager'])
-                
-                # Exclude the FK supervisor of this department if exists
-                if department.supervisor:
-                    employee_queryset = employee_queryset.exclude(id=department.supervisor.id)
-                
-                # Exclude users who supervise this department via M2M relationship
-                supervisors_of_dept = User.objects.filter(
-                    supervised_departments=department,
-                    is_active=True
-                ).values_list('id', flat=True)
-                if supervisors_of_dept:
-                    employee_queryset = employee_queryset.exclude(id__in=supervisors_of_dept)
+                # Allow assigning to department supervisor (سرپرست بخش) - no exclusion of senior/manager
 
                 # Supervisors and task creators must not be able to assign tasks to themselves
                 if (is_supervisor or is_task_creator) and user and user.id:

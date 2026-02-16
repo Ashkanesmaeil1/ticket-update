@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load i18n %}
 {% load persian_date %}
+{% load persian_numbers %}
 
 {% block title %}{% trans "آمار و تحلیل" %} - {% trans "سیستم تیکت" %}{% endblock %}
 
@@ -511,7 +512,7 @@
                         <strong>{% trans "اولویت" %}:</strong>
                         {% for p in dept.priority_breakdown_created %}
                         <span class="badge-modern ms-2" style="background: {% if p.priority == 'urgent' %}#dc3545{% elif p.priority == 'high' %}#ffc107{% elif p.priority == 'medium' %}#17a2b8{% else %}#28a745{% endif %}; color: {% if p.priority == 'urgent' or p.priority == 'high' %}white{% else %}{% if p.priority == 'medium' %}white{% else %}white{% endif %}{% endif %};">
-                            {{ p.priority|title }}: {{ p.count }}
+                            {{ p.priority|priority_persian }}: {{ p.count|persian_digits }}
                         </span>
                         {% endfor %}
                     </div>
@@ -521,7 +522,7 @@
                         <strong>{% trans "وضعیت" %}:</strong>
                         {% for s in dept.status_breakdown_created %}
                         <span class="badge-modern ms-2" style="background: {% if s.status == 'open' %}#ffc107{% elif s.status == 'in_progress' %}#0d6efd{% elif s.status == 'resolved' %}#198754{% elif s.status == 'closed' %}#6c757d{% else %}#0dcaf0{% endif %}; color: white;">
-                            {{ s.status|title }}: {{ s.count }}
+                            {{ s.status|status_persian }}: {{ s.count|persian_digits }}
                         </span>
                         {% endfor %}
                     </div>
@@ -537,7 +538,7 @@
                         <strong>{% trans "اولویت" %}:</strong>
                         {% for p in dept.priority_breakdown_received %}
                         <span class="badge-modern ms-2" style="background: {% if p.priority == 'urgent' %}#dc3545{% elif p.priority == 'high' %}#ffc107{% elif p.priority == 'medium' %}#17a2b8{% else %}#28a745{% endif %}; color: white;">
-                            {{ p.priority|title }}: {{ p.count }}
+                            {{ p.priority|priority_persian }}: {{ p.count|persian_digits }}
                         </span>
                         {% endfor %}
                     </div>
@@ -547,7 +548,7 @@
                         <strong>{% trans "وضعیت" %}:</strong>
                         {% for s in dept.status_breakdown_received %}
                         <span class="badge-modern ms-2" style="background: {% if s.status == 'open' %}#ffc107{% elif s.status == 'in_progress' %}#0d6efd{% elif s.status == 'resolved' %}#198754{% elif s.status == 'closed' %}#6c757d{% else %}#0dcaf0{% endif %}; color: white;">
-                            {{ s.status|title }}: {{ s.count }}
+                            {{ s.status|status_persian }}: {{ s.count|persian_digits }}
                         </span>
                         {% endfor %}
                     </div>

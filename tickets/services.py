@@ -1334,6 +1334,50 @@ def notify_employee_ticket_assigned(ticket, user):
         additional_info = f"تیکت شما به «{assigned_to_name}» تخصیص داده شد."
         notify_employee('assignment', ticket, user, additional_info)
 
+def notify_assigned_user_ticket_assigned(ticket, assigned_by_user):
+    """
+    Send email notification to the user who was assigned the ticket.
+    
+    Args:
+        ticket: Ticket object that was assigned
+        assigned_by_user: User object who assigned the ticket
+    """
+    print(f"🔍 [notify_assigned_user_ticket_assigned] Function called!")
+    print(f"🔍 [notify_assigned_user_ticket_assigned] Ticket ID: {ticket.id}")
+    print(f"🔍 [notify_assigned_user_ticket_assigned] Assigned by: {assigned_by_user.get_full_name()}")
+    
+    try:
+        # Refresh ticket to ensure assigned_to relationship is loaded
+        print(f"🔍 [notify_assigned_user_ticket_assigned] Refreshing ticket from DB...")
+        ticket.refresh_from_db()
+        print(f"🔍 [notify_assigned_user_ticket_assigned] Ticket refreshed. assigned_to_id: {ticket.assigned_to_id}")
+        
+        # Check if ticket has assigned_to
+        if not ticket.assigned_to:
+            print(f"❌ [notify_assigned_user_ticket_assigned] Ticket #{ticket.id} has no assigned_to user")
+            return
+        
+        print(f"🔍 [notify_assigned_user_ticket_assigned] Assigned to: {ticket.assigned_to.get_full_name()} (ID: {ticket.assigned_to.id})")
+        
+        # Check if assigned user has email
+        if not ticket.assigned_to.email:
+            print(f"❌ [notify_assigned_user_ticket_assigned] User {ticket.assigned_to.get_full_name()} (ID: {ticket.assigned_to.id}) has no email address")
+            return
+        
+        print(f"🔍 [notify_assigned_user_ticket_assigned] User email: {ticket.assigned_to.email}")
+        
+        assigned_to_name = ticket.assigned_to.get_full_name() or ticket.assigned_to.username
+        assigned_by_name = assigned_by_user.get_full_name() or assigned_by_user.username
+        additional_info = f"تیکت #{ticket.id} با عنوان «{ticket.title}» به شما اختصاص داده شد.\n\nتخصیص داده شده توسط: {assigned_by_name}\n\nلطفاً برای مشاهده و پاسخ به تیکت، به سیستم مراجعه کنید."
+        
+        print(f"📧 [notify_assigned_user_ticket_assigned] Sending assignment email to {ticket.assigned_to.email} for ticket #{ticket.id}")
+        notify_employee('assignment', ticket, assigned_by_user, additional_info, employee_email=ticket.assigned_to.email)
+        print(f"✅ [notify_assigned_user_ticket_assigned] Assignment email sent successfully to {ticket.assigned_to.email}")
+    except Exception as e:
+        print(f"❌ [notify_assigned_user_ticket_assigned] Error sending assignment email: {e}")
+        import traceback
+        traceback.print_exc()
+
 def notify_employee_account_created(user, created_by):
     """
     Send notification to new employee when their account is created

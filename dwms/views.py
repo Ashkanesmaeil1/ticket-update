@@ -8,7 +8,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 from django.core.paginator import Paginator
 from django.utils import timezone
 from django.conf import settings
-from datetime import timedelta
+from datetime import timedelta, datetime
 import json
 import logging
 import traceback
@@ -620,11 +620,26 @@ def movement_history(request, department_id):
     if movement_type_filter:
         movements = movements.filter(movement_type=movement_type_filter)
     
+    # Filter by date (input type="date" sends dates in YYYY-MM-DD format)
     if date_from:
-        movements = movements.filter(movement_date__gte=date_from)
+        try:
+            # date_from is already in YYYY-MM-DD format from HTML5 date input
+            # Use start of day for date_from
+            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+            date_from_start = timezone.make_aware(datetime.combine(date_from_obj, datetime.min.time()))
+            movements = movements.filter(movement_date__gte=date_from_start)
+        except (ValueError, TypeError):
+            pass
     
     if date_to:
-        movements = movements.filter(movement_date__lte=date_to)
+        try:
+            # date_to is already in YYYY-MM-DD format from HTML5 date input
+            # Use end of day for date_to
+            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+            date_to_end = timezone.make_aware(datetime.combine(date_to_obj, datetime.max.time().replace(microsecond=0)))
+            movements = movements.filter(movement_date__lte=date_to_end)
+        except (ValueError, TypeError):
+            pass
     
     # Pagination
     paginator = Paginator(movements, 50)
