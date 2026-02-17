@@ -4,7 +4,7 @@
 {% load persian_numbers %}
 {% load dwms_filters %}
 
-{% block title %}{% trans "داشبورد انبار" %} - {{ warehouse.name }}{% endblock %}
+{% block title %}{% trans "داشبورد انبار" %} - {% trans "انبار" %} {{ warehouse.department.name }}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -219,7 +219,7 @@
     <div class="dwms-header">
         <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 1rem;">
             <div>
-                <h1><i class="fas fa-warehouse"></i> {{ warehouse.name }}</h1>
+                <h1><i class="fas fa-warehouse"></i> {% trans "انبار" %} {{ warehouse.department.name }}</h1>
                 <p>{{ warehouse.department.name }}</p>
             </div>
             {% if accessible_warehouses|length > 1 %}
@@ -235,7 +235,7 @@
                         {% for item in accessible_warehouses %}
                         <li>
                             <a class="dropdown-item {% if item.department.id == department.id %}active{% endif %}" href="{% url 'dwms:dashboard' item.department.id %}">
-                                {{ item.warehouse.name }}
+                                {% trans "انبار" %} {{ item.department.name }}
                             </a>
                         </li>
                         {% endfor %}

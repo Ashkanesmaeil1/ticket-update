@@ -2,7 +2,7 @@
 {% load i18n %}
 {% load persian_date %}
 
-{% block title %}{% trans "سوابق امانت" %} - {{ warehouse.name }}{% endblock %}
+{% block title %}{% trans "سوابق امانت" %} - {% trans "انبار" %} {{ warehouse.department.name }}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -162,7 +162,7 @@
 <div class="dwms-container">
     <div class="dwms-header">
         <h1><i class="fas fa-hand-holding"></i> {% trans "سوابق امانت" %}</h1>
-        <p>{{ warehouse.name }}</p>
+        <p>{% trans "انبار" %} {{ warehouse.department.name }}</p>
     </div>
 
     <div class="action-bar">

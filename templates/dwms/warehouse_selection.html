@@ -106,7 +106,7 @@
             <div class="warehouse-icon">
                 <i class="fas fa-warehouse"></i>
             </div>
-            <h3>{{ item.warehouse.name }}</h3>
+            <h3>{% trans "انبار" %} {{ item.department.name }}</h3>
             <p><i class="fas fa-building"></i> {{ item.department.name }}</p>
             {% if item.warehouse.description %}
             <p style="margin-top: 0.75rem; font-size: 0.85rem;">{{ item.warehouse.description|truncatewords:15 }}</p>

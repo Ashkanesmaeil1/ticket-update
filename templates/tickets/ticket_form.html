@@ -975,12 +975,12 @@ body {
                             <select name="{{ form.branch.name }}" id="{{ form.branch.id_for_label }}" class="form-select-modern" required>
                                 <option value="">{% trans "شعبه را انتخاب کنید" %}</option>
                                 {% for branch in form.branch.field.queryset %}
-                                    <option value="{{ branch.id }}" {% if form.branch.value == branch.id %}selected{% endif %}>{{ branch.name }}</option>
+                                    <option value="{{ branch.id }}" {% if form.branch.value == branch.id or form.initial.branch == branch.id %}selected{% endif %}>{{ branch.name }}</option>
                                 {% endfor %}
                             </select>
                             <div class="help-text">
                                 <i class="fas fa-info-circle"></i>
-                                {% trans "ابتدا شعبه را انتخاب کنید" %}
+                                {% trans "شعبه را انتخاب کنید" %}
                             </div>
                         </div>
                         <div class="form-group">
@@ -988,17 +988,17 @@ body {
                                 <i class="fas fa-building"></i>
                                 {% trans "بخش" %}
                             </label>
-                            <select name="{{ form.target_department.name }}" id="{{ form.target_department.id_for_label }}" class="form-select-modern" required disabled>
-                                <option value="">{% trans "ابتدا شعبه را انتخاب کنید" %}</option>
-                                {% if form.instance and form.instance.target_department and form.instance.branch %}
+                            <select name="{{ form.target_department.name }}" id="{{ form.target_department.id_for_label }}" class="form-select-modern" required>
+                                <option value="">{% trans "بخش را انتخاب کنید" %}</option>
+                                {% if form.target_department.value or form.initial.target_department %}
                                     {% for dept in form.target_department.field.queryset %}
-                                        <option value="{{ dept.id }}" {% if form.target_department.value == dept.id %}selected{% endif %}>{{ dept.name }}</option>
+                                        <option value="{{ dept.id }}" {% if form.target_department.value == dept.id or form.initial.target_department == dept.id %}selected{% endif %}>{{ dept.name }}</option>
                                     {% endfor %}
                                 {% endif %}
                             </select>
                             <div class="help-text">
                                 <i class="fas fa-info-circle"></i>
-                                {% trans "پس از انتخاب شعبه، بخش را انتخاب کنید (فقط بخش‌هایی که قابلیت دریافت تیکت دارند نمایش داده می‌شوند)" %}
+                                {% trans "بخش را انتخاب کنید (فقط بخش‌هایی که قابلیت دریافت تیکت دارند نمایش داده می‌شوند)" %}
                             </div>
                         </div>
                     </div>
@@ -1022,12 +1022,14 @@ body {
                                 {% trans "دسته‌بندی" %}
                                 {% if form.ticket_category.field.required %}<span style="color: #ef4444;">*</span>{% endif %}
                             </label>
-                            <select name="{{ form.ticket_category.name }}" id="{{ form.ticket_category.id_for_label }}" class="form-select-modern {% if form.ticket_category.errors %}error{% endif %}" disabled 
+                            <select name="{{ form.ticket_category.name }}" id="{{ form.ticket_category.id_for_label }}" class="form-select-modern {% if form.ticket_category.errors %}error{% endif %}"
                                     {% if form.instance and form.instance.ticket_category %}data-existing-category-id="{{ form.instance.ticket_category.id }}"{% endif %}>
-                                <option value="">{% trans "ابتدا بخش را انتخاب کنید" %}</option>
-                                {% if form.ticket_category.value %}
-                                    <option value="{{ form.ticket_category.value }}" selected>{{ form.ticket_category.value }}</option>
+                                {% if not form.instance.pk or not form.ticket_category.value %}
+                                    <option value="">{% trans "دسته‌بندی را انتخاب کنید" %}</option>
                                 {% endif %}
+                                {% for category in form.ticket_category.field.queryset %}
+                                    <option value="{{ category.id }}" {% if form.ticket_category.value == category.id or form.initial.ticket_category == category.id %}selected{% endif %}>{{ category.name }}</option>
+                                {% endfor %}
                             </select>
                             {% if form.ticket_category.errors %}
                             <div class="error-message" style="color: #ef4444; font-size: 0.85rem; margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
@@ -1041,7 +1043,7 @@ body {
                             {% endif %}
                             <div class="help-text">
                                 <i class="fas fa-info-circle"></i>
-                                {% trans "پس از انتخاب بخش، دسته‌بندی‌های آن بخش نمایش داده می‌شود" %}
+                                {% trans "دسته‌بندی‌های بخش انتخاب شده نمایش داده می‌شود" %}
                             </div>
                             <!-- Supervisor approval notice: shown when selected category requires supervisor approval -->
                             <div id="supervisor-approval-notice" class="supervisor-approval-notice-wrap" style="display: none;">
@@ -1334,16 +1336,20 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!branchSelect || !departmentSelect) return;
         
         const branchId = branchSelect.value;
+        const currentValue = departmentSelect.value; // Preserve current selection
+        
         if (!branchId) {
-            departmentSelect.innerHTML = '<option value="">{% trans "ابتدا شعبه را انتخاب کنید" %}</option>';
-            departmentSelect.disabled = true;
-            departmentSelect.required = false;
+            // If no branch selected but department is pre-filled, keep it
+            // Otherwise, show empty option
+            if (!currentValue) {
+                departmentSelect.innerHTML = '<option value="">{% trans "بخش را انتخاب کنید" %}</option>';
+            }
+            // Don't clear if department is already selected (pre-filled)
             return;
         }
         
         // Show loading state
         departmentSelect.innerHTML = '<option value="">{% trans "در حال بارگذاری..." %}</option>';
-        departmentSelect.disabled = true;
         
         // Fetch departments for selected branch (only those that can receive tickets)
         fetch(`/api/branches/${branchId}/departments/`)
@@ -1360,36 +1366,44 @@ document.addEventListener('DOMContentLoaded', function() {
                         const option = document.createElement('option');
                         option.value = dept.id;
                         option.textContent = dept.name;
+                        // Restore selection if it matches
+                        if (currentValue && currentValue == dept.id) {
+                            option.selected = true;
+                        }
                         departmentSelect.appendChild(option);
                     });
-                    departmentSelect.disabled = false;
                     departmentSelect.required = true;
+                    // Trigger category load if department is selected
+                    if (departmentSelect.value) {
+                        loadCategories();
+                    }
                 } else {
                     departmentSelect.innerHTML = '<option value="">{% trans "هیچ بخشی با قابلیت دریافت تیکت برای این شعبه یافت نشد" %}</option>';
-                    departmentSelect.disabled = true;
                     departmentSelect.required = false;
                 }
             })
             .catch(error => {
                 console.error('Error loading departments:', error);
                 departmentSelect.innerHTML = '<option value="">{% trans "خطا در بارگذاری بخش‌ها" %}</option>';
-                departmentSelect.disabled = true;
                 departmentSelect.required = false;
             });
     }
     
     if (branchSelect) {
         branchSelect.addEventListener('change', loadDepartments);
-        // Load departments if branch is already selected (for editing)
+        // Load departments if branch is already selected (for pre-filled values or editing)
         if (branchSelect.value) {
             loadDepartments();
         }
     }
     
-    // Ensure department field is disabled initially
-    if (departmentSelect && !branchSelect.value) {
-        departmentSelect.disabled = true;
-        departmentSelect.innerHTML = '<option value="">{% trans "ابتدا شعبه را انتخاب کنید" %}</option>';
+    // Load departments on page load if department is pre-filled but branch is not selected yet
+    // This handles the case where department is pre-filled from user's department
+    if (departmentSelect && departmentSelect.value && !branchSelect.value) {
+        // Try to find the branch for the pre-filled department
+        // We'll load all departments and let user select branch if needed
+        // Or we can load departments for all branches - but that's complex
+        // For now, if department is pre-filled, we'll keep it enabled
     }
     
     // Category dropdown functionality - loads categories based on selected department
@@ -1400,16 +1414,15 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const departmentId = departmentSelect.value;
         if (!departmentId) {
-            categorySelect.innerHTML = '<option value="">{% trans "ابتدا بخش را انتخاب کنید" %}</option>';
-            categorySelect.disabled = true;
+            categorySelect.innerHTML = '<option value="">{% trans "دسته‌بندی را انتخاب کنید" %}</option>';
             categorySelect.required = false;
             if (typeof toggleSupervisorApprovalNotice === 'function') toggleSupervisorApprovalNotice();
             return;
         }
         
         // Show loading state
+        const currentValue = categorySelect.value; // Preserve current selection
         categorySelect.innerHTML = '<option value="">{% trans "در حال بارگذاری..." %}</option>';
-        categorySelect.disabled = true;
         
         // Fetch categories for selected department (only active ones)
         fetch(`/api/departments/${departmentId}/categories/`)
@@ -1421,8 +1434,30 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(data => {
                 if (data.categories && data.categories.length > 0) {
-                    categorySelect.innerHTML = '<option value="">{% trans "دسته‌بندی را انتخاب کنید" %}</option>';
-                    data.categories.forEach(category => {
+                    // Check if we're editing (have existing category) - don't show placeholder in that case
+                    const existingCategoryId = categorySelect.getAttribute('data-existing-category-id');
+                    const isEditing = existingCategoryId || (currentValue && currentValue !== '');
+                    
+                    // Only add placeholder if not editing or no value selected
+                    if (!isEditing) {
+                        categorySelect.innerHTML = '<option value="">{% trans "دسته‌بندی را انتخاب کنید" %}</option>';
+                    } else {
+                        categorySelect.innerHTML = '';
+                    }
+                    
+                    // Sort: current category first, then others
+                    const categoriesToAdd = [...data.categories];
+                    const currentCategoryId = existingCategoryId || currentValue;
+                    if (currentCategoryId) {
+                        // Find and move current category to front
+                        const currentIndex = categoriesToAdd.findIndex(cat => cat.id == currentCategoryId);
+                        if (currentIndex > 0) {
+                            const currentCategory = categoriesToAdd.splice(currentIndex, 1)[0];
+                            categoriesToAdd.unshift(currentCategory);
+                        }
+                    }
+                    
+                    categoriesToAdd.forEach(category => {
                         const option = document.createElement('option');
                         option.value = category.id;
                         option.textContent = category.name;
@@ -1432,20 +1467,24 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (category.requires_supervisor_approval) {
                             option.dataset.requiresSupervisorApproval = '1';
                         }
+                        // Restore selection if it matches
+                        if (currentCategoryId && currentCategoryId == category.id) {
+                            option.selected = true;
+                        }
                         categorySelect.appendChild(option);
                     });
-                    categorySelect.disabled = false;
                     categorySelect.required = true;
                     
-                    // If editing and there's an existing category value, select it
-                    const existingCategoryId = categorySelect.getAttribute('data-existing-category-id');
+                    // Ensure current category is selected
                     if (existingCategoryId && categorySelect.querySelector(`option[value="${existingCategoryId}"]`)) {
                         categorySelect.value = existingCategoryId;
+                    }
+                    else if (currentValue && categorySelect.querySelector(`option[value="${currentValue}"]`)) {
+                        categorySelect.value = currentValue;
                     }
                     toggleSupervisorApprovalNotice();
                 } else {
                     categorySelect.innerHTML = '<option value="">{% trans "هیچ دسته‌بندی فعالی برای این بخش یافت نشد" %}</option>';
-                    categorySelect.disabled = true;
                     categorySelect.required = false;
                     toggleSupervisorApprovalNotice();
                 }
@@ -1453,7 +1492,6 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => {
                 console.error('Error loading categories:', error);
                 categorySelect.innerHTML = '<option value="">{% trans "خطا در بارگذاری دسته‌بندی‌ها" %}</option>';
-                categorySelect.disabled = true;
                 categorySelect.required = false;
                 toggleSupervisorApprovalNotice();
             });
@@ -1469,10 +1507,13 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (departmentSelect && categorySelect) {
         departmentSelect.addEventListener('change', loadCategories);
-        // Load categories if department is already selected (for editing or form re-render after validation error)
-        if (departmentSelect.value && !departmentSelect.disabled) {
-            loadCategories();
-        }
+        // Load categories if department is already selected (for pre-filled values, editing, or form re-render after validation error)
+        // Use setTimeout to ensure DOM is fully ready
+        setTimeout(function() {
+            if (departmentSelect.value) {
+                loadCategories();
+            }
+        }, 100);
     }
     
     // Handle form re-render after validation error - restore category selection
@@ -1559,10 +1600,13 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (form && submitBtn) {
         form.addEventListener('submit', function(e) {
-            // Enable disabled fields before submission (disabled fields don't submit)
-            // This is critical for the ticket_category field which is dynamically populated
+            // Ensure all fields are enabled before submission (disabled fields don't submit)
+            // This is critical for dynamically populated fields
             if (categorySelect && categorySelect.disabled && categorySelect.value) {
                 categorySelect.disabled = false;
+            }
+            if (departmentSelect && departmentSelect.disabled && departmentSelect.value) {
+                departmentSelect.disabled = false;
             }
             
             // Validate file input before locking UI

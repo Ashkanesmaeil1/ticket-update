@@ -5,7 +5,7 @@
 {% load dwms_filters %}
 {% load static %}
 
-{% block title %}{% trans "تاریخچه حرکات" %} - {{ warehouse.name }}{% endblock %}
+{% block title %}{% trans "تاریخچه حرکات" %} - {% trans "انبار" %} {{ warehouse.department.name }}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -77,6 +77,11 @@
         color: white;
     }
 
+    .persian-date-input {
+        cursor: pointer;
+        direction: rtl;
+    }
+
     @media (max-width: 768px) {
         .movements-table {
             overflow-x: auto;
@@ -88,6 +93,7 @@
     }
 
 </style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
 {% endblock %}
 
 {% block content %}
@@ -121,11 +127,11 @@
             </div>
             <div>
                 <label>{% trans "از تاریخ" %}</label>
-                <input type="date" name="date_from" id="date-from-input" class="form-control" value="{{ date_from }}">
+                <input type="text" name="date_from" id="date-from-input" class="form-control persian-date-input" value="{{ date_from }}" placeholder="{% trans 'لطفا تاریخ را انتخاب کنید' %}" autocomplete="off" readonly data-today-year="{{ today_jalali_year }}" data-today-month="{{ today_jalali_month }}" data-today-day="{{ today_jalali_day }}">
             </div>
             <div>
                 <label>{% trans "تا تاریخ" %}</label>
-                <input type="date" name="date_to" id="date-to-input" class="form-control" value="{{ date_to }}">
+                <input type="text" name="date_to" id="date-to-input" class="form-control persian-date-input" value="{{ date_to }}" placeholder="{% trans 'لطفا تاریخ را انتخاب کنید' %}" autocomplete="off" readonly data-today-year="{{ today_jalali_year }}" data-today-month="{{ today_jalali_month }}" data-today-day="{{ today_jalali_day }}">
             </div>
             <div style="display: flex; align-items: flex-end;">
                 <button type="submit" class="btn btn-primary" style="width: 100%;">
@@ -195,4 +201,59 @@
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/persian-date@1.1.0/dist/persian-date.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
+<script>
+$(document).ready(function() {
+    var plugin = $.fn.pDatepicker || $.fn.persianDatepicker;
+    if (!plugin) return;
+    var makeFixToday = function($input) {
+        return function() {
+            var y = parseInt($input.data('today-year'), 10), m = parseInt($input.data('today-month'), 10), d = parseInt($input.data('today-day'), 10);
+            var persianToEng = {'۰':'0','۱':'1','۲':'2','۳':'3','۴':'4','۵':'5','۶':'6','۷':'7','۸':'8','۹':'9'};
+            var toEng = function(s){ return (s||'').replace(/[۰-۹]/g,function(c){return persianToEng[c]||c;}); };
+            var $area = $('.datepicker-plot-area:visible');
+            if (!$area.length) return;
+            var header = toEng($area.find('.pwt-btn-switch').text());
+            var monthNames = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
+            var dispMonth = 0;
+            for (var i = 0; i < 12; i++) { if (header.indexOf(monthNames[i]) >= 0) { dispMonth = i + 1; break; } }
+            var dispYear = parseInt(header.replace(/\D/g,'').slice(-4), 10) || y;
+            $area.find('.datepicker-day-view .table-days td').removeClass('today');
+            if (dispMonth === m && dispYear === y) {
+                $area.find('.datepicker-day-view .table-days td').each(function() {
+                    var $td = $(this), $sp = $td.find('span').first();
+                    if ($sp.length && !$sp.hasClass('other-month')) {
+                        var dayNum = parseInt(toEng($sp.text()), 10);
+                        if (dayNum === d) $td.addClass('today');
+                    }
+                });
+            }
+        };
+    };
+    var addOnShow = function($input) {
+        return { onShow: function() {
+            var fixToday = makeFixToday($input);
+            setTimeout(fixToday, 50);
+            var iv = setInterval(function() {
+                if (!$('.datepicker-plot-area:visible').length) { clearInterval(iv); return; }
+                fixToday();
+            }, 400);
+        }};
+    };
+    var opts = {
+        format: 'YYYY-MM-DD',
+        autoClose: true,
+        calendar: { persian: { locale: 'fa' } },
+        toolbox: { calendarSwitch: { enabled: false } },
+        observer: false,
+        initialValue: false
+    };
+    $('#date-from-input').pDatepicker($.extend({}, opts, addOnShow($('#date-from-input'))));
+    $('#date-to-input').pDatepicker($.extend({}, opts, addOnShow($('#date-to-input'))));
+});
+</script>
 {% endblock %}

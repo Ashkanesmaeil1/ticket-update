@@ -1780,7 +1780,7 @@ def ticket_update(request, ticket_id):
         original_assignment = ticket.assigned_to
 
         if user.role == 'employee':
-            form = TicketForm(request.POST, request.FILES, instance=ticket)
+            form = TicketForm(request.POST, request.FILES, instance=ticket, user=user)
         else:
             form = TicketStatusForm(request.POST, instance=ticket, user=user)
             form.user = user  # Store user for the save method
@@ -1920,7 +1920,7 @@ def ticket_update(request, ticket_id):
                 form.user = user
                 form.request = request
             else:
-                form = TicketForm(instance=ticket)
+                form = TicketForm(instance=ticket, user=user)
         else:
             form = TicketStatusForm(instance=ticket, user=user)
             form.user = user  # Store user for the save method

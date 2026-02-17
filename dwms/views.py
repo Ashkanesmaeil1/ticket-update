@@ -62,7 +62,7 @@ def warehouse_selection(request):
                 warehouse, _ = DepartmentWarehouse.objects.get_or_create(
                     department=dept,
                     defaults={
-                        'name': f"{dept.name} انبار",
+                        'name': f"انبار {dept.name}",
                         'created_by': user,
                     }
                 )
@@ -194,7 +194,7 @@ def warehouse_dashboard(request, department_id):
         for dept in depts:
             w, _ = DepartmentWarehouse.objects.get_or_create(
                 department=dept,
-                defaults={'name': f"{dept.name} انبار", 'created_by': user}
+                defaults={'name': f"انبار {dept.name}", 'created_by': user}
             )
             if w.is_active:
                 accessible_warehouses.append({'warehouse': w, 'department': dept})
@@ -620,25 +620,34 @@ def movement_history(request, department_id):
     if movement_type_filter:
         movements = movements.filter(movement_type=movement_type_filter)
     
-    # Filter by date (input type="date" sends dates in YYYY-MM-DD format)
+    # Filter by date (Persian/Jalali date expected: YYYY-MM-DD or YYYY/MM/DD)
+    from tickets.calendar_services.jalali_calendar import JalaliCalendarService
+    from tickets.utils import PERSIAN_TO_ENGLISH
+
+    def _normalize_date_str(s):
+        if not s:
+            return ''
+        s = s.strip().replace('/', '-')
+        return ''.join(PERSIAN_TO_ENGLISH.get(c, c) for c in s)
+
     if date_from:
         try:
-            # date_from is already in YYYY-MM-DD format from HTML5 date input
-            # Use start of day for date_from
-            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-            date_from_start = timezone.make_aware(datetime.combine(date_from_obj, datetime.min.time()))
+            date_from_clean = _normalize_date_str(date_from)
+            year, month, day = map(int, date_from_clean.split('-'))
+            gregorian_dt = JalaliCalendarService.jalali_to_gregorian(year, month, day)
+            date_from_start = gregorian_dt.replace(hour=0, minute=0, second=0, microsecond=0)
             movements = movements.filter(movement_date__gte=date_from_start)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, AttributeError):
             pass
     
     if date_to:
         try:
-            # date_to is already in YYYY-MM-DD format from HTML5 date input
-            # Use end of day for date_to
-            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-            date_to_end = timezone.make_aware(datetime.combine(date_to_obj, datetime.max.time().replace(microsecond=0)))
+            date_to_clean = _normalize_date_str(date_to)
+            year, month, day = map(int, date_to_clean.split('-'))
+            gregorian_dt = JalaliCalendarService.jalali_to_gregorian(year, month, day)
+            date_to_end = gregorian_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
             movements = movements.filter(movement_date__lte=date_to_end)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, AttributeError):
             pass
     
     # Pagination
@@ -649,10 +658,16 @@ def movement_history(request, department_id):
     # Get items for filter
     items = Item.objects.filter(warehouse=warehouse, is_active=True).order_by('name')
 
+    # Server's today (Tehran timezone) for correct "today" highlight in datepicker
+    today_components = JalaliCalendarService.gregorian_to_jalali(timezone.now())
+
     context = {
         'warehouse': warehouse,
         'department': warehouse.department,
         'page_obj': page_obj,
+        'today_jalali_year': today_components['year'],
+        'today_jalali_month': today_components['month'],
+        'today_jalali_day': today_components['day'],
         'items': items,
         'item_filter': item_filter,
         'movement_type_filter': movement_type_filter,
@@ -978,10 +993,14 @@ def reports_daily(request, department_id):
         default_jalali_date = f"{jalali_components['year']}-{jalali_components['month']:02d}-{jalali_components['day']:02d}"
         
         jalali_date = request.GET.get('date', default_jalali_date)
+        # Normalize Persian/Arabic digits to ASCII for parsing
+        from tickets.utils import PERSIAN_TO_ENGLISH
+        _norm = lambda s: ''.join(PERSIAN_TO_ENGLISH.get(c, c) for c in (s or ''))
+        jalali_date_clean = _norm(jalali_date.strip().replace('/', '-'))
         
         # Convert Jalali to Gregorian
         try:
-            year, month, day = map(int, jalali_date.split('-'))
+            year, month, day = map(int, jalali_date_clean.split('-'))
             gregorian_datetime = JalaliCalendarService.jalali_to_gregorian(year, month, day)
             gregorian_date = gregorian_datetime.date()
         except (ValueError, AttributeError, TypeError):
@@ -989,6 +1008,8 @@ def reports_daily(request, department_id):
             # Recalculate Jalali date from today
             jalali_components = JalaliCalendarService.gregorian_to_jalali(today)
             jalali_date = f"{jalali_components['year']}-{jalali_components['month']:02d}-{jalali_components['day']:02d}"
+        else:
+            jalali_date = jalali_date_clean
         
         # Get movements for this date
         movements = StockMovement.objects.filter(
@@ -1067,6 +1088,9 @@ def reports_daily(request, department_id):
             'warehouse': warehouse,
             'department': warehouse.department,
             'date': jalali_date,
+            'today_jalali_year': jalali_components['year'],
+            'today_jalali_month': jalali_components['month'],
+            'today_jalali_day': jalali_components['day'],
             'gregorian_date': gregorian_date,
             'movements': movements,
             'item_summary': item_summary,

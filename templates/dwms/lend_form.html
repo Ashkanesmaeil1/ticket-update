@@ -3,7 +3,7 @@
 {% load static %}
 {% load persian_numbers %}
 
-{% block title %}{% trans "ثبت امانت" %} - {{ warehouse.name }}{% endblock %}
+{% block title %}{% trans "ثبت امانت" %} - {% trans "انبار" %} {{ warehouse.department.name }}{% endblock %}
 
 {% block extra_css %}
 <style>

@@ -2,7 +2,7 @@
 {% load i18n %}
 {% load persian_date %}
 
-{% block title %}{% trans "بازگشت امانت" %} - {{ warehouse.name }}{% endblock %}
+{% block title %}{% trans "بازگشت امانت" %} - {% trans "انبار" %} {{ warehouse.department.name }}{% endblock %}
 
 {% block extra_css %}
 <style>

@@ -162,34 +162,93 @@ class TicketForm(forms.ModelForm):
         if 'branch' in self.fields:
             self.fields['branch'].queryset = Branch.objects.filter(is_active=True).order_by('name')
         
-        # Initialize ticket_category field - will be populated dynamically via JavaScript
+        # Pre-fill branch, department, and category based on user's department (only for new tickets)
+        if user and not self.instance.pk and not self.data:
+            user_dept = getattr(user, 'department', None)
+            if user_dept:
+                # Pre-fill branch if user's department has a branch
+                if user_dept.branch and 'branch' in self.fields:
+                    self.initial['branch'] = user_dept.branch.id
+                
+                # Pre-fill department if user's department can receive tickets
+                if user_dept.can_receive_tickets and 'target_department' in self.fields:
+                    self.initial['target_department'] = user_dept.id
+        
+        # Initialize ticket_category field
         if 'ticket_category' in self.fields:
-            # For POST requests, update queryset based on selected department to allow validation
+            # Determine which department to use for category queryset
+            target_dept = None
+            
+            # For POST requests: use department from form data, or when editing from instance (department field may be hidden)
             if self.data and 'target_department' in self.data:
                 target_department_id = self.data.get('target_department')
                 if target_department_id:
                     try:
                         target_department_id = int(target_department_id)
-                        dept = Department.objects.get(id=target_department_id, can_receive_tickets=True)
-                        # Update queryset to include all active categories for this department
-                        self.fields['ticket_category'].queryset = TicketCategory.objects.filter(
-                            department=dept,
-                            is_active=True
-                        ).order_by('sort_order', 'name')
-                        self.fields['ticket_category'].required = True
+                        target_dept = Department.objects.get(id=target_department_id, can_receive_tickets=True)
                     except (Department.DoesNotExist, ValueError, TypeError):
-                        self.fields['ticket_category'].queryset = TicketCategory.objects.none()
-                        self.fields['ticket_category'].required = False
+                        pass
+            # When editing: use ticket's department (for GET, or for POST when department field is hidden)
+            if not target_dept and self.instance and self.instance.pk:
+                ticket_dept = getattr(self.instance, 'target_department', None)
+                if ticket_dept and getattr(ticket_dept, 'can_receive_tickets', False):
+                    target_dept = ticket_dept
+            # For GET (new ticket creation), use user's department if available
+            if not target_dept and not self.data and user:
+                user_dept = getattr(user, 'department', None)
+                if user_dept and user_dept.can_receive_tickets:
+                    target_dept = user_dept
+            
+            # Set queryset and initial value based on target department
+            current_cat = getattr(self.instance, 'ticket_category', None) if self.instance and self.instance.pk else None
+            
+            if target_dept:
+                # Base: all active categories for this department
+                qs = TicketCategory.objects.filter(
+                    department=target_dept,
+                    is_active=True
+                )
+                # When editing: always include current ticket's category so the choice is valid
+                # (e.g. if it was deactivated, or belongs to another department)
+                if current_cat:
+                    qs = TicketCategory.objects.filter(
+                        Q(department=target_dept, is_active=True) | Q(pk=current_cat.pk)
+                    )
+                    # Order: current category first, then others by sort_order and name
+                    from django.db.models import Case, When, IntegerField
+                    qs = qs.annotate(
+                        is_current=Case(
+                            When(pk=current_cat.pk, then=0),
+                            default=1,
+                            output_field=IntegerField()
+                        )
+                    ).order_by('is_current', 'sort_order', 'name')
+                else:
+                    # For new tickets, just order by sort_order and name
+                    qs = qs.order_by('sort_order', 'name')
+                self.fields['ticket_category'].queryset = qs
+                self.fields['ticket_category'].required = True
+                
+                # Pre-fill with first available category (only for new tickets)
+                if not self.instance.pk and not self.data:
+                    first_category = self.fields['ticket_category'].queryset.first()
+                    if first_category:
+                        self.initial['ticket_category'] = first_category.id
+            else:
+                # No target department: when editing, show at least current category so choice is valid
+                if current_cat:
+                    self.fields['ticket_category'].queryset = TicketCategory.objects.filter(
+                        pk=current_cat.pk
+                    ).order_by('sort_order', 'name')
+                    self.fields['ticket_category'].required = False
                 else:
                     self.fields['ticket_category'].queryset = TicketCategory.objects.none()
                     self.fields['ticket_category'].required = False
-            else:
-                # For GET requests, start with empty queryset
-                self.fields['ticket_category'].queryset = TicketCategory.objects.none()
-                self.fields['ticket_category'].required = False
-            # Widget is disabled initially, JavaScript will enable it
-            if not self.data:  # Only disable on GET requests
-                self.fields['ticket_category'].widget.attrs['disabled'] = True
+            
+            # Remove disabled attribute - fields should be editable from start
+            if 'disabled' in self.fields['ticket_category'].widget.attrs:
+                del self.fields['ticket_category'].widget.attrs['disabled']
+            
             # Show "Requires Supervisor Approval" on creation screen for each category option
             def ticket_category_label(obj):
                 if getattr(obj, 'requires_supervisor_approval', False):

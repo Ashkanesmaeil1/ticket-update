@@ -2,7 +2,7 @@
 {% load i18n %}
 {% load static %}
 
-{% block title %}{% trans "اسکن QR" %} - {% if warehouse %}{{ warehouse.name }}{% else %}{% trans "انبار" %}{% endif %}{% endblock %}
+{% block title %}{% trans "اسکن QR" %} - {% if warehouse %}{% trans "انبار" %} {{ warehouse.department.name }}{% else %}{% trans "انبار" %}{% endif %}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -204,7 +204,7 @@
 <div class="scan-container">
     <div class="scan-header">
         <h1><i class="fas fa-qrcode"></i> {% trans "اسکن QR کد" %}</h1>
-        <p style="margin: 0.5rem 0 0 0; opacity: 0.8;">{% if warehouse %}{{ warehouse.name }}{% else %}{% trans "انبار" %}{% endif %}</p>
+        <p style="margin: 0.5rem 0 0 0; opacity: 0.8;">{% if warehouse %}{% trans "انبار" %} {{ warehouse.department.name }}{% else %}{% trans "انبار" %}{% endif %}</p>
     </div>
 
     <div class="camera-container">

@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load i18n %}
 
-{% block title %}{{ action }} {% trans "کالا" %} - {{ warehouse.name }}{% endblock %}
+{% block title %}{{ action }} {% trans "کالا" %} - {% trans "انبار" %} {{ warehouse.department.name }}{% endblock %}
 
 {% block extra_css %}
 <style>
