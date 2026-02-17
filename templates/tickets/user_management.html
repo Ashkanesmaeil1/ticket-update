@@ -169,6 +169,51 @@
         background: rgba(255, 255, 255, 0.3);
     }
 
+    .user-search-bar {
+        background: white;
+        border-radius: 12px;
+        padding: 0.75rem 1.25rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .user-search-bar i {
+        color: var(--text-light);
+        font-size: 1.1rem;
+    }
+
+    .user-search-input {
+        flex: 1;
+        border: none;
+        outline: none;
+        font-size: 1rem;
+        font-family: inherit;
+        direction: rtl;
+    }
+
+    .user-search-input::placeholder {
+        color: var(--text-light);
+    }
+
+    .user-search-no-results {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-light);
+        font-weight: 600;
+        display: none;
+    }
+
+    .user-search-no-results i {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+        display: block;
+        color: var(--text-light);
+    }
+
     .form-card {
         background: white;
         border-radius: 20px;
@@ -641,6 +686,17 @@
             </button>
         </div>
 
+        <!-- جستجوی نام کاربر -->
+        <div class="user-search-bar">
+            <i class="fas fa-search"></i>
+            <input type="text"
+                   id="userNameSearch"
+                   class="user-search-input"
+                   placeholder="{% trans 'جستجو بر اساس نام یا نام خانوادگی...' %}"
+                   autocomplete="off"
+                   aria-label="{% trans 'جستجوی نام کاربر' %}">
+        </div>
+
     <!-- Tab Content -->
         <div id="user-tab-content">
         <!-- Employees Tab -->
@@ -985,6 +1041,10 @@
                             </div>
                                         {% endfor %}
                             </div>
+                        <div class="user-search-no-results" id="employees-search-no-results" aria-hidden="true">
+                            <i class="fas fa-search"></i>
+                            <span>{% trans "هیچ کاربری با این نام یافت نشد." %}</span>
+                        </div>
                         {% else %}
                         <div class="empty-state">
                             <i class="fas fa-users"></i>
@@ -1099,6 +1159,10 @@
                             </div>
                                         {% endfor %}
                             </div>
+                        <div class="user-search-no-results" id="technicians-search-no-results" aria-hidden="true">
+                            <i class="fas fa-search"></i>
+                            <span>{% trans "هیچ کاربری با این نام یافت نشد." %}</span>
+                        </div>
                         {% else %}
                         <div class="empty-state">
                             <i class="fas fa-tools"></i>
@@ -1360,6 +1424,10 @@
                             </div>
                             {% endfor %}
                         </div>
+                        <div class="user-search-no-results" id="managers-search-no-results" aria-hidden="true">
+                            <i class="fas fa-search"></i>
+                            <span>{% trans "هیچ کاربری با این نام یافت نشد." %}</span>
+                        </div>
                         {% else %}
                         <div class="empty-state">
                             <i class="fas fa-user-shield"></i>
@@ -1402,6 +1470,46 @@ function showUserTab(tabName) {
 
     // Add active class to clicked button
     event.target.closest('.tab-btn').classList.add('active');
+
+    // Re-apply search filter on the new tab
+    filterUserCards();
+}
+
+// جستجوی لحظه‌ای بر اساس نام کاربر
+function filterUserCards() {
+    const searchInput = document.getElementById('userNameSearch');
+    const term = (searchInput && searchInput.value || '').trim().replace(/\s+/g, ' ');
+
+    const visibleTab = Array.from(document.querySelectorAll('.user-tab-content')).find(function(el) {
+        return el.style.display === 'block';
+    });
+    if (!visibleTab) return;
+
+    const userList = visibleTab.querySelector('.user-list');
+    if (!userList) return;
+
+    const grid = userList.querySelector('.user-grid');
+    const noResults = userList.querySelector('.user-search-no-results');
+    const cards = grid ? grid.querySelectorAll('.user-card') : [];
+
+    if (cards.length === 0) {
+        if (noResults) noResults.style.display = 'none';
+        return;
+    }
+
+    var hasVisible = false;
+    cards.forEach(function(card) {
+        var nameEl = card.querySelector('.user-name');
+        var name = (nameEl ? nameEl.textContent : '').trim().replace(/\s+/g, ' ');
+        var match = !term || name.indexOf(term) !== -1;
+        card.style.display = match ? '' : 'none';
+        if (match) hasVisible = true;
+    });
+
+    if (noResults) {
+        noResults.style.display = term && !hasVisible ? 'block' : 'none';
+        noResults.setAttribute('aria-hidden', term && !hasVisible ? 'false' : 'true');
+    }
 }
 
     // Function to toggle department field based on department role
@@ -1497,6 +1605,14 @@ function showUserTab(tabName) {
         const itManagerForm = document.querySelector('form[data-form-type="it_manager"]');
         if (itManagerForm) {
             itManagerForm.id = 'itManagerForm';
+        }
+
+        // جستجوی لحظه‌ای نام کاربر
+        const userNameSearch = document.getElementById('userNameSearch');
+        if (userNameSearch) {
+            userNameSearch.addEventListener('input', filterUserCards);
+            userNameSearch.addEventListener('keyup', filterUserCards);
+            filterUserCards();
         }
     });
     
