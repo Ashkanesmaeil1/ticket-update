@@ -945,8 +945,8 @@
                         </div>
                     </div>
 
-                    <!-- Department/Role Information -->
-                    {% if user.role == 'it_manager' or user.department_role == 'manager' and all_tickets_filter %}
+                    <!-- Department/Role Information (مدیر IT و Administrator هر دو می‌بینند) -->
+                    {% if user.role == 'it_manager' or is_administrator or user.department_role == 'manager' and all_tickets_filter %}
                     <div class="detail-card department-card">
                         <div class="detail-icon">
                             <i class="fas fa-building"></i>
@@ -958,8 +958,8 @@
                     </div>
                     {% endif %}
 
-                    <!-- Assigned To Information -->
-                    {% if user.role == 'it_manager' %}
+                    <!-- Assigned To Information (مدیر IT و Administrator هر دو می‌بینند) -->
+                    {% if user.role == 'it_manager' or is_administrator %}
                     <div class="detail-card assigned-card">
                         <div class="detail-icon">
                             <i class="fas fa-user-tie"></i>

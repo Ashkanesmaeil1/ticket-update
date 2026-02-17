@@ -172,7 +172,7 @@ class CustomUserAdmin(UserAdmin):
 @admin.register(Ticket)
 class TicketAdmin(admin.ModelAdmin):
     list_display = ('id', 'title', 'created_by', 'category', 'priority', 'status', 'assigned_to', 'created_at')
-    list_filter = ('status', 'priority', 'category', 'created_at')
+    list_filter = ('status', 'priority', 'category', 'assigned_to', 'created_at')
     search_fields = ('title', 'description', 'created_by__username', 'created_by__first_name', 'created_by__last_name')
     list_editable = ('status', 'priority', 'assigned_to')
     readonly_fields = ('created_at', 'updated_at')

@@ -1131,6 +1131,7 @@ def ticket_list(request):
         'task_tickets_filter': task_tickets_filter,
         'status_choices': Ticket.STATUS_CHOICES,
         'priority_choices': Ticket.PRIORITY_CHOICES,
+        'is_administrator': is_admin_superuser(user),
     }
     
     return render(request, 'tickets/ticket_list.html', context)
