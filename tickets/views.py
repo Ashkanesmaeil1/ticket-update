@@ -26,6 +26,19 @@ from .models import User, Ticket, Reply, Department, Branch, InventoryElement, E
 from .services import notify_department_supervisor
 from .admin_security import get_admin_superuser_queryset_filter, is_admin_superuser
 
+# Marker stored in DeadlineExtensionRequest.review_comment when admin rejects but sets a new deadline (no extra DB column).
+EXTENSION_REJECTED_WITH_NEW_DEADLINE_MARKER = '\n[__REJECTED_WITH_NEW_DEADLINE__]'
+
+
+def exclude_pending_approval_tickets(queryset):
+    """
+    Helper function to exclude tickets that require supervisor approval and are pending.
+    These tickets should not be counted in statistics until they are approved.
+    """
+    return queryset.exclude(
+        Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')
+    )
+
 
 def get_warehouse_element():
     """
@@ -406,7 +419,7 @@ def dashboard(request):
             my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
             recent_replies = Reply.objects.all().order_by('-created_at')[:3]
             unread_notifications = Notification.objects.filter(recipient=user, is_read=False).order_by('-created_at')
-            all_tickets_stats = Ticket.objects.all()
+            all_tickets_stats = exclude_pending_approval_tickets(Ticket.objects.all())
             context = {
                 'tickets': all_tickets,
                 'all_tickets': all_tickets,
@@ -418,9 +431,9 @@ def dashboard(request):
                 'open_tickets': all_tickets_stats.filter(status='open').count(),
                 'resolved_tickets': all_tickets_stats.filter(status='resolved').count(),
                 'in_progress_tickets': all_tickets_stats.filter(status='in_progress').count(),
-                'total_my_tickets': Ticket.objects.filter(created_by=user).count(),
-                'open_my_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
-                'resolved_my_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
+                'total_my_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user)).count(),
+                'open_my_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user, status='open')).count(),
+                'resolved_my_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user, status='resolved')).count(),
                 'unread_notifications': unread_notifications[:5],
                 'unread_count': unread_notifications.count(),
                 'is_administrator': True,
@@ -488,18 +501,18 @@ def dashboard(request):
                     'my_tickets': my_tickets,
                     'task_tickets': task_tickets,
                     'recent_replies': recent_replies,
-                    'total_tickets': Ticket.objects.filter(created_by=user).count(),
-                    'open_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
-                    'resolved_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
-                    'my_total_tickets': Ticket.objects.filter(created_by=user).count(),
-                    'my_open_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
-                    'my_resolved_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
-                    'all_total_tickets': Ticket.objects.all().count(),
-                    'all_open_tickets': Ticket.objects.filter(status='open').count(),
-                    'all_resolved_tickets': Ticket.objects.filter(status='resolved').count(),
-                    'task_total_tickets': Ticket.objects.filter(assigned_to=user).count(),
-                    'task_open_tickets': Ticket.objects.filter(assigned_to=user, status='open').count(),
-                    'task_resolved_tickets': Ticket.objects.filter(assigned_to=user, status='resolved').count(),
+                    'total_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user)).count(),
+                    'open_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user, status='open')).count(),
+                    'resolved_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user, status='resolved')).count(),
+                    'my_total_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user)).count(),
+                    'my_open_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user, status='open')).count(),
+                    'my_resolved_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user, status='resolved')).count(),
+                    'all_total_tickets': exclude_pending_approval_tickets(Ticket.objects.all()).count(),
+                    'all_open_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(status='open')).count(),
+                    'all_resolved_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(status='resolved')).count(),
+                    'task_total_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(assigned_to=user)).count(),
+                    'task_open_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(assigned_to=user, status='open')).count(),
+                    'task_resolved_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(assigned_to=user, status='resolved')).count(),
                     'my_tasks': my_tasks,
                     'my_tasks_count': my_tasks_count,
                     'my_open_tasks_count': my_open_tasks_count,
@@ -548,17 +561,17 @@ def dashboard(request):
                         received_tickets = Ticket.objects.filter(
                             target_department__in=[d.id for d in departments_that_can_receive]
                         ).order_by('-created_at')[:5]
-                        received_total_tickets = Ticket.objects.filter(
+                        received_total_tickets = exclude_pending_approval_tickets(Ticket.objects.filter(
                             target_department__in=[d.id for d in departments_that_can_receive]
-                        ).count()
-                        received_open_tickets = Ticket.objects.filter(
+                        )).count()
+                        received_open_tickets = exclude_pending_approval_tickets(Ticket.objects.filter(
                             target_department__in=[d.id for d in departments_that_can_receive],
                             status='open'
-                        ).count()
-                        received_resolved_tickets = Ticket.objects.filter(
+                        )).count()
+                        received_resolved_tickets = exclude_pending_approval_tickets(Ticket.objects.filter(
                             target_department__in=[d.id for d in departments_that_can_receive],
                             status='resolved'
-                        ).count()
+                        )).count()
                     
                     # Check if user is ticket responder for any department
                     is_ticket_responder = any(
@@ -582,9 +595,9 @@ def dashboard(request):
                         
                         if can_receive:
                             received_tickets = Ticket.objects.filter(target_department=user.department).order_by('-created_at')[:5]
-                            received_total_tickets = Ticket.objects.filter(target_department=user.department).count()
-                            received_open_tickets = Ticket.objects.filter(target_department=user.department, status='open').count()
-                            received_resolved_tickets = Ticket.objects.filter(target_department=user.department, status='resolved').count()
+                            received_total_tickets = exclude_pending_approval_tickets(Ticket.objects.filter(target_department=user.department)).count()
+                            received_open_tickets = exclude_pending_approval_tickets(Ticket.objects.filter(target_department=user.department, status='open')).count()
+                            received_resolved_tickets = exclude_pending_approval_tickets(Ticket.objects.filter(target_department=user.department, status='resolved')).count()
                     else:
                         department_tickets = Ticket.objects.none()
                         my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
@@ -616,24 +629,24 @@ def dashboard(request):
                     'my_tickets': my_tickets,
                     'task_tickets': task_tickets,
                     'recent_replies': recent_replies,
-                    'total_tickets': Ticket.objects.filter(created_by=user).count(),
-                    'open_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
-                    'resolved_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
-                    'my_total_tickets': Ticket.objects.filter(created_by=user).count(),
-                    'my_open_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
-                    'my_resolved_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
-                    'department_total_tickets': Ticket.objects.filter(created_by__department__in=supervised_dept_ids).count() if supervised_dept_ids else 0,
-                    'department_open_tickets': Ticket.objects.filter(created_by__department__in=supervised_dept_ids, status='open').count() if supervised_dept_ids else 0,
-                    'department_resolved_tickets': Ticket.objects.filter(created_by__department__in=supervised_dept_ids, status='resolved').count() if supervised_dept_ids else 0,
+                    'total_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user)).count(),
+                    'open_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user, status='open')).count(),
+                    'resolved_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user, status='resolved')).count(),
+                    'my_total_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user)).count(),
+                    'my_open_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user, status='open')).count(),
+                    'my_resolved_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user, status='resolved')).count(),
+                    'department_total_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by__department__in=supervised_dept_ids)).count() if supervised_dept_ids else 0,
+                    'department_open_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by__department__in=supervised_dept_ids, status='open')).count() if supervised_dept_ids else 0,
+                    'department_resolved_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by__department__in=supervised_dept_ids, status='resolved')).count() if supervised_dept_ids else 0,
                     'received_total_tickets': received_total_tickets,
                     'received_open_tickets': received_open_tickets,
                     'received_resolved_tickets': received_resolved_tickets,
                     'can_receive_tickets': bool(departments_that_can_receive) if supervised_depts else can_receive,
                     'has_warehouse_access': has_warehouse_access,
                     'warehouse_departments': warehouse_departments,
-                    'task_total_tickets': Ticket.objects.filter(assigned_to=user).count(),
-                    'task_open_tickets': Ticket.objects.filter(assigned_to=user, status='open').count(),
-                    'task_resolved_tickets': Ticket.objects.filter(assigned_to=user, status='resolved').count(),
+                    'task_total_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(assigned_to=user)).count(),
+                    'task_open_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(assigned_to=user, status='open')).count(),
+                    'task_resolved_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(assigned_to=user, status='resolved')).count(),
                     'my_tasks': my_tasks,
                     'my_tasks_count': my_tasks_count,
                     'my_open_tasks_count': my_open_tasks_count,
@@ -664,9 +677,9 @@ def dashboard(request):
                     received_tickets = Ticket.objects.filter(
                         target_department=user.department
                     ).order_by('-created_at')[:5]
-                    received_total_tickets = Ticket.objects.filter(target_department=user.department).count()
-                    received_open_tickets = Ticket.objects.filter(target_department=user.department, status='open').count()
-                    received_resolved_tickets = Ticket.objects.filter(target_department=user.department, status='resolved').count()
+                    received_total_tickets = exclude_pending_approval_tickets(Ticket.objects.filter(target_department=user.department)).count()
+                    received_open_tickets = exclude_pending_approval_tickets(Ticket.objects.filter(target_department=user.department, status='open')).count()
+                    received_resolved_tickets = exclude_pending_approval_tickets(Ticket.objects.filter(target_department=user.department, status='resolved')).count()
                 
                 context = {
                     'tickets': my_tickets,  # Use 'tickets' to match template
@@ -674,18 +687,18 @@ def dashboard(request):
                     'task_tickets': task_tickets,
                     'recent_replies': recent_replies,
                     'received_tickets': received_tickets,
-                    'total_tickets': Ticket.objects.filter(created_by=user).count(),
-                    'open_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
-                    'resolved_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
-                    'in_progress_tickets': Ticket.objects.filter(created_by=user, status='in_progress').count(),
-                    'task_total_tickets': Ticket.objects.filter(assigned_to=user).count(),
-                    'task_open_tickets': Ticket.objects.filter(assigned_to=user, status='open').count(),
+                    'total_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user)).count(),
+                    'open_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user, status='open')).count(),
+                    'resolved_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user, status='resolved')).count(),
+                    'in_progress_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user, status='in_progress')).count(),
+                    'task_total_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(assigned_to=user)).count(),
+                    'task_open_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(assigned_to=user, status='open')).count(),
                     'received_total_tickets': received_total_tickets,
                     'received_open_tickets': received_open_tickets,
                     'received_resolved_tickets': received_resolved_tickets,
                     'can_receive_tickets': is_ticket_responder,
                     'is_ticket_responder': is_ticket_responder,
-                    'task_resolved_tickets': Ticket.objects.filter(assigned_to=user, status='resolved').count(),
+                    'task_resolved_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(assigned_to=user, status='resolved')).count(),
                     'my_tasks': my_tasks,
                     'my_tasks_count': my_tasks_count,
                     'my_open_tasks_count': my_open_tasks_count,
@@ -720,18 +733,18 @@ def dashboard(request):
             
             # Statistics for IT department tickets only
             if it_department:
-                it_assigned_tickets = Ticket.objects.filter(
+                it_assigned_tickets = exclude_pending_approval_tickets(Ticket.objects.filter(
                     Q(assigned_to=user) & (Q(target_department__isnull=True) | Q(target_department=it_department))
-                )
+                ))
                 total_assigned = it_assigned_tickets.count()
                 open_assigned = it_assigned_tickets.filter(status='open').count()
                 in_progress = it_assigned_tickets.filter(status='in_progress').count()
                 resolved_tickets = it_assigned_tickets.filter(status='resolved').count()
             else:
-                total_assigned = Ticket.objects.filter(assigned_to=user).count()
-                open_assigned = Ticket.objects.filter(assigned_to=user, status='open').count()
-                in_progress = Ticket.objects.filter(assigned_to=user, status='in_progress').count()
-                resolved_tickets = Ticket.objects.filter(assigned_to=user, status='resolved').count()
+                total_assigned = exclude_pending_approval_tickets(Ticket.objects.filter(assigned_to=user)).count()
+                open_assigned = exclude_pending_approval_tickets(Ticket.objects.filter(assigned_to=user, status='open')).count()
+                in_progress = exclude_pending_approval_tickets(Ticket.objects.filter(assigned_to=user, status='in_progress')).count()
+                resolved_tickets = exclude_pending_approval_tickets(Ticket.objects.filter(assigned_to=user, status='resolved')).count()
             
             context = {
                 'tickets': assigned_tickets,  # Use 'tickets' to match template
@@ -745,9 +758,9 @@ def dashboard(request):
                 'total_assigned': total_assigned,
                 'open_assigned': open_assigned,
                 'in_progress': in_progress,
-                'total_my_tickets': Ticket.objects.filter(created_by=user).count(),
-                'open_my_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
-                'resolved_my_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
+                'total_my_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user)).count(),
+                'open_my_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user, status='open')).count(),
+                'resolved_my_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user, status='resolved')).count(),
                 'my_tasks': my_tasks,
                 'my_tasks_count': my_tasks_count,
                 'my_open_tasks_count': my_open_tasks_count,
@@ -772,13 +785,13 @@ def dashboard(request):
                 ).exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')).order_by(*get_it_manager_ticket_ordering())[:15]
                 
                 # Statistics for IT department tickets only
-                it_tickets = Ticket.objects.filter(
+                it_tickets = exclude_pending_approval_tickets(Ticket.objects.filter(
                     Q(target_department__isnull=True) | Q(target_department=it_department)
-                )
+                ))
             else:
                 # Fallback: if no IT department found, show all tickets (backward compatibility)
                 all_tickets = Ticket.objects.exclude(Q(ticket_category__requires_supervisor_approval=True, access_approval_status='pending')).order_by(*get_it_manager_ticket_ordering())[:15]
-                it_tickets = Ticket.objects.all()
+                it_tickets = exclude_pending_approval_tickets(Ticket.objects.all())
             
             # Get IT manager's own created tickets
             my_tickets = Ticket.objects.filter(created_by=user).order_by('-created_at')[:5]
@@ -811,15 +824,15 @@ def dashboard(request):
                 'my_tickets': my_tickets,
                 'recent_replies': recent_replies,
                 'unread_notifications': unread_notifications,
-                'total_tickets': it_tickets.count() if it_department else Ticket.objects.count(),
-                'open_tickets': it_tickets.filter(status='open').count() if it_department else Ticket.objects.filter(status='open').count(),
-                'resolved_tickets': it_tickets.filter(status='resolved').count() if it_department else Ticket.objects.filter(status='resolved').count(),
-                'in_progress_tickets': it_tickets.filter(status='in_progress').count() if it_department else Ticket.objects.filter(status='in_progress').count(),
-                'urgent_tickets': it_tickets.filter(priority='urgent').count() if it_department else Ticket.objects.filter(priority='urgent').count(),
+                'total_tickets': it_tickets.count() if it_department else exclude_pending_approval_tickets(Ticket.objects.all()).count(),
+                'open_tickets': it_tickets.filter(status='open').count() if it_department else exclude_pending_approval_tickets(Ticket.objects.filter(status='open')).count(),
+                'resolved_tickets': it_tickets.filter(status='resolved').count() if it_department else exclude_pending_approval_tickets(Ticket.objects.filter(status='resolved')).count(),
+                'in_progress_tickets': it_tickets.filter(status='in_progress').count() if it_department else exclude_pending_approval_tickets(Ticket.objects.filter(status='in_progress')).count(),
+                'urgent_tickets': it_tickets.filter(priority='urgent').count() if it_department else exclude_pending_approval_tickets(Ticket.objects.filter(priority='urgent')).count(),
                 'technicians': User.objects.filter(role='technician').count(),
-                'total_my_tickets': Ticket.objects.filter(created_by=user).count(),
-                'open_my_tickets': Ticket.objects.filter(created_by=user, status='open').count(),
-                'resolved_my_tickets': Ticket.objects.filter(created_by=user, status='resolved').count(),
+                'total_my_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user)).count(),
+                'open_my_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user, status='open')).count(),
+                'resolved_my_tickets': exclude_pending_approval_tickets(Ticket.objects.filter(created_by=user, status='resolved')).count(),
                 'my_created_tasks': my_created_tasks,
                 'all_tasks_count': all_tasks_count,
                 'open_tasks_count': open_tasks_count,
@@ -1747,6 +1760,11 @@ def ticket_create(request):
                 except Exception:
                     pass
                 
+                # Send email notification to assigned user if ticket has an assigned_to
+                if ticket.assigned_to:
+                    print(f"🔍 [ticket_create] Ticket #{ticket.id} created with assigned_to: {ticket.assigned_to.get_full_name()}")
+                    notify_assigned_user_ticket_assigned(ticket, request.user)
+                
                 messages.success(request, _('وظیفه با موفقیت ایجاد و تخصیص داده شد.'))
                 return redirect('tickets:ticket_detail', ticket_id=ticket.id)
         else:
@@ -2503,9 +2521,10 @@ def it_manager_required(view_func):
 
 @login_required
 def user_management(request):
-    """Comprehensive user management for Administrator"""
-    if not is_admin_superuser(request.user):
-        messages.error(request, _('دسترسی رد شد. فقط مدیر سیستم میتواند این بخش را دریافت کند.'))
+    """Comprehensive user management for Administrator and IT Managers"""
+    # Allow admin superuser and IT managers to access user management
+    if not (is_admin_superuser(request.user) or request.user.role == 'it_manager'):
+        messages.error(request, _('دسترسی رد شد. فقط مدیر سیستم یا مدیر IT میتواند این بخش را دریافت کند.'))
         return redirect('tickets:dashboard')
     
     # Initialize forms
@@ -3482,8 +3501,9 @@ def edit_employee(request, user_id):
 def edit_technician(request, user_id):
     """Edit technician information"""
     try:
-        if not is_admin_superuser(request.user):
-            messages.error(request, _('دسترسی رد شد. فقط مدیر سیستم میتواند این بخش را دریافت کند.'))
+        # Allow admin superuser and IT managers to edit technicians
+        if not (is_admin_superuser(request.user) or request.user.role == 'it_manager'):
+            messages.error(request, _('دسترسی رد شد. فقط مدیر سیستم یا مدیر IT میتواند این بخش را دریافت کند.'))
             return redirect('tickets:dashboard')
         
         user = get_object_or_404(User, id=user_id, role='technician')
@@ -3559,8 +3579,9 @@ def edit_technician(request, user_id):
 def edit_it_manager(request, user_id):
     """Edit IT manager information"""
     try:
-        if not is_admin_superuser(request.user):
-            messages.error(request, _('دسترسی رد شد. فقط مدیر سیستم میتواند این بخش را دریافت کند.'))
+        # Allow admin superuser and IT managers to edit IT managers
+        if not (is_admin_superuser(request.user) or request.user.role == 'it_manager'):
+            messages.error(request, _('دسترسی رد شد. فقط مدیر سیستم یا مدیر IT میتواند این بخش را دریافت کند.'))
             return redirect('tickets:dashboard')
         
         user = get_object_or_404(User, id=user_id, role='it_manager')
@@ -6620,8 +6641,14 @@ def ticket_task_detail(request, task_id):
     
     # آخرین درخواست تمدید کاربر برای این تسک (غیر از در انتظار) — فقط یکی نمایش داده می‌شود
     last_extension_request = None
+    extension_rejected_with_new_deadline = False
+    last_extension_request_review_comment_display = ''
     if user.department_role == 'employee' and is_assigned:
         last_extension_request = task.extension_requests.filter(requested_by=user).exclude(status='pending').first()
+        if last_extension_request and last_extension_request.status == 'rejected':
+            comment = last_extension_request.review_comment or ''
+            extension_rejected_with_new_deadline = EXTENSION_REJECTED_WITH_NEW_DEADLINE_MARKER in comment
+            last_extension_request_review_comment_display = comment.replace(EXTENSION_REJECTED_WITH_NEW_DEADLINE_MARKER, '').strip()
     
     context = {
         'task': task,
@@ -6633,6 +6660,9 @@ def ticket_task_detail(request, task_id):
         'task_status_choices': TicketTask.STATUS_CHOICES,
         'task_priority_choices': TicketTask.PRIORITY_CHOICES,
         'last_extension_request': last_extension_request,
+        'extension_rejected_with_new_deadline': extension_rejected_with_new_deadline,
+        'last_extension_request_review_comment_display': last_extension_request_review_comment_display,
+        'extension_rejected_with_new_deadline_marker': EXTENSION_REJECTED_WITH_NEW_DEADLINE_MARKER,
     }
     
     return render(request, 'tickets/ticket_task_detail.html', context)
@@ -7178,6 +7208,9 @@ def handle_extension_request(request, request_id, action):
                                 else:
                                     task.deadline = new_deadline_dt
                                     task.save()
+                                    # Mark that rejection was with a new deadline (for user panel red vs orange box, no extra column)
+                                    extension_request.review_comment = (extension_request.review_comment or '') + EXTENSION_REJECTED_WITH_NEW_DEADLINE_MARKER
+                                    extension_request.save(update_fields=['review_comment'])
                 except (ValueError, IndexError, TypeError, ImportError):
                     pass
             

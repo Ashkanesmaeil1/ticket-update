@@ -654,11 +654,11 @@
             <div class="stat-card">
                 <div class="stat-value">{{ total_employees }}</div>
                 <div class="stat-label">{% trans "کارمند" %}</div>
-                </div>
+            </div>
             <div class="stat-card">
                 <div class="stat-value">{{ total_technicians }}</div>
                 <div class="stat-label">{% trans "کارشناس فنی" %}</div>
-                    </div>
+            </div>
             <div class="stat-card">
                 <div class="stat-value">{{ total_it_managers }}</div>
                 <div class="stat-label">{% trans "مدیرIT" %}</div>
@@ -689,946 +689,1061 @@
         <!-- جستجوی نام کاربر -->
         <div class="user-search-bar">
             <i class="fas fa-search"></i>
-            <input type="text"
-                   id="userNameSearch"
-                   class="user-search-input"
-                   placeholder="{% trans 'جستجو بر اساس نام یا نام خانوادگی...' %}"
-                   autocomplete="off"
-                   aria-label="{% trans 'جستجوی نام کاربر' %}">
+            <input type="text" id="userNameSearch" class="user-search-input"
+                placeholder="{% trans 'جستجو بر اساس نام یا نام خانوادگی...' %}" autocomplete="off"
+                aria-label="{% trans 'جستجوی نام کاربر' %}">
         </div>
 
-    <!-- Tab Content -->
+        <!-- Tab Content -->
         <div id="user-tab-content">
-        <!-- Employees Tab -->
-        <div id="employees-tab" class="user-tab-content" style="display: block;">
-            <div class="row">
-                <!-- Employee Creation Form -->
-                <div class="col-lg-4">
-                    <div class="form-card">
-                        <div class="form-header">
-                            <i class="fas fa-user-plus"></i>
-                            <h3>{% trans "افزودن کارمند جدید" %}</h3>
-                        </div>
+            <!-- Employees Tab -->
+            <div id="employees-tab" class="user-tab-content" style="display: block;">
+                <div class="row">
+                    <!-- Employee Creation Form -->
+                    <div class="col-lg-4">
+                        <div class="form-card">
+                            <div class="form-header">
+                                <i class="fas fa-user-plus"></i>
+                                <h3>{% trans "افزودن کارمند جدید" %}</h3>
+                            </div>
                             <form method="post" data-form-type="employee">
                                 {% csrf_token %}
                                 <input type="hidden" name="form_type" value="employee">
-                                
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ employee_form.first_name.id_for_label }}">
-                                        <i class="fas fa-user me-1"></i>
-                                        {{ employee_form.first_name.label }}
-                                    </label>
-                                    <input type="text" 
-                                           name="{{ employee_form.first_name.name }}" 
-                                           id="{{ employee_form.first_name.id_for_label }}"
-                                           class="form-control-modern {% if employee_form.first_name.errors %}error{% endif %}"
-                                           value="{{ employee_form.first_name.value|default:'' }}"
-                                           placeholder="{% trans 'نام' %}">
-                                    {% if employee_form.first_name.errors %}
-                                    <div class="error-message">
-                                        {% for error in employee_form.first_name.errors %}
-                                        {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ employee_form.last_name.id_for_label }}">
-                                        <i class="fas fa-user me-1"></i>
-                                        {{ employee_form.last_name.label }}
-                                    </label>
-                                    <input type="text" 
-                                           name="{{ employee_form.last_name.name }}" 
-                                           id="{{ employee_form.last_name.id_for_label }}"
-                                           class="form-control-modern {% if employee_form.last_name.errors %}error{% endif %}"
-                                           value="{{ employee_form.last_name.value|default:'' }}"
-                                           placeholder="{% trans 'نام خانوادگی' %}">
-                                    {% if employee_form.last_name.errors %}
-                                    <div class="error-message">
-                                        {% for error in employee_form.last_name.errors %}
-                                        {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                    </div>
-                                </div>
-                                
-                            <div class="form-group">
-                                <label class="form-label" for="{{ employee_form.email.id_for_label }}">
-                                    <i class="fas fa-envelope me-1"></i>
-                                    {{ employee_form.email.label }}
-                                </label>
-                                <input type="email" 
-                                       name="{{ employee_form.email.name }}" 
-                                       id="{{ employee_form.email.id_for_label }}"
-                                       class="form-control-modern {% if employee_form.email.errors %}error{% endif %}"
-                                       value="{{ employee_form.email.value|default:'' }}"
-                                       placeholder="{% trans 'ایمیل' %}">
-                                {% if employee_form.email.errors %}
-                                <div class="error-message">
-                                    {% for error in employee_form.email.errors %}
-                                    {{ error }}
-                                    {% endfor %}
-                                </div>
-                                {% endif %}
-                            </div>
-                            
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ employee_form.national_id.id_for_label }}">
-                                        <i class="fas fa-id-card me-1"></i>
-                                        {{ employee_form.national_id.label }}
-                                    </label>
-                                    <input type="text" 
-                                           name="{{ employee_form.national_id.name }}" 
-                                           id="{{ employee_form.national_id.id_for_label }}"
-                                           class="form-control-modern {% if employee_form.national_id.errors %}error{% endif %}"
-                                           value="{{ employee_form.national_id.value|default:'' }}"
-                                           placeholder="{% trans 'کد ملی' %}">
-                                    {% if employee_form.national_id.errors %}
-                                    <div class="error-message">
-                                        {% for error in employee_form.national_id.errors %}
-                                        {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ employee_form.employee_code.id_for_label }}">
-                                        <i class="fas fa-hashtag me-1"></i>
-                                        {{ employee_form.employee_code.label }}
-                                    </label>
-                                    <input type="text" 
-                                           name="{{ employee_form.employee_code.name }}" 
-                                           id="{{ employee_form.employee_code.id_for_label }}"
-                                           class="form-control-modern {% if employee_form.employee_code.errors %}error{% endif %}"
-                                           value="{{ employee_form.employee_code.value|default:'' }}"
-                                           placeholder="{% trans 'کد کارمندی' %}">
-                                    {% if employee_form.employee_code.errors %}
-                                    <div class="error-message">
-                                        {% for error in employee_form.employee_code.errors %}
-                                        {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                                
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ employee_form.phone.id_for_label }}">
-                                        <i class="fas fa-phone me-1"></i>
-                                        {{ employee_form.phone.label }}
-                                    </label>
-                                    <input type="tel" 
-                                           name="{{ employee_form.phone.name }}" 
-                                           id="{{ employee_form.phone.id_for_label }}"
-                                           class="form-control-modern {% if employee_form.phone.errors %}error{% endif %}"
-                                           value="{{ employee_form.phone.value|default:'' }}"
-                                           placeholder="{% trans 'شماره تلفن' %}">
-                                    {% if employee_form.phone.errors %}
-                                    <div class="error-message">
-                                        {% for error in employee_form.phone.errors %}
-                                        {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                                
-                                {% if employee_form.department.field.widget.input_type != 'hidden' %}
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ employee_form.department.id_for_label }}">
-                                        <i class="fas fa-building me-1"></i>
-                                        {{ employee_form.department.label }}
-                                    </label>
-                                    <select name="{{ employee_form.department.name }}" 
-                                            id="{{ employee_form.department.id_for_label }}"
-                                            class="form-select-modern {% if employee_form.department.errors %}error{% endif %}">
-                                        <option value="">{% trans "انتخاب بخش" %}</option>
-                                        {% for choice in employee_form.department.field.choices %}
-                                        <option value="{{ choice.0 }}" {% if employee_form.department.value == choice.0 %}selected{% endif %}>
-                                            {{ choice.1 }}
-                                        </option>
-                                        {% endfor %}
-                                    </select>
-                                    {% if employee_form.department.errors %}
-                                    <div class="error-message">
-                                        {% for error in employee_form.department.errors %}
-                                        {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                                {% else %}
-                                {# Hidden field for supervisors - department assignment done on Assign to Team Leader page #}
-                                {{ employee_form.department }}
-                                <div class="form-group">
-                                    <div class="alert alert-info" style="margin-top: 0.5rem;">
-                                        <i class="fas fa-info-circle me-1"></i>
-                                        {% trans "برای سرپرستان، بخش باید از صفحه 'اختصاص سرپرست به بخش‌ها' تعیین شود." %}
-                                    </div>
-                                </div>
-                                {% endif %}
-                            </div>
-                                
-                            <div class="form-group">
-                                        <label class="form-label">{% trans "نقش در بخش" %}</label>
-                                <div class="radio-group">
-                                            {% for choice in employee_form.department_role %}
-                                    <div class="radio-item">
-                                        <input type="radio" 
-                                               name="{{ employee_form.department_role.name }}" 
-                                               id="{{ choice.id_for_label }}"
-                                               value="{{ choice.data.value }}"
-                                               {% if employee_form.department_role.value == choice.data.value %}checked{% endif %}>
-                                        <label class="radio-label" for="{{ choice.id_for_label }}">
-                                                    {{ choice.choice_label }}
-                                                </label>
-                                            </div>
-                                            {% endfor %}
-                                        </div>
-                                        {% if employee_form.department_role.errors %}
-                                <div class="error-message">
-                                            {% for error in employee_form.department_role.errors %}
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label" for="{{ employee_form.first_name.id_for_label }}">
+                                            <i class="fas fa-user me-1"></i>
+                                            {{ employee_form.first_name.label }}
+                                        </label>
+                                        <input type="text" name="{{ employee_form.first_name.name }}"
+                                            id="{{ employee_form.first_name.id_for_label }}"
+                                            class="form-control-modern {% if employee_form.first_name.errors %}error{% endif %}"
+                                            value="{{ employee_form.first_name.value|default:'' }}"
+                                            placeholder="{% trans 'نام' %}">
+                                        {% if employee_form.first_name.errors %}
+                                        <div class="error-message">
+                                            {% for error in employee_form.first_name.errors %}
                                             {{ error }}
                                             {% endfor %}
                                         </div>
                                         {% endif %}
                                     </div>
-                            
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ employee_form.password1.id_for_label }}">
-                                        <i class="fas fa-lock me-1"></i>
-                                        {{ employee_form.password1.label }}
-                                    </label>
-                                    <input type="password" 
-                                           name="{{ employee_form.password1.name }}" 
-                                           id="{{ employee_form.password1.id_for_label }}"
-                                           class="form-control-modern {% if employee_form.password1.errors %}error{% endif %}"
-                                           placeholder="{% trans 'رمز عبور' %}">
-                                    {% if employee_form.password1.errors %}
-                                    <div class="error-message">
-                                        {% for error in employee_form.password1.errors %}
-                                        {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ employee_form.password2.id_for_label }}">
-                                        <i class="fas fa-lock me-1"></i>
-                                        {{ employee_form.password2.label }}
-                                    </label>
-                                    <input type="password" 
-                                           name="{{ employee_form.password2.name }}" 
-                                           id="{{ employee_form.password2.id_for_label }}"
-                                           class="form-control-modern {% if employee_form.password2.errors %}error{% endif %}"
-                                           placeholder="{% trans 'تکرار رمز عبور' %}">
-                                    {% if employee_form.password2.errors %}
-                                    <div class="error-message">
-                                        {% for error in employee_form.password2.errors %}
-                                        {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                    </div>
-                                </div>
-                                
-                            <button type="submit" class="btn-submit">
-                                <i class="fas fa-plus"></i>
-                                {% trans "ایجاد کارمند" %}
-                                </button>
-                            </form>
-                    </div>
-                </div>
-                
-                <!-- Employees List -->
-                <div class="col-lg-8">
-                    <div class="user-list">
-                        <div class="list-header">
-                            <div class="list-title">
-                                <i class="fas fa-users"></i>
-                                {% trans "لیست کارمندان" %}
-                        </div>
-                        </div>
-                        
-                        {% if employees %}
-                        <div class="user-grid">
-                                        {% for employee in employees %}
-                            <div class="user-card">
-                                <div class="user-info">
-                                    <div class="user-details">
-                                        <div class="user-field">
-                                            <div class="field-label">{% trans "نام" %}</div>
-                                            <div class="user-name">{{ employee.get_full_name }}</div>
-                                                        {% if employee.phone %}
-                                            <div class="user-phone">{{ employee.phone }}</div>
-                                                        {% endif %}
-                                                    </div>
-                                        
-                                        <div class="user-field">
-                                            <div class="field-label">{% trans "کد ملی" %}</div>
-                                            <div class="field-value">{{ employee.national_id }}</div>
-                                                </div>
-                                        
-                                        <div class="user-field">
-                                            <div class="field-label">{% trans "کد کارمندی" %}</div>
-                                            <div class="field-value">{{ employee.employee_code }}</div>
-                                        </div>
-                                        
-                                        <div class="user-field">
-                                            <div class="field-label">{% trans "بخش" %}</div>
-                                            <div class="field-value">
-                                                {% if employee.department_role == 'manager' %}
-                                                    -
-                                                {% else %}
-                                                    {{ employee.department|default:"-" }}
-                                                {% endif %}
-                                            </div>
-                                        </div>
-                                        
-                                        <div class="user-field">
-                                            <div class="field-label">{% trans "نقش" %}</div>
-                                            <div class="field-value">
-                                                {% if employee.department_role == 'manager' %}
-                                                <span class="role-badge manager">
-                                                    <i class="fas fa-crown"></i>
-                                                    {% trans "مدیر" %}
-                                                </span>
-                                                {% elif employee.department_role == 'senior' %}
-                                                <span class="role-badge senior">
-                                                    <i class="fas fa-star"></i>
-                                                    {% trans "سرپرست" %}
-                                                </span>
-                                                {% else %}
-                                                <span class="role-badge employee">
-                                                    <i class="fas fa-user"></i>
-                                                    {% trans "کارمند" %}
-                                                </span>
-                                                {% endif %}
-                                            </div>
-                                        </div>
-                                        
-                                        <div class="user-field">
-                                            <div class="field-label">{% trans "ایمیل" %}</div>
-                                            <div class="field-value email" title="{{ employee.email }}">{{ employee.email }}</div>
-                                        </div>
-                                        
-                                        <div class="user-field">
-                                            <div class="field-label">{% trans "تاریخ عضویت" %}</div>
-                                            <div class="field-value">{{ employee.date_joined|persian_date_only }}</div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="user-actions">
-                                                    <a href="{% url 'tickets:edit_employee' employee.id %}" 
-                                           class="btn-action btn-edit"
-                                                       title="{% trans 'ویرایش کاربر' %}">
-                                                        <i class="fas fa-edit"></i>
-                                                    </a>
-                                                    <a href="{% url 'tickets:delete_user' employee.id %}" 
-                                           class="btn-action btn-delete"
-                                                       title="{% trans 'حذف کاربر' %}">
-                                                        <i class="fas fa-trash"></i>
-                                                    </a>
-                                                </div>
-                                </div>
-                            </div>
-                                        {% endfor %}
-                            </div>
-                        <div class="user-search-no-results" id="employees-search-no-results" aria-hidden="true">
-                            <i class="fas fa-search"></i>
-                            <span>{% trans "هیچ کاربری با این نام یافت نشد." %}</span>
-                        </div>
-                        {% else %}
-                        <div class="empty-state">
-                            <i class="fas fa-users"></i>
-                            <h3>{% trans "هیچ کارمندی یافت نشد" %}</h3>
-                            <p>{% trans "هنوز هیچ کارمندی در سیستم ثبت نشده است" %}</p>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Technicians Tab -->
-        <div id="technicians-tab" class="user-tab-content" style="display: none;">
-            <div class="row align-items-start">
-                <!-- Technician Creation Form (modern) -->
-                <div class="col-lg-4">
-                    <div class="form-card">
-                        <div class="form-header">
-                            <i class="fas fa-tools"></i>
-                            <h3>{% trans "افزودن کارشناس فنی جدید" %}</h3>
-                        </div>
-                            <form method="post" data-form-type="technician">
-                                {% csrf_token %}
-                                <input type="hidden" name="form_type" value="technician">
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ technician_form.first_name.id_for_label }}"><i class="fas fa-user me-1"></i>{{ technician_form.first_name.label }}</label>
-                                    <input type="text" name="{{ technician_form.first_name.name }}" id="{{ technician_form.first_name.id_for_label }}" class="form-control-modern {% if technician_form.first_name.errors %}error{% endif %}" value="{{ technician_form.first_name.value|default:'' }}" placeholder="{% trans 'نام' %}">
-                                    {% if technician_form.first_name.errors %}<div class="error-message">{% for error in technician_form.first_name.errors %}{{ error }}{% endfor %}</div>{% endif %}
-                                    </div>
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ technician_form.last_name.id_for_label }}"><i class="fas fa-user me-1"></i>{{ technician_form.last_name.label }}</label>
-                                    <input type="text" name="{{ technician_form.last_name.name }}" id="{{ technician_form.last_name.id_for_label }}" class="form-control-modern {% if technician_form.last_name.errors %}error{% endif %}" value="{{ technician_form.last_name.value|default:'' }}" placeholder="{% trans 'نام خانوادگی' %}">
-                                    {% if technician_form.last_name.errors %}<div class="error-message">{% for error in technician_form.last_name.errors %}{{ error }}{% endfor %}</div>{% endif %}
-                                    </div>
-                                </div>
-                            <div class="form-group">
-                                <label class="form-label" for="{{ technician_form.email.id_for_label }}"><i class="fas fa-envelope me-1"></i>{{ technician_form.email.label }}</label>
-                                <input type="email" name="{{ technician_form.email.name }}" id="{{ technician_form.email.id_for_label }}" class="form-control-modern {% if technician_form.email.errors %}error{% endif %}" value="{{ technician_form.email.value|default:'' }}" placeholder="{% trans 'ایمیل' %}">
-                                {% if technician_form.email.errors %}<div class="error-message">{% for error in technician_form.email.errors %}{{ error }}{% endfor %}</div>{% endif %}
-                                    </div>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ technician_form.national_id.id_for_label }}"><i class="fas fa-id-card me-1"></i>{{ technician_form.national_id.label }}</label>
-                                    <input type="text" name="{{ technician_form.national_id.name }}" id="{{ technician_form.national_id.id_for_label }}" class="form-control-modern {% if technician_form.national_id.errors %}error{% endif %}" value="{{ technician_form.national_id.value|default:'' }}" placeholder="{% trans 'کد ملی' %}">
-                                    {% if technician_form.national_id.errors %}<div class="error-message">{% for error in technician_form.national_id.errors %}{{ error }}{% endfor %}</div>{% endif %}
-                                    </div>
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ technician_form.employee_code.id_for_label }}"><i class="fas fa-hashtag me-1"></i>{{ technician_form.employee_code.label }}</label>
-                                    <input type="text" name="{{ technician_form.employee_code.name }}" id="{{ technician_form.employee_code.id_for_label }}" class="form-control-modern {% if technician_form.employee_code.errors %}error{% endif %}" value="{{ technician_form.employee_code.value|default:'' }}" placeholder="{% trans 'کد کارمندی' %}">
-                                    {% if technician_form.employee_code.errors %}<div class="error-message">{% for error in technician_form.employee_code.errors %}{{ error }}{% endfor %}</div>{% endif %}
-                                </div>
-                                    </div>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ technician_form.phone.id_for_label }}"><i class="fas fa-phone me-1"></i>{{ technician_form.phone.label }}</label>
-                                    <input type="tel" name="{{ technician_form.phone.name }}" id="{{ technician_form.phone.id_for_label }}" class="form-control-modern {% if technician_form.phone.errors %}error{% endif %}" value="{{ technician_form.phone.value|default:'' }}" placeholder="{% trans 'شماره تلفن' %}">
-                                    {% if technician_form.phone.errors %}<div class="error-message">{% for error in technician_form.phone.errors %}{{ error }}{% endfor %}</div>{% endif %}
-                                    </div>
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ technician_form.department.id_for_label }}"><i class="fas fa-building me-1"></i>{{ technician_form.department.label }}</label>
-                                    <select name="{{ technician_form.department.name }}" id="{{ technician_form.department.id_for_label }}" class="form-select-modern {% if technician_form.department.errors %}error{% endif %}">
-                                        <option value="">{% trans "انتخاب بخش" %}</option>
-                                        {% for choice in technician_form.department.field.choices %}
-                                        <option value="{{ choice.0 }}" {% if technician_form.department.value == choice.0 %}selected{% endif %}>{{ choice.1 }}</option>
-                                        {% endfor %}
-                                    </select>
-                                    {% if technician_form.department.errors %}<div class="error-message">{% for error in technician_form.department.errors %}{{ error }}{% endfor %}</div>{% endif %}
-                                </div>
-                                    </div>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ technician_form.password1.id_for_label }}"><i class="fas fa-lock me-1"></i>{{ technician_form.password1.label }}</label>
-                                    <input type="password" name="{{ technician_form.password1.name }}" id="{{ technician_form.password1.id_for_label }}" class="form-control-modern {% if technician_form.password1.errors %}error{% endif %}" placeholder="{% trans 'رمز عبور' %}">
-                                    {% if technician_form.password1.errors %}<div class="error-message">{% for error in technician_form.password1.errors %}{{ error }}{% endfor %}</div>{% endif %}
-                                    </div>
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ technician_form.password2.id_for_label }}"><i class="fas fa-lock me-1"></i>{{ technician_form.password2.label }}</label>
-                                    <input type="password" name="{{ technician_form.password2.name }}" id="{{ technician_form.password2.id_for_label }}" class="form-control-modern {% if technician_form.password2.errors %}error{% endif %}" placeholder="{% trans 'تکرار رمز عبور' %}">
-                                    {% if technician_form.password2.errors %}<div class="error-message">{% for error in technician_form.password2.errors %}{{ error }}{% endfor %}</div>{% endif %}
-                                </div>
-                            </div>
-                            <button type="submit" class="btn-submit"><i class="fas fa-plus"></i>{% trans "ایجاد کارشناس فنی" %}</button>
-                            </form>
-                        </div>
-                    </div>
-                <!-- Technicians List (modern cards) -->
-                <div class="col-lg-8">
-                    <div class="user-list">
-                        <div class="list-header">
-                            <div class="list-title"><i class="fas fa-tools"></i>{% trans "لیست کارشناسانIT" %}</div>
-                        </div>
-                        {% if technicians %}
-                        <div class="user-grid">
-                                        {% for technician in technicians %}
-                            <div class="user-card">
-                                <div class="user-info">
-                                    <div class="user-details">
-                                        <div class="user-field"><div class="field-label">{% trans "نام" %}</div><div class="user-name">{{ technician.get_full_name }}</div>{% if technician.phone %}<div class="user-phone">{{ technician.phone }}</div>{% endif %}</div>
-                                        <div class="user-field"><div class="field-label">{% trans "کد ملی" %}</div><div class="field-value">{{ technician.national_id }}</div></div>
-                                        <div class="user-field"><div class="field-label">{% trans "کد کارمندی" %}</div><div class="field-value">{{ technician.employee_code }}</div></div>
-                                        <div class="user-field"><div class="field-label">{% trans "بخش" %}</div><div class="field-value">{{ technician.department|default:"-" }}</div></div>
-                                        <div class="user-field"><div class="field-label">{% trans "ایمیل" %}</div><div class="field-value email" title="{{ technician.email }}">{{ technician.email }}</div></div>
-                                        <div class="user-field"><div class="field-label">{% trans "تاریخ عضویت" %}</div><div class="field-value">{{ technician.date_joined|persian_date_only }}</div></div>
-                                                    </div>
-                                    <div class="user-actions">
-                                        <a href="{% url 'tickets:edit_technician' technician.id %}" class="btn-action btn-edit" title="{% trans 'ویرایش کاربر' %}"><i class="fas fa-edit"></i></a>
-                                        <a href="{% url 'tickets:delete_user' technician.id %}" class="btn-action btn-delete" title="{% trans 'حذف کاربر' %}"><i class="fas fa-trash"></i></a>
-                                                </div>
-                                                </div>
-                            </div>
-                                        {% endfor %}
-                            </div>
-                        <div class="user-search-no-results" id="technicians-search-no-results" aria-hidden="true">
-                            <i class="fas fa-search"></i>
-                            <span>{% trans "هیچ کاربری با این نام یافت نشد." %}</span>
-                        </div>
-                        {% else %}
-                        <div class="empty-state">
-                            <i class="fas fa-tools"></i>
-                            <h3>{% trans "هیچ کارشناس فنی یافت نشد" %}</h3>
-                            <p>{% trans "هنوز هیچ کارشناس فنی در سیستم ثبت نشده است" %}</p>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Managers Tab (modern cards) -->
-        <div id="managers-tab" class="user-tab-content" style="display: none;">
-            <div class="row align-items-start">
-                <!-- IT Manager Creation Form -->
-                <div class="col-lg-4">
-                    <div class="form-card">
-                        <div class="form-header">
-                            <i class="fas fa-user-shield"></i>
-                            <h3>{% trans "افزودن مدیر IT جدید" %}</h3>
-                        </div>
-                        <form method="post" data-form-type="it_manager">
-                            {% csrf_token %}
-                            <input type="hidden" name="form_type" value="it_manager">
-                            
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ it_manager_form.first_name.id_for_label }}">
-                                        <i class="fas fa-user me-1"></i>
-                                        {{ it_manager_form.first_name.label }}
-                                    </label>
-                                    <input type="text" 
-                                           name="{{ it_manager_form.first_name.name }}" 
-                                           id="{{ it_manager_form.first_name.id_for_label }}"
-                                           class="form-control-modern {% if it_manager_form.first_name.errors %}error{% endif %}"
-                                           value="{{ it_manager_form.first_name.value|default:'' }}"
-                                           placeholder="{% trans 'نام' %}">
-                                    {% if it_manager_form.first_name.errors %}
-                                    <div class="error-message">
-                                        {% for error in it_manager_form.first_name.errors %}
-                                        {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ it_manager_form.last_name.id_for_label }}">
-                                        <i class="fas fa-user me-1"></i>
-                                        {{ it_manager_form.last_name.label }}
-                                    </label>
-                                    <input type="text" 
-                                           name="{{ it_manager_form.last_name.name }}" 
-                                           id="{{ it_manager_form.last_name.id_for_label }}"
-                                           class="form-control-modern {% if it_manager_form.last_name.errors %}error{% endif %}"
-                                           value="{{ it_manager_form.last_name.value|default:'' }}"
-                                           placeholder="{% trans 'نام خانوادگی' %}">
-                                    {% if it_manager_form.last_name.errors %}
-                                    <div class="error-message">
-                                        {% for error in it_manager_form.last_name.errors %}
-                                        {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label" for="{{ it_manager_form.email.id_for_label }}">
-                                    <i class="fas fa-envelope me-1"></i>
-                                    {{ it_manager_form.email.label }}
-                                </label>
-                                <input type="email" 
-                                       name="{{ it_manager_form.email.name }}" 
-                                       id="{{ it_manager_form.email.id_for_label }}"
-                                       class="form-control-modern {% if it_manager_form.email.errors %}error{% endif %}"
-                                       value="{{ it_manager_form.email.value|default:'' }}"
-                                       placeholder="{% trans 'ایمیل' %}">
-                                {% if it_manager_form.email.errors %}
-                                <div class="error-message">
-                                    {% for error in it_manager_form.email.errors %}
-                                    {{ error }}
-                                    {% endfor %}
-                                </div>
-                                {% endif %}
-                            </div>
-                            
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ it_manager_form.national_id.id_for_label }}">
-                                        <i class="fas fa-id-card me-1"></i>
-                                        {{ it_manager_form.national_id.label }}
-                                    </label>
-                                    <input type="text" 
-                                           name="{{ it_manager_form.national_id.name }}" 
-                                           id="{{ it_manager_form.national_id.id_for_label }}"
-                                           class="form-control-modern {% if it_manager_form.national_id.errors %}error{% endif %}"
-                                           value="{{ it_manager_form.national_id.value|default:'' }}"
-                                           placeholder="{% trans 'کد ملی' %}">
-                                    {% if it_manager_form.national_id.errors %}
-                                    <div class="error-message">
-                                        {% for error in it_manager_form.national_id.errors %}
-                                        {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ it_manager_form.employee_code.id_for_label }}">
-                                        <i class="fas fa-hashtag me-1"></i>
-                                        {{ it_manager_form.employee_code.label }}
-                                    </label>
-                                    <input type="text" 
-                                           name="{{ it_manager_form.employee_code.name }}" 
-                                           id="{{ it_manager_form.employee_code.id_for_label }}"
-                                           class="form-control-modern {% if it_manager_form.employee_code.errors %}error{% endif %}"
-                                           value="{{ it_manager_form.employee_code.value|default:'' }}"
-                                           placeholder="{% trans 'کد کارمندی' %}">
-                                    {% if it_manager_form.employee_code.errors %}
-                                    <div class="error-message">
-                                        {% for error in it_manager_form.employee_code.errors %}
-                                        {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label" for="{{ it_manager_form.phone.id_for_label }}">
-                                    <i class="fas fa-phone me-1"></i>
-                                    {{ it_manager_form.phone.label }}
-                                </label>
-                                <input type="tel" 
-                                       name="{{ it_manager_form.phone.name }}" 
-                                       id="{{ it_manager_form.phone.id_for_label }}"
-                                       class="form-control-modern {% if it_manager_form.phone.errors %}error{% endif %}"
-                                       value="{{ it_manager_form.phone.value|default:'' }}"
-                                       placeholder="{% trans 'شماره تلفن' %}">
-                                {% if it_manager_form.phone.errors %}
-                                <div class="error-message">
-                                    {% for error in it_manager_form.phone.errors %}
-                                    {{ error }}
-                                    {% endfor %}
-                                </div>
-                                {% endif %}
-                            </div>
-                            
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ it_manager_form.password1.id_for_label }}">
-                                        <i class="fas fa-lock me-1"></i>
-                                        {{ it_manager_form.password1.label }}
-                                    </label>
-                                    <input type="password" 
-                                           name="{{ it_manager_form.password1.name }}" 
-                                           id="{{ it_manager_form.password1.id_for_label }}"
-                                           class="form-control-modern {% if it_manager_form.password1.errors %}error{% endif %}"
-                                           placeholder="{% trans 'رمز عبور' %}">
-                                    {% if it_manager_form.password1.errors %}
-                                    <div class="error-message">
-                                        {% for error in it_manager_form.password1.errors %}
-                                        {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label" for="{{ it_manager_form.password2.id_for_label }}">
-                                        <i class="fas fa-lock me-1"></i>
-                                        {{ it_manager_form.password2.label }}
-                                    </label>
-                                    <input type="password" 
-                                           name="{{ it_manager_form.password2.name }}" 
-                                           id="{{ it_manager_form.password2.id_for_label }}"
-                                           class="form-control-modern {% if it_manager_form.password2.errors %}error{% endif %}"
-                                           placeholder="{% trans 'تکرار رمز عبور' %}">
-                                    {% if it_manager_form.password2.errors %}
-                                    <div class="error-message">
-                                        {% for error in it_manager_form.password2.errors %}
-                                        {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            
-                            <button type="submit" class="btn-submit">
-                                <i class="fas fa-plus"></i>
-                                {% trans "ایجاد مدیر IT" %}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-                
-                <!-- IT Managers List -->
-                <div class="col-lg-8">
-                    <div class="user-list">
-                        <div class="list-header">
-                            <div class="list-title">
-                                <i class="fas fa-user-shield"></i>
-                                {% trans "لیست مدیران IT" %}
-                            </div>
-                        </div>
-                        {% if it_managers %}
-                        <div class="user-grid">
-                            {% for manager in it_managers %}
-                            <div class="user-card">
-                                <div class="user-info">
-                                    <div class="user-details">
-                                        <div class="user-field">
-                                            <div class="field-label">{% trans "نام" %}</div>
-                                            <div class="user-name">{{ manager.get_full_name }}</div>
-                                            {% if manager.phone %}
-                                            <div class="user-phone">{{ manager.phone }}</div>
-                                            {% endif %}
+                                    <div class="form-group">
+                                        <label class="form-label" for="{{ employee_form.last_name.id_for_label }}">
+                                            <i class="fas fa-user me-1"></i>
+                                            {{ employee_form.last_name.label }}
+                                        </label>
+                                        <input type="text" name="{{ employee_form.last_name.name }}"
+                                            id="{{ employee_form.last_name.id_for_label }}"
+                                            class="form-control-modern {% if employee_form.last_name.errors %}error{% endif %}"
+                                            value="{{ employee_form.last_name.value|default:'' }}"
+                                            placeholder="{% trans 'نام خانوادگی' %}">
+                                        {% if employee_form.last_name.errors %}
+                                        <div class="error-message">
+                                            {% for error in employee_form.last_name.errors %}
+                                            {{ error }}
+                                            {% endfor %}
                                         </div>
-                                        <div class="user-field">
-                                            <div class="field-label">{% trans "کد ملی" %}</div>
-                                            <div class="field-value">{{ manager.national_id }}</div>
-                                        </div>
-                                        <div class="user-field">
-                                            <div class="field-label">{% trans "کد کارمندی" %}</div>
-                                            <div class="field-value">{{ manager.employee_code }}</div>
-                                        </div>
-                                        <div class="user-field">
-                                            <div class="field-label">{% trans "بخش" %}</div>
-                                            <div class="field-value">{{ manager.department|default:"-" }}</div>
-                                        </div>
-                                        <div class="user-field">
-                                            <div class="field-label">{% trans "ایمیل" %}</div>
-                                            <div class="field-value email" title="{{ manager.email }}">{{ manager.email }}</div>
-                                        </div>
-                                        <div class="user-field">
-                                            <div class="field-label">{% trans "تاریخ عضویت" %}</div>
-                                            <div class="field-value">{{ manager.date_joined|persian_date_only }}</div>
-                                        </div>
-                                    </div>
-                                    <div class="user-actions">
-                                        {% if manager != user %}
-                                        <a href="{% url 'tickets:edit_it_manager' manager.id %}" 
-                                           class="btn-action btn-edit"
-                                           title="{% trans 'ویرایش کاربر' %}">
-                                            <i class="fas fa-edit"></i>
-                                        </a>
-                                        <a href="{% url 'tickets:delete_user' manager.id %}" 
-                                           class="btn-action btn-delete"
-                                           title="{% trans 'حذف کاربر' %}">
-                                            <i class="fas fa-trash"></i>
-                                        </a>
-                                        {% else %}
-                                        <span class="badge bg-secondary">{% trans "شما" %}</span>
                                         {% endif %}
                                     </div>
                                 </div>
+
+                                <div class="form-group">
+                                    <label class="form-label" for="{{ employee_form.email.id_for_label }}">
+                                        <i class="fas fa-envelope me-1"></i>
+                                        {{ employee_form.email.label }}
+                                    </label>
+                                    <input type="email" name="{{ employee_form.email.name }}"
+                                        id="{{ employee_form.email.id_for_label }}"
+                                        class="form-control-modern {% if employee_form.email.errors %}error{% endif %}"
+                                        value="{{ employee_form.email.value|default:'' }}"
+                                        placeholder="{% trans 'ایمیل' %}">
+                                    {% if employee_form.email.errors %}
+                                    <div class="error-message">
+                                        {% for error in employee_form.email.errors %}
+                                        {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label" for="{{ employee_form.national_id.id_for_label }}">
+                                            <i class="fas fa-id-card me-1"></i>
+                                            {{ employee_form.national_id.label }}
+                                        </label>
+                                        <input type="text" name="{{ employee_form.national_id.name }}"
+                                            id="{{ employee_form.national_id.id_for_label }}"
+                                            class="form-control-modern {% if employee_form.national_id.errors %}error{% endif %}"
+                                            value="{{ employee_form.national_id.value|default:'' }}"
+                                            placeholder="{% trans 'کد ملی' %}">
+                                        {% if employee_form.national_id.errors %}
+                                        <div class="error-message">
+                                            {% for error in employee_form.national_id.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label class="form-label" for="{{ employee_form.employee_code.id_for_label }}">
+                                            <i class="fas fa-hashtag me-1"></i>
+                                            {{ employee_form.employee_code.label }}
+                                        </label>
+                                        <input type="text" name="{{ employee_form.employee_code.name }}"
+                                            id="{{ employee_form.employee_code.id_for_label }}"
+                                            class="form-control-modern {% if employee_form.employee_code.errors %}error{% endif %}"
+                                            value="{{ employee_form.employee_code.value|default:'' }}"
+                                            placeholder="{% trans 'کد کارمندی' %}">
+                                        {% if employee_form.employee_code.errors %}
+                                        <div class="error-message">
+                                            {% for error in employee_form.employee_code.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label" for="{{ employee_form.phone.id_for_label }}">
+                                            <i class="fas fa-phone me-1"></i>
+                                            {{ employee_form.phone.label }}
+                                        </label>
+                                        <input type="tel" name="{{ employee_form.phone.name }}"
+                                            id="{{ employee_form.phone.id_for_label }}"
+                                            class="form-control-modern {% if employee_form.phone.errors %}error{% endif %}"
+                                            value="{{ employee_form.phone.value|default:'' }}"
+                                            placeholder="{% trans 'شماره تلفن' %}">
+                                        {% if employee_form.phone.errors %}
+                                        <div class="error-message">
+                                            {% for error in employee_form.phone.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+
+                                    {% if employee_form.department.field.widget.input_type != 'hidden' %}
+                                    <div class="form-group">
+                                        <label class="form-label" for="{{ employee_form.department.id_for_label }}">
+                                            <i class="fas fa-building me-1"></i>
+                                            {{ employee_form.department.label }}
+                                        </label>
+                                        <select name="{{ employee_form.department.name }}"
+                                            id="{{ employee_form.department.id_for_label }}"
+                                            class="form-select-modern {% if employee_form.department.errors %}error{% endif %}">
+                                            <option value="">{% trans "انتخاب بخش" %}</option>
+                                            {% for choice in employee_form.department.field.choices %}
+                                            <option value="{{ choice.0 }}" {% if employee_form.department.value == choice.0 %}selected{% endif %}>
+                                                {{ choice.1 }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                        {% if employee_form.department.errors %}
+                                        <div class="error-message">
+                                            {% for error in employee_form.department.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    {% else %}
+                                    {# Hidden field for supervisors - department assignment done on Assign to Team
+                                    Leader page #}
+                                    {{ employee_form.department }}
+                                    <div class="form-group">
+                                        <div class="alert alert-info" style="margin-top: 0.5rem;">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            {% trans "برای سرپرستان، بخش باید از صفحه 'اختصاص سرپرست به بخش‌ها' تعیین
+                                            شود." %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">{% trans "نقش در بخش" %}</label>
+                                    <div class="radio-group">
+                                        {% for choice in employee_form.department_role %}
+                                        <div class="radio-item">
+                                            <input type="radio" name="{{ employee_form.department_role.name }}"
+                                                id="{{ choice.id_for_label }}" value="{{ choice.data.value }}" {% if
+                                                employee_form.department_role.value==choice.data.value %}checked{% endif
+                                                %}>
+                                            <label class="radio-label" for="{{ choice.id_for_label }}">
+                                                {{ choice.choice_label }}
+                                            </label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% if employee_form.department_role.errors %}
+                                    <div class="error-message">
+                                        {% for error in employee_form.department_role.errors %}
+                                        {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label" for="{{ employee_form.password1.id_for_label }}">
+                                            <i class="fas fa-lock me-1"></i>
+                                            {{ employee_form.password1.label }}
+                                        </label>
+                                        <input type="password" name="{{ employee_form.password1.name }}"
+                                            id="{{ employee_form.password1.id_for_label }}"
+                                            class="form-control-modern {% if employee_form.password1.errors %}error{% endif %}"
+                                            placeholder="{% trans 'رمز عبور' %}">
+                                        {% if employee_form.password1.errors %}
+                                        <div class="error-message">
+                                            {% for error in employee_form.password1.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label class="form-label" for="{{ employee_form.password2.id_for_label }}">
+                                            <i class="fas fa-lock me-1"></i>
+                                            {{ employee_form.password2.label }}
+                                        </label>
+                                        <input type="password" name="{{ employee_form.password2.name }}"
+                                            id="{{ employee_form.password2.id_for_label }}"
+                                            class="form-control-modern {% if employee_form.password2.errors %}error{% endif %}"
+                                            placeholder="{% trans 'تکرار رمز عبور' %}">
+                                        {% if employee_form.password2.errors %}
+                                        <div class="error-message">
+                                            {% for error in employee_form.password2.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="btn-submit">
+                                    <i class="fas fa-plus"></i>
+                                    {% trans "ایجاد کارمند" %}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Employees List -->
+                    <div class="col-lg-8">
+                        <div class="user-list">
+                            <div class="list-header">
+                                <div class="list-title">
+                                    <i class="fas fa-users"></i>
+                                    {% trans "لیست کارمندان" %}
+                                </div>
                             </div>
-                            {% endfor %}
+
+                            {% if employees %}
+                            <div class="user-grid">
+                                {% for employee in employees %}
+                                <div class="user-card">
+                                    <div class="user-info">
+                                        <div class="user-details">
+                                            <div class="user-field">
+                                                <div class="field-label">{% trans "نام" %}</div>
+                                                <div class="user-name">{{ employee.get_full_name }}</div>
+                                                {% if employee.phone %}
+                                                <div class="user-phone">{{ employee.phone }}</div>
+                                                {% endif %}
+                                            </div>
+
+                                            <div class="user-field">
+                                                <div class="field-label">{% trans "کد ملی" %}</div>
+                                                <div class="field-value">{{ employee.national_id }}</div>
+                                            </div>
+
+                                            <div class="user-field">
+                                                <div class="field-label">{% trans "کد کارمندی" %}</div>
+                                                <div class="field-value">{{ employee.employee_code }}</div>
+                                            </div>
+
+                                            <div class="user-field">
+                                                <div class="field-label">{% trans "بخش" %}</div>
+                                                <div class="field-value">
+                                                    {% if employee.department_role == 'manager' %}
+                                                    -
+                                                    {% else %}
+                                                    {{ employee.department|default:"-" }}
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+
+                                            <div class="user-field">
+                                                <div class="field-label">{% trans "نقش" %}</div>
+                                                <div class="field-value">
+                                                    {% if employee.department_role == 'manager' %}
+                                                    <span class="role-badge manager">
+                                                        <i class="fas fa-crown"></i>
+                                                        {% trans "مدیر" %}
+                                                    </span>
+                                                    {% elif employee.department_role == 'senior' %}
+                                                    <span class="role-badge senior">
+                                                        <i class="fas fa-star"></i>
+                                                        {% trans "سرپرست" %}
+                                                    </span>
+                                                    {% else %}
+                                                    <span class="role-badge employee">
+                                                        <i class="fas fa-user"></i>
+                                                        {% trans "کارمند" %}
+                                                    </span>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+
+                                            <div class="user-field">
+                                                <div class="field-label">{% trans "ایمیل" %}</div>
+                                                <div class="field-value email" title="{{ employee.email }}">{{
+                                                    employee.email }}</div>
+                                            </div>
+
+                                            <div class="user-field">
+                                                <div class="field-label">{% trans "تاریخ عضویت" %}</div>
+                                                <div class="field-value">{{ employee.date_joined|persian_date_only }}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="user-actions">
+                                            <a href="{% url 'tickets:edit_employee' employee.id %}"
+                                                class="btn-action btn-edit" title="{% trans 'ویرایش کاربر' %}">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <a href="{% url 'tickets:delete_user' employee.id %}"
+                                                class="btn-action btn-delete" title="{% trans 'حذف کاربر' %}">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <div class="user-search-no-results" id="employees-search-no-results" aria-hidden="true">
+                                <i class="fas fa-search"></i>
+                                <span>{% trans "هیچ کاربری با این نام یافت نشد." %}</span>
+                            </div>
+                            {% else %}
+                            <div class="empty-state">
+                                <i class="fas fa-users"></i>
+                                <h3>{% trans "هیچ کارمندی یافت نشد" %}</h3>
+                                <p>{% trans "هنوز هیچ کارمندی در سیستم ثبت نشده است" %}</p>
+                            </div>
+                            {% endif %}
                         </div>
-                        <div class="user-search-no-results" id="managers-search-no-results" aria-hidden="true">
-                            <i class="fas fa-search"></i>
-                            <span>{% trans "هیچ کاربری با این نام یافت نشد." %}</span>
-                        </div>
-                        {% else %}
-                        <div class="empty-state">
-                            <i class="fas fa-user-shield"></i>
-                            <h3>{% trans "هیچ مدیرIT یافت نشد" %}</h3>
-                            <p>{% trans "هنوز هیچ مدیرIT در سیستم ثبت نشده است" %}</p>
-                        </div>
-                        {% endif %}
                     </div>
                 </div>
             </div>
+
+            <!-- Technicians Tab -->
+            <div id="technicians-tab" class="user-tab-content" style="display: none;">
+                <div class="row align-items-start">
+                    <!-- Technician Creation Form (modern) -->
+                    <div class="col-lg-4">
+                        <div class="form-card">
+                            <div class="form-header">
+                                <i class="fas fa-tools"></i>
+                                <h3>{% trans "افزودن کارشناس فنی جدید" %}</h3>
+                            </div>
+                            <form method="post" data-form-type="technician">
+                                {% csrf_token %}
+                                <input type="hidden" name="form_type" value="technician">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label" for="{{ technician_form.first_name.id_for_label }}"><i
+                                                class="fas fa-user me-1"></i>{{ technician_form.first_name.label
+                                            }}</label>
+                                        <input type="text" name="{{ technician_form.first_name.name }}"
+                                            id="{{ technician_form.first_name.id_for_label }}"
+                                            class="form-control-modern {% if technician_form.first_name.errors %}error{% endif %}"
+                                            value="{{ technician_form.first_name.value|default:'' }}"
+                                            placeholder="{% trans 'نام' %}">
+                                        {% if technician_form.first_name.errors %}
+                                        <div class="error-message">
+                                            {% for error in technician_form.first_name.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="{{ technician_form.last_name.id_for_label }}"><i
+                                                class="fas fa-user me-1"></i>{{ technician_form.last_name.label
+                                            }}</label>
+                                        <input type="text" name="{{ technician_form.last_name.name }}"
+                                            id="{{ technician_form.last_name.id_for_label }}"
+                                            class="form-control-modern {% if technician_form.last_name.errors %}error{% endif %}"
+                                            value="{{ technician_form.last_name.value|default:'' }}"
+                                            placeholder="{% trans 'نام خانوادگی' %}">
+                                        {% if technician_form.last_name.errors %}
+                                        <div class="error-message">
+                                            {% for error in technician_form.last_name.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="{{ technician_form.email.id_for_label }}"><i
+                                            class="fas fa-envelope me-1"></i>{{ technician_form.email.label }}</label>
+                                    <input type="email" name="{{ technician_form.email.name }}"
+                                        id="{{ technician_form.email.id_for_label }}"
+                                        class="form-control-modern {% if technician_form.email.errors %}error{% endif %}"
+                                        value="{{ technician_form.email.value|default:'' }}"
+                                        placeholder="{% trans 'ایمیل' %}">
+                                    {% if technician_form.email.errors %}
+                                    <div class="error-message">
+                                        {% for error in technician_form.email.errors %}
+                                        {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label"
+                                            for="{{ technician_form.national_id.id_for_label }}"><i
+                                                class="fas fa-id-card me-1"></i>{{ technician_form.national_id.label
+                                            }}</label>
+                                        <input type="text" name="{{ technician_form.national_id.name }}"
+                                            id="{{ technician_form.national_id.id_for_label }}"
+                                            class="form-control-modern {% if technician_form.national_id.errors %}error{% endif %}"
+                                            value="{{ technician_form.national_id.value|default:'' }}"
+                                            placeholder="{% trans 'کد ملی' %}">
+                                        {% if technician_form.national_id.errors %}
+                                        <div class="error-message">
+                                            {% for error in technician_form.national_id.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label"
+                                            for="{{ technician_form.employee_code.id_for_label }}"><i
+                                                class="fas fa-hashtag me-1"></i>{{ technician_form.employee_code.label
+                                            }}</label>
+                                        <input type="text" name="{{ technician_form.employee_code.name }}"
+                                            id="{{ technician_form.employee_code.id_for_label }}"
+                                            class="form-control-modern {% if technician_form.employee_code.errors %}error{% endif %}"
+                                            value="{{ technician_form.employee_code.value|default:'' }}"
+                                            placeholder="{% trans 'کد کارمندی' %}">
+                                        {% if technician_form.employee_code.errors %}
+                                        <div class="error-message">
+                                            {% for error in technician_form.employee_code.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label" for="{{ technician_form.phone.id_for_label }}"><i
+                                                class="fas fa-phone me-1"></i>{{ technician_form.phone.label }}</label>
+                                        <input type="tel" name="{{ technician_form.phone.name }}"
+                                            id="{{ technician_form.phone.id_for_label }}"
+                                            class="form-control-modern {% if technician_form.phone.errors %}error{% endif %}"
+                                            value="{{ technician_form.phone.value|default:'' }}"
+                                            placeholder="{% trans 'شماره تلفن' %}">
+                                        {% if technician_form.phone.errors %}
+                                        <div class="error-message">
+                                            {% for error in technician_form.phone.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="{{ technician_form.department.id_for_label }}"><i
+                                                class="fas fa-building me-1"></i>{{ technician_form.department.label
+                                            }}</label>
+                                        <select name="{{ technician_form.department.name }}"
+                                            id="{{ technician_form.department.id_for_label }}"
+                                            class="form-select-modern {% if technician_form.department.errors %}error{% endif %}">
+                                            <option value="">{% trans "انتخاب بخش" %}</option>
+                                            {% for choice in technician_form.department.field.choices %}
+                                            <option value="{{ choice.0 }}" {% if technician_form.department.value == choice.0 %}selected{% endif %}>{{ choice.1 }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        {% if technician_form.department.errors %}
+                                        <div class="error-message">
+                                            {% for error in technician_form.department.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label" for="{{ technician_form.password1.id_for_label }}"><i
+                                                class="fas fa-lock me-1"></i>{{ technician_form.password1.label
+                                            }}</label>
+                                        <input type="password" name="{{ technician_form.password1.name }}"
+                                            id="{{ technician_form.password1.id_for_label }}"
+                                            class="form-control-modern {% if technician_form.password1.errors %}error{% endif %}"
+                                            placeholder="{% trans 'رمز عبور' %}">
+                                        {% if technician_form.password1.errors %}
+                                        <div class="error-message">
+                                            {% for error in technician_form.password1.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="{{ technician_form.password2.id_for_label }}"><i
+                                                class="fas fa-lock me-1"></i>{{ technician_form.password2.label
+                                            }}</label>
+                                        <input type="password" name="{{ technician_form.password2.name }}"
+                                            id="{{ technician_form.password2.id_for_label }}"
+                                            class="form-control-modern {% if technician_form.password2.errors %}error{% endif %}"
+                                            placeholder="{% trans 'تکرار رمز عبور' %}">
+                                        {% if technician_form.password2.errors %}
+                                        <div class="error-message">
+                                            {% for error in technician_form.password2.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn-submit"><i class="fas fa-plus"></i>{% trans "ایجاد
+                                    کارشناس فنی" %}</button>
+                            </form>
+                        </div>
+                    </div>
+                    <!-- Technicians List (modern cards) -->
+                    <div class="col-lg-8">
+                        <div class="user-list">
+                            <div class="list-header">
+                                <div class="list-title"><i class="fas fa-tools"></i>{% trans "لیست کارشناسانIT" %}</div>
+                            </div>
+                            {% if technicians %}
+                            <div class="user-grid">
+                                {% for technician in technicians %}
+                                <div class="user-card">
+                                    <div class="user-info">
+                                        <div class="user-details">
+                                            <div class="user-field">
+                                                <div class="field-label">{% trans "نام" %}</div>
+                                                <div class="user-name">{{ technician.get_full_name }}</div>
+                                                {% if technician.phone %}
+                                                <div class="user-phone">{{ technician.phone }}</div>
+                                                {% endif %}
+                                            </div>
+                                            <div class="user-field">
+                                                <div class="field-label">{% trans "کد ملی" %}</div>
+                                                <div class="field-value">{{ technician.national_id }}</div>
+                                            </div>
+                                            <div class="user-field">
+                                                <div class="field-label">{% trans "کد کارمندی" %}</div>
+                                                <div class="field-value">{{ technician.employee_code }}</div>
+                                            </div>
+                                            <div class="user-field">
+                                                <div class="field-label">{% trans "بخش" %}</div>
+                                                <div class="field-value">{{ technician.department|default:"-" }}</div>
+                                            </div>
+                                            <div class="user-field">
+                                                <div class="field-label">{% trans "ایمیل" %}</div>
+                                                <div class="field-value email" title="{{ technician.email }}">{{
+                                                    technician.email }}</div>
+                                            </div>
+                                            <div class="user-field">
+                                                <div class="field-label">{% trans "تاریخ عضویت" %}</div>
+                                                <div class="field-value">{{ technician.date_joined|persian_date_only }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="user-actions">
+                                            <a href="{% url 'tickets:edit_technician' technician.id %}"
+                                                class="btn-action btn-edit" title="{% trans 'ویرایش کاربر' %}"><i
+                                                    class="fas fa-edit"></i></a>
+                                            <a href="{% url 'tickets:delete_user' technician.id %}"
+                                                class="btn-action btn-delete" title="{% trans 'حذف کاربر' %}"><i
+                                                    class="fas fa-trash"></i></a>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <div class="user-search-no-results" id="technicians-search-no-results" aria-hidden="true">
+                                <i class="fas fa-search"></i>
+                                <span>{% trans "هیچ کاربری با این نام یافت نشد." %}</span>
+                            </div>
+                            {% else %}
+                            <div class="empty-state">
+                                <i class="fas fa-tools"></i>
+                                <h3>{% trans "هیچ کارشناس فنی یافت نشد" %}</h3>
+                                <p>{% trans "هنوز هیچ کارشناس فنی در سیستم ثبت نشده است" %}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Managers Tab (modern cards) -->
+            <div id="managers-tab" class="user-tab-content" style="display: none;">
+                <div class="row align-items-start">
+                    <!-- IT Manager Creation Form -->
+                    <div class="col-lg-4">
+                        <div class="form-card">
+                            <div class="form-header">
+                                <i class="fas fa-user-shield"></i>
+                                <h3>{% trans "افزودن مدیر IT جدید" %}</h3>
+                            </div>
+                            <form method="post" data-form-type="it_manager">
+                                {% csrf_token %}
+                                <input type="hidden" name="form_type" value="it_manager">
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label" for="{{ it_manager_form.first_name.id_for_label }}">
+                                            <i class="fas fa-user me-1"></i>
+                                            {{ it_manager_form.first_name.label }}
+                                        </label>
+                                        <input type="text" name="{{ it_manager_form.first_name.name }}"
+                                            id="{{ it_manager_form.first_name.id_for_label }}"
+                                            class="form-control-modern {% if it_manager_form.first_name.errors %}error{% endif %}"
+                                            value="{{ it_manager_form.first_name.value|default:'' }}"
+                                            placeholder="{% trans 'نام' %}">
+                                        {% if it_manager_form.first_name.errors %}
+                                        <div class="error-message">
+                                            {% for error in it_manager_form.first_name.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label class="form-label" for="{{ it_manager_form.last_name.id_for_label }}">
+                                            <i class="fas fa-user me-1"></i>
+                                            {{ it_manager_form.last_name.label }}
+                                        </label>
+                                        <input type="text" name="{{ it_manager_form.last_name.name }}"
+                                            id="{{ it_manager_form.last_name.id_for_label }}"
+                                            class="form-control-modern {% if it_manager_form.last_name.errors %}error{% endif %}"
+                                            value="{{ it_manager_form.last_name.value|default:'' }}"
+                                            placeholder="{% trans 'نام خانوادگی' %}">
+                                        {% if it_manager_form.last_name.errors %}
+                                        <div class="error-message">
+                                            {% for error in it_manager_form.last_name.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label" for="{{ it_manager_form.email.id_for_label }}">
+                                        <i class="fas fa-envelope me-1"></i>
+                                        {{ it_manager_form.email.label }}
+                                    </label>
+                                    <input type="email" name="{{ it_manager_form.email.name }}"
+                                        id="{{ it_manager_form.email.id_for_label }}"
+                                        class="form-control-modern {% if it_manager_form.email.errors %}error{% endif %}"
+                                        value="{{ it_manager_form.email.value|default:'' }}"
+                                        placeholder="{% trans 'ایمیل' %}">
+                                    {% if it_manager_form.email.errors %}
+                                    <div class="error-message">
+                                        {% for error in it_manager_form.email.errors %}
+                                        {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label" for="{{ it_manager_form.national_id.id_for_label }}">
+                                            <i class="fas fa-id-card me-1"></i>
+                                            {{ it_manager_form.national_id.label }}
+                                        </label>
+                                        <input type="text" name="{{ it_manager_form.national_id.name }}"
+                                            id="{{ it_manager_form.national_id.id_for_label }}"
+                                            class="form-control-modern {% if it_manager_form.national_id.errors %}error{% endif %}"
+                                            value="{{ it_manager_form.national_id.value|default:'' }}"
+                                            placeholder="{% trans 'کد ملی' %}">
+                                        {% if it_manager_form.national_id.errors %}
+                                        <div class="error-message">
+                                            {% for error in it_manager_form.national_id.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label class="form-label"
+                                            for="{{ it_manager_form.employee_code.id_for_label }}">
+                                            <i class="fas fa-hashtag me-1"></i>
+                                            {{ it_manager_form.employee_code.label }}
+                                        </label>
+                                        <input type="text" name="{{ it_manager_form.employee_code.name }}"
+                                            id="{{ it_manager_form.employee_code.id_for_label }}"
+                                            class="form-control-modern {% if it_manager_form.employee_code.errors %}error{% endif %}"
+                                            value="{{ it_manager_form.employee_code.value|default:'' }}"
+                                            placeholder="{% trans 'کد کارمندی' %}">
+                                        {% if it_manager_form.employee_code.errors %}
+                                        <div class="error-message">
+                                            {% for error in it_manager_form.employee_code.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label" for="{{ it_manager_form.phone.id_for_label }}">
+                                        <i class="fas fa-phone me-1"></i>
+                                        {{ it_manager_form.phone.label }}
+                                    </label>
+                                    <input type="tel" name="{{ it_manager_form.phone.name }}"
+                                        id="{{ it_manager_form.phone.id_for_label }}"
+                                        class="form-control-modern {% if it_manager_form.phone.errors %}error{% endif %}"
+                                        value="{{ it_manager_form.phone.value|default:'' }}"
+                                        placeholder="{% trans 'شماره تلفن' %}">
+                                    {% if it_manager_form.phone.errors %}
+                                    <div class="error-message">
+                                        {% for error in it_manager_form.phone.errors %}
+                                        {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label" for="{{ it_manager_form.password1.id_for_label }}">
+                                            <i class="fas fa-lock me-1"></i>
+                                            {{ it_manager_form.password1.label }}
+                                        </label>
+                                        <input type="password" name="{{ it_manager_form.password1.name }}"
+                                            id="{{ it_manager_form.password1.id_for_label }}"
+                                            class="form-control-modern {% if it_manager_form.password1.errors %}error{% endif %}"
+                                            placeholder="{% trans 'رمز عبور' %}">
+                                        {% if it_manager_form.password1.errors %}
+                                        <div class="error-message">
+                                            {% for error in it_manager_form.password1.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label class="form-label" for="{{ it_manager_form.password2.id_for_label }}">
+                                            <i class="fas fa-lock me-1"></i>
+                                            {{ it_manager_form.password2.label }}
+                                        </label>
+                                        <input type="password" name="{{ it_manager_form.password2.name }}"
+                                            id="{{ it_manager_form.password2.id_for_label }}"
+                                            class="form-control-modern {% if it_manager_form.password2.errors %}error{% endif %}"
+                                            placeholder="{% trans 'تکرار رمز عبور' %}">
+                                        {% if it_manager_form.password2.errors %}
+                                        <div class="error-message">
+                                            {% for error in it_manager_form.password2.errors %}
+                                            {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="btn-submit">
+                                    <i class="fas fa-plus"></i>
+                                    {% trans "ایجاد مدیر IT" %}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- IT Managers List -->
+                    <div class="col-lg-8">
+                        <div class="user-list">
+                            <div class="list-header">
+                                <div class="list-title">
+                                    <i class="fas fa-user-shield"></i>
+                                    {% trans "لیست مدیران IT" %}
+                                </div>
+                            </div>
+                            {% if it_managers %}
+                            <div class="user-grid">
+                                {% for manager in it_managers %}
+                                <div class="user-card">
+                                    <div class="user-info">
+                                        <div class="user-details">
+                                            <div class="user-field">
+                                                <div class="field-label">{% trans "نام" %}</div>
+                                                <div class="user-name">{{ manager.get_full_name }}</div>
+                                                {% if manager.phone %}
+                                                <div class="user-phone">{{ manager.phone }}</div>
+                                                {% endif %}
+                                            </div>
+                                            <div class="user-field">
+                                                <div class="field-label">{% trans "کد ملی" %}</div>
+                                                <div class="field-value">{{ manager.national_id }}</div>
+                                            </div>
+                                            <div class="user-field">
+                                                <div class="field-label">{% trans "کد کارمندی" %}</div>
+                                                <div class="field-value">{{ manager.employee_code }}</div>
+                                            </div>
+                                            <div class="user-field">
+                                                <div class="field-label">{% trans "بخش" %}</div>
+                                                <div class="field-value">{{ manager.department|default:"-" }}</div>
+                                            </div>
+                                            <div class="user-field">
+                                                <div class="field-label">{% trans "ایمیل" %}</div>
+                                                <div class="field-value email" title="{{ manager.email }}">{{
+                                                    manager.email }}</div>
+                                            </div>
+                                            <div class="user-field">
+                                                <div class="field-label">{% trans "تاریخ عضویت" %}</div>
+                                                <div class="field-value">{{ manager.date_joined|persian_date_only }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="user-actions">
+                                            {% if manager != user %}
+                                            <a href="{% url 'tickets:edit_it_manager' manager.id %}"
+                                                class="btn-action btn-edit" title="{% trans 'ویرایش کاربر' %}">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <a href="{% url 'tickets:delete_user' manager.id %}"
+                                                class="btn-action btn-delete" title="{% trans 'حذف کاربر' %}">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                            {% else %}
+                                            <span class="badge bg-secondary">{% trans "شما" %}</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <div class="user-search-no-results" id="managers-search-no-results" aria-hidden="true">
+                                <i class="fas fa-search"></i>
+                                <span>{% trans "هیچ کاربری با این نام یافت نشد." %}</span>
+                            </div>
+                            {% else %}
+                            <div class="empty-state">
+                                <i class="fas fa-user-shield"></i>
+                                <h3>{% trans "هیچ مدیرIT یافت نشد" %}</h3>
+                                <p>{% trans "هنوز هیچ مدیرIT در سیستم ثبت نشده است" %}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
-
     </div>
-</div>
 
 
-{% endblock %}
+    {% endblock %}
 
 
 
-{% block extra_js %}
-<script>
-// Tab switching functionality
-function showUserTab(tabName) {
-    // Hide all tab content
-    document.querySelectorAll('.user-tab-content').forEach(content => {
-        content.style.display = 'none';
-    });
-
-    // Remove active class from all tab buttons
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-
-    // Show selected tab content
-    const selectedTab = document.getElementById(tabName + '-tab');
-    if (selectedTab) {
-        selectedTab.style.display = 'block';
-    }
-
-    // Add active class to clicked button
-    event.target.closest('.tab-btn').classList.add('active');
-
-    // Re-apply search filter on the new tab
-    filterUserCards();
-}
-
-// جستجوی لحظه‌ای بر اساس نام کاربر
-function filterUserCards() {
-    const searchInput = document.getElementById('userNameSearch');
-    const term = (searchInput && searchInput.value || '').trim().replace(/\s+/g, ' ');
-
-    const visibleTab = Array.from(document.querySelectorAll('.user-tab-content')).find(function(el) {
-        return el.style.display === 'block';
-    });
-    if (!visibleTab) return;
-
-    const userList = visibleTab.querySelector('.user-list');
-    if (!userList) return;
-
-    const grid = userList.querySelector('.user-grid');
-    const noResults = userList.querySelector('.user-search-no-results');
-    const cards = grid ? grid.querySelectorAll('.user-card') : [];
-
-    if (cards.length === 0) {
-        if (noResults) noResults.style.display = 'none';
-        return;
-    }
-
-    var hasVisible = false;
-    cards.forEach(function(card) {
-        var nameEl = card.querySelector('.user-name');
-        var name = (nameEl ? nameEl.textContent : '').trim().replace(/\s+/g, ' ');
-        var match = !term || name.indexOf(term) !== -1;
-        card.style.display = match ? '' : 'none';
-        if (match) hasVisible = true;
-    });
-
-    if (noResults) {
-        noResults.style.display = term && !hasVisible ? 'block' : 'none';
-        noResults.setAttribute('aria-hidden', term && !hasVisible ? 'false' : 'true');
-    }
-}
-
-    // Function to toggle department field based on department role
-    function toggleDepartmentField() {
-        const departmentRoleInputs = document.querySelectorAll('input[name="department_role"]');
-        const departmentSelect = document.getElementById('id_department');
-        const departmentFormGroup = departmentSelect ? departmentSelect.closest('.form-group') : null;
-        
-        if (!departmentSelect || !departmentFormGroup) return;
-        
-        let selectedRole = '';
-        departmentRoleInputs.forEach(input => {
-            if (input.checked) {
-                selectedRole = input.value;
-            }
-        });
-        
-        // Hide department field for supervisors (senior/manager) - handled server-side now
-        // This JS is just for backward compatibility if field is still visible
-        if (selectedRole === 'senior' || selectedRole === 'manager') {
-            if (departmentSelect.tagName === 'SELECT') {
-                departmentSelect.disabled = true;
-                departmentSelect.value = '';
-                departmentSelect.style.opacity = '0.5';
-            }
-        } else {
-            if (departmentSelect.tagName === 'SELECT') {
-                departmentSelect.disabled = false;
-                departmentSelect.style.opacity = '1';
-            }
-        }
-    }
-
-    // Listen to changes on department_role radios to toggle immediately
-    document.addEventListener('change', function(e) {
-        if (e.target && e.target.name === 'department_role') {
-            toggleDepartmentField();
-        }
-    });
-    
-    // Form clearing functionality
-    function clearForm(formId) {
-        const form = document.getElementById(formId);
-        if (form) {
-            form.reset();
-            // Clear any validation messages
-        const errorElements = form.querySelectorAll('.error-message');
-            errorElements.forEach(element => element.style.display = 'none');
-            
-        const inputElements = form.querySelectorAll('.form-control-modern, .form-select-modern');
-            inputElements.forEach(input => {
-            input.classList.remove('error');
+    {% block extra_js %}
+    <script>
+        // Tab switching functionality
+        function showUserTab(tabName) {
+            // Hide all tab content
+            document.querySelectorAll('.user-tab-content').forEach(content => {
+                content.style.display = 'none';
             });
-        }
-    }
-    
-// Add loading animation
-    document.addEventListener('DOMContentLoaded', function() {
-    const cards = document.querySelectorAll('.form-card, .user-list');
-    cards.forEach((card, index) => {
-        card.style.opacity = '0';
-        card.style.transform = 'translateY(20px)';
-        setTimeout(() => {
-            card.style.transition = 'all 0.6s ease';
-            card.style.opacity = '1';
-            card.style.transform = 'translateY(0)';
-        }, index * 200);
-    });
 
-        // Initialize and bind department field state
-        toggleDepartmentField();
-    
-        // Check if there's a success message (indicating successful form submission)
-        const successMessages = document.querySelectorAll('.alert-success');
-        if (successMessages.length > 0) {
-                    // Clear all forms
-        clearForm('employeeForm');
-        clearForm('technicianForm');
-        clearForm('itManagerForm');
-        }
-        
-        // Add form IDs to the forms
-        const employeeForm = document.querySelector('form[data-form-type="employee"]');
-        if (employeeForm) {
-            employeeForm.id = 'employeeForm';
-        }
-        
-        const technicianForm = document.querySelector('form[data-form-type="technician"]');
-        if (technicianForm) {
-            technicianForm.id = 'technicianForm';
-        }
-        
-        const itManagerForm = document.querySelector('form[data-form-type="it_manager"]');
-        if (itManagerForm) {
-            itManagerForm.id = 'itManagerForm';
-        }
+            // Remove active class from all tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
 
-        // جستجوی لحظه‌ای نام کاربر
-        const userNameSearch = document.getElementById('userNameSearch');
-        if (userNameSearch) {
-            userNameSearch.addEventListener('input', filterUserCards);
-            userNameSearch.addEventListener('keyup', filterUserCards);
+            // Show selected tab content
+            const selectedTab = document.getElementById(tabName + '-tab');
+            if (selectedTab) {
+                selectedTab.style.display = 'block';
+            }
+
+            // Add active class to clicked button
+            event.target.closest('.tab-btn').classList.add('active');
+
+            // Re-apply search filter on the new tab
             filterUserCards();
         }
-    });
-    
-    // Confirm delete actions
-// document.addEventListener('DOMContentLoaded', function() {
-//     const deleteButtons = document.querySelectorAll('a[href*="delete"]');
-//     deleteButtons.forEach(button => {
-//         button.addEventListener('click', function(e) {
-//             const userName = this.closest('.user-card').querySelector('.user-name')?.textContent || 'این کاربر';
-//             if (!confirm(`آیا مطمئن هستید که می‌خواهید ${userName} را حذف کنید؟`)) {
-//                 e.preventDefault();
-//             }
-//         });
-//     });
-// });
-        
+
+        // جستجوی لحظه‌ای بر اساس نام کاربر
+        function filterUserCards() {
+            const searchInput = document.getElementById('userNameSearch');
+            const term = (searchInput && searchInput.value || '').trim().replace(/\s+/g, ' ');
+
+            const visibleTab = Array.from(document.querySelectorAll('.user-tab-content')).find(function (el) {
+                return el.style.display === 'block';
+            });
+            if (!visibleTab) return;
+
+            const userList = visibleTab.querySelector('.user-list');
+            if (!userList) return;
+
+            const grid = userList.querySelector('.user-grid');
+            const noResults = userList.querySelector('.user-search-no-results');
+            const cards = grid ? grid.querySelectorAll('.user-card') : [];
+
+            if (cards.length === 0) {
+                if (noResults) noResults.style.display = 'none';
+                return;
+            }
+
+            var hasVisible = false;
+            cards.forEach(function (card) {
+                var nameEl = card.querySelector('.user-name');
+                var name = (nameEl ? nameEl.textContent : '').trim().replace(/\s+/g, ' ');
+                var match = !term || name.indexOf(term) !== -1;
+                card.style.display = match ? '' : 'none';
+                if (match) hasVisible = true;
+            });
+
+            if (noResults) {
+                noResults.style.display = term && !hasVisible ? 'block' : 'none';
+                noResults.setAttribute('aria-hidden', term && !hasVisible ? 'false' : 'true');
+            }
+        }
+
+        // Function to toggle department field based on department role
+        function toggleDepartmentField() {
+            const departmentRoleInputs = document.querySelectorAll('input[name="department_role"]');
+            const departmentSelect = document.getElementById('id_department');
+            const departmentFormGroup = departmentSelect ? departmentSelect.closest('.form-group') : null;
+
+            if (!departmentSelect || !departmentFormGroup) return;
+
+            let selectedRole = '';
+            departmentRoleInputs.forEach(input => {
+                if (input.checked) {
+                    selectedRole = input.value;
+                }
+            });
+
+            // Hide department field for supervisors (senior/manager) - handled server-side now
+            // This JS is just for backward compatibility if field is still visible
+            if (selectedRole === 'senior' || selectedRole === 'manager') {
+                if (departmentSelect.tagName === 'SELECT') {
+                    departmentSelect.disabled = true;
+                    departmentSelect.value = '';
+                    departmentSelect.style.opacity = '0.5';
+                }
+            } else {
+                if (departmentSelect.tagName === 'SELECT') {
+                    departmentSelect.disabled = false;
+                    departmentSelect.style.opacity = '1';
+                }
+            }
+        }
+
+        // Listen to changes on department_role radios to toggle immediately
+        document.addEventListener('change', function (e) {
+            if (e.target && e.target.name === 'department_role') {
+                toggleDepartmentField();
+            }
+        });
+
+        // Form clearing functionality
+        function clearForm(formId) {
+            const form = document.getElementById(formId);
+            if (form) {
+                form.reset();
+                // Clear any validation messages
+                const errorElements = form.querySelectorAll('.error-message');
+                errorElements.forEach(element => element.style.display = 'none');
+
+                const inputElements = form.querySelectorAll('.form-control-modern, .form-select-modern');
+                inputElements.forEach(input => {
+                    input.classList.remove('error');
+                });
+            }
+        }
+
+        // Add loading animation
+        document.addEventListener('DOMContentLoaded', function () {
+            const cards = document.querySelectorAll('.form-card, .user-list');
+            cards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+                setTimeout(() => {
+                    card.style.transition = 'all 0.6s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 200);
+            });
+
+            // Initialize and bind department field state
+            toggleDepartmentField();
+
+            // Check if there's a success message (indicating successful form submission)
+            const successMessages = document.querySelectorAll('.alert-success');
+            if (successMessages.length > 0) {
+                // Clear all forms
+                clearForm('employeeForm');
+                clearForm('technicianForm');
+                clearForm('itManagerForm');
+            }
+
+            // Add form IDs to the forms
+            const employeeForm = document.querySelector('form[data-form-type="employee"]');
+            if (employeeForm) {
+                employeeForm.id = 'employeeForm';
+            }
+
+            const technicianForm = document.querySelector('form[data-form-type="technician"]');
+            if (technicianForm) {
+                technicianForm.id = 'technicianForm';
+            }
+
+            const itManagerForm = document.querySelector('form[data-form-type="it_manager"]');
+            if (itManagerForm) {
+                itManagerForm.id = 'itManagerForm';
+            }
+
+            // جستجوی لحظه‌ای نام کاربر
+            const userNameSearch = document.getElementById('userNameSearch');
+            if (userNameSearch) {
+                userNameSearch.addEventListener('input', filterUserCards);
+                userNameSearch.addEventListener('keyup', filterUserCards);
+                filterUserCards();
+            }
+        });
+
+        // Confirm delete actions
+        // document.addEventListener('DOMContentLoaded', function() {
+        //     const deleteButtons = document.querySelectorAll('a[href*="delete"]');
+        //     deleteButtons.forEach(button => {
+        //         button.addEventListener('click', function(e) {
+        //             const userName = this.closest('.user-card').querySelector('.user-name')?.textContent || 'این کاربر';
+        //             if (!confirm(`آیا مطمئن هستید که می‌خواهید ${userName} را حذف کنید؟`)) {
+        //                 e.preventDefault();
+        //             }
+        //         });
+        //     });
+        // });
+
         // Prevent non-numeric input for national_id and employee_code fields
         function onlyAllowDigits(e) {
             if (e.inputType && e.inputType.startsWith('delete')) return;
@@ -1636,27 +1751,27 @@ function filterUserCards() {
                 e.target.value = e.target.value.replace(/[^0-9]/g, '');
             }
         }
-        
-        // Apply to all national_id and employee_code inputs in both forms
-document.addEventListener('DOMContentLoaded', function() {
-        const nationalIdInputs = document.querySelectorAll('input[name="national_id"]');
-        const employeeCodeInputs = document.querySelectorAll('input[name="employee_code"]');
-        
-        nationalIdInputs.forEach(input => {
-            input.addEventListener('input', onlyAllowDigits);
-        });
-        
-        employeeCodeInputs.forEach(input => {
-            input.addEventListener('input', onlyAllowDigits);
-        });
-    });
 
-// Auto-focus on first input
-document.addEventListener('DOMContentLoaded', function() {
-    const firstInput = document.querySelector('.form-control-modern');
-    if (firstInput) {
-        firstInput.focus();
-    }
-    });
-</script>
-{% endblock %}
+        // Apply to all national_id and employee_code inputs in both forms
+        document.addEventListener('DOMContentLoaded', function () {
+            const nationalIdInputs = document.querySelectorAll('input[name="national_id"]');
+            const employeeCodeInputs = document.querySelectorAll('input[name="employee_code"]');
+
+            nationalIdInputs.forEach(input => {
+                input.addEventListener('input', onlyAllowDigits);
+            });
+
+            employeeCodeInputs.forEach(input => {
+                input.addEventListener('input', onlyAllowDigits);
+            });
+        });
+
+        // Auto-focus on first input
+        document.addEventListener('DOMContentLoaded', function () {
+            const firstInput = document.querySelector('.form-control-modern');
+            if (firstInput) {
+                firstInput.focus();
+            }
+        });
+    </script>
+    {% endblock %}

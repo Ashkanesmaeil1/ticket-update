@@ -16,15 +16,19 @@
                     <h2 class="mb-1">
                         {% if form_type == 'employee' %}
                             {% trans "ویرایش کارمند" %}
+                        {% elif form_type == 'it_manager' %}
+                            {% trans "ویرایش مدیر IT" %}
                         {% else %}
-                            {% trans "ویرایش کارشناسIT" %}
+                            {% trans "ویرایش کارشناس فنی" %}
                         {% endif %}
                     </h2>
                     <p class="mb-0">
                         {% if form_type == 'employee' %}
                             {% trans "ویرایش اطلاعات کارمند" %}: {{ edited_user.get_full_name }}
+                        {% elif form_type == 'it_manager' %}
+                            {% trans "ویرایش اطلاعات مدیر IT" %}: {{ edited_user.get_full_name }}
                         {% else %}
-                            {% trans "ویرایش اطلاعات کارشناسIT" %}: {{ edited_user.get_full_name }}
+                            {% trans "ویرایش اطلاعات کارشناس فنی" %}: {{ edited_user.get_full_name }}
                         {% endif %}
                     </p>
                 </div>
@@ -45,8 +49,10 @@
                     <h5 class="mb-0">
                         {% if form_type == 'employee' %}
                             {% trans "اطلاعات کارمند" %}
+                        {% elif form_type == 'it_manager' %}
+                            {% trans "اطلاعات مدیر IT" %}
                         {% else %}
-                            {% trans "اطلاعات کارشناس IT" %}
+                            {% trans "اطلاعات کارشناس فنی" %}
                         {% endif %}
                     </h5>
                 </div>
@@ -68,6 +74,7 @@
 
                         <div class="row">
                             <div class="col-md-6 mb-3">{{ form.phone|as_crispy_field }}</div>
+                            {% if form.department %}
                             <div class="col-md-6 mb-3">
                                 {% if form.department.field.disabled %}
                                     {{ form.department|as_crispy_field }}
@@ -79,6 +86,7 @@
                                     {{ form.department|as_crispy_field }}
                                 {% endif %}
                             </div>
+                            {% endif %}
                         </div>
 
                         {% if form_type == 'employee' and form.department_role %}

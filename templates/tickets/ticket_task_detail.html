@@ -424,9 +424,9 @@
                         <strong>{% trans "آخرین درخواست تمدید شما تایید شد" %}</strong>
                     </div>
                     {% elif last_extension_request.status == 'rejected' %}
-                    {% if task.deadline != last_extension_request.requested_deadline %}
+                    {% if extension_rejected_with_new_deadline %}
                     <div class="alert alert-warning"
-                        style="margin-top: 1rem; border-radius: 8px; border: none; background-color: #fef3c7; color: #92400e; padding: 1rem;">
+                        style="margin-top: 1rem; border-radius: 8px; border: none; background-color: #ffedd5; color: #9a3412; padding: 1rem; border-left: 4px solid #ea580c;">
                         <i class="fas fa-info-circle me-2"></i>
                         <strong>{% trans "درخواست تمدید به تاریخ شما رد شد ولی به تاریخ جدیدی تمدید گردید" %}</strong>
                         <div style="margin-top: 0.5rem;">
@@ -435,17 +435,16 @@
                     </div>
                     {% else %}
                     <div class="alert alert-danger"
-                        style="margin-top: 1rem; border-radius: 8px; border: none; background-color: #fee2e2; color: #991b1b; padding: 1rem;">
+                        style="margin-top: 1rem; border-radius: 8px; border: none; background-color: #fee2e2; color: #991b1b; padding: 1rem; border-left: 4px solid #dc2626;">
                         <i class="fas fa-times-circle me-2"></i>
-                        <strong>{% trans "آخرین درخواست تمدید شما رد شد" %}</strong>
-                        {% if last_extension_request.review_comment %}
-                        <div
-                            style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(153, 27, 27, 0.2);">
-                            <strong>{% trans "نظر ادمین:" %}</strong> {{ last_extension_request.review_comment }}
+                        <strong>{% trans "درخواست شما رد شد." %}</strong>
+                        {% if last_extension_request_review_comment_display %}
+                        <div style="margin-top: 0.5rem;">
+                            <strong>{% trans "نظر ادمین:" %}</strong> {{ last_extension_request_review_comment_display }}
                         </div>
                         {% endif %}
                         <div style="margin-top: 0.5rem;">
-                            {% trans "دوباره می‌توانید درخواست تمدید دهید" %}
+                            {% trans "می‌توانید دوباره درخواست تمدید دهید." %}
                         </div>
                     </div>
                     {% endif %}
@@ -465,12 +464,12 @@
                                     style="display: flex; flex-direction: column; gap: 0.35rem; padding: 0.75rem; background: #f8fafc; border-radius: 8px;">
                                     <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
                                         <span
-                                            class="badge {% if ext_req.status == 'pending' %}badge-info{% elif ext_req.status == 'approved' %}badge-success{% else %}badge-danger{% endif %}"
-                                            style="min-width: 100px; {% if ext_req.status == 'pending' %}background-color: #3b82f6; color: white;{% elif ext_req.status == 'approved' %}background-color: #10b981; color: white;{% else %}background-color: #ef4444; color: white;{% endif %}">
+                                            class="badge {% if ext_req.status == 'pending' %}badge-info{% elif ext_req.status == 'approved' %}badge-success{% elif ext_req.status == 'rejected' and ext_req.review_comment and extension_rejected_with_new_deadline_marker in ext_req.review_comment %}badge-warning{% else %}badge-danger{% endif %}"
+                                            style="min-width: 100px; {% if ext_req.status == 'pending' %}background-color: #3b82f6; color: white;{% elif ext_req.status == 'approved' %}background-color: #10b981; color: white;{% elif ext_req.status == 'rejected' and ext_req.review_comment and extension_rejected_with_new_deadline_marker in ext_req.review_comment %}background-color: #f59e0b; color: white;{% else %}background-color: #ef4444; color: white;{% endif %}">
                                             {% if ext_req.status == 'pending' %}<i
                                                 class="fas fa-hourglass-half me-1"></i>{% trans "در انتظار بررسی" %}
-                                            {% elif ext_req.status == 'approved' %}<i class="fas fa-check me-1"></i>{%
-                                            trans "تایید شده" %}
+                                            {% elif ext_req.status == 'approved' %}<i class="fas fa-check me-1"></i>{% trans "تایید شده" %}
+                                            {% elif ext_req.status == 'rejected' and ext_req.review_comment and extension_rejected_with_new_deadline_marker in ext_req.review_comment %}<i class="fas fa-info-circle me-1"></i>{% trans "رد شده با مهلت جدید" %}
                                             {% else %}<i class="fas fa-times me-1"></i>{% trans "رد شده" %}
                                             {% endif %}
                                         </span>
