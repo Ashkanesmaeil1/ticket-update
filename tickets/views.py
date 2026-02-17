@@ -1128,6 +1128,11 @@ def ticket_list(request):
         else:
             tickets = tickets.filter(priority=priority_filter)
     
+    # Order by creation date (newest first) if not already ordered
+    # IT managers already have ordering via get_it_manager_ticket_ordering()
+    if not (is_admin_superuser(user) or user.role == 'it_manager'):
+        tickets = tickets.order_by('-created_at')
+    
     # Pagination
     paginator = Paginator(tickets, 25)
     page_number = request.GET.get('page')
