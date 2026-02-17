@@ -714,7 +714,7 @@
                                     <div class="form-group">
                                         <label class="form-label" for="{{ employee_form.first_name.id_for_label }}">
                                             <i class="fas fa-user me-1"></i>
-                                            {{ employee_form.first_name.label }}
+                                            {% trans "نام" %}
                                         </label>
                                         <input type="text" name="{{ employee_form.first_name.name }}"
                                             id="{{ employee_form.first_name.id_for_label }}"
@@ -733,7 +733,7 @@
                                     <div class="form-group">
                                         <label class="form-label" for="{{ employee_form.last_name.id_for_label }}">
                                             <i class="fas fa-user me-1"></i>
-                                            {{ employee_form.last_name.label }}
+                                            {% trans "نام خانوادگی" %}
                                         </label>
                                         <input type="text" name="{{ employee_form.last_name.name }}"
                                             id="{{ employee_form.last_name.id_for_label }}"
@@ -753,7 +753,7 @@
                                 <div class="form-group">
                                     <label class="form-label" for="{{ employee_form.email.id_for_label }}">
                                         <i class="fas fa-envelope me-1"></i>
-                                        {{ employee_form.email.label }}
+                                        {% trans "ایمیل" %}
                                     </label>
                                     <input type="email" name="{{ employee_form.email.name }}"
                                         id="{{ employee_form.email.id_for_label }}"
@@ -773,7 +773,7 @@
                                     <div class="form-group">
                                         <label class="form-label" for="{{ employee_form.national_id.id_for_label }}">
                                             <i class="fas fa-id-card me-1"></i>
-                                            {{ employee_form.national_id.label }}
+                                            {% trans "کد ملی" %}
                                         </label>
                                         <input type="text" name="{{ employee_form.national_id.name }}"
                                             id="{{ employee_form.national_id.id_for_label }}"
@@ -792,7 +792,7 @@
                                     <div class="form-group">
                                         <label class="form-label" for="{{ employee_form.employee_code.id_for_label }}">
                                             <i class="fas fa-hashtag me-1"></i>
-                                            {{ employee_form.employee_code.label }}
+                                            {% trans "کد کارمندی" %}
                                         </label>
                                         <input type="text" name="{{ employee_form.employee_code.name }}"
                                             id="{{ employee_form.employee_code.id_for_label }}"
@@ -810,11 +810,11 @@
                                 </div>
 
                                 <div class="form-row">
-                                    <div class="form-group">
-                                        <label class="form-label" for="{{ employee_form.phone.id_for_label }}">
-                                            <i class="fas fa-phone me-1"></i>
-                                            {{ employee_form.phone.label }}
-                                        </label>
+                                <div class="form-group">
+                                    <label class="form-label" for="{{ employee_form.phone.id_for_label }}">
+                                        <i class="fas fa-phone me-1"></i>
+                                        {% trans "تلفن" %}
+                                    </label>
                                         <input type="tel" name="{{ employee_form.phone.name }}"
                                             id="{{ employee_form.phone.id_for_label }}"
                                             class="form-control-modern {% if employee_form.phone.errors %}error{% endif %}"
@@ -833,7 +833,7 @@
                                     <div class="form-group">
                                         <label class="form-label" for="{{ employee_form.department.id_for_label }}">
                                             <i class="fas fa-building me-1"></i>
-                                            {{ employee_form.department.label }}
+                                            {% trans "بخش" %}
                                         </label>
                                         <select name="{{ employee_form.department.name }}"
                                             id="{{ employee_form.department.id_for_label }}"
@@ -895,7 +895,7 @@
                                     <div class="form-group">
                                         <label class="form-label" for="{{ employee_form.password1.id_for_label }}">
                                             <i class="fas fa-lock me-1"></i>
-                                            {{ employee_form.password1.label }}
+                                            {% trans "رمز عبور" %}
                                         </label>
                                         <input type="password" name="{{ employee_form.password1.name }}"
                                             id="{{ employee_form.password1.id_for_label }}"
@@ -913,7 +913,7 @@
                                     <div class="form-group">
                                         <label class="form-label" for="{{ employee_form.password2.id_for_label }}">
                                             <i class="fas fa-lock me-1"></i>
-                                            {{ employee_form.password2.label }}
+                                            {% trans "تکرار رمز عبور" %}
                                         </label>
                                         <input type="password" name="{{ employee_form.password2.name }}"
                                             id="{{ employee_form.password2.id_for_label }}"
@@ -1006,8 +1006,7 @@
 
                                             <div class="user-field">
                                                 <div class="field-label">{% trans "ایمیل" %}</div>
-                                                <div class="field-value email" title="{{ employee.email }}">{{
-                                                    employee.email }}</div>
+                                                <div class="field-value email" title="{{ employee.email|default:'' }}">{{ employee.email|default:"-" }}</div>
                                             </div>
 
                                             <div class="user-field">
@@ -1063,8 +1062,7 @@
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label class="form-label" for="{{ technician_form.first_name.id_for_label }}"><i
-                                                class="fas fa-user me-1"></i>{{ technician_form.first_name.label
-                                            }}</label>
+                                                class="fas fa-user me-1"></i>{% trans "نام" %}</label>
                                         <input type="text" name="{{ technician_form.first_name.name }}"
                                             id="{{ technician_form.first_name.id_for_label }}"
                                             class="form-control-modern {% if technician_form.first_name.errors %}error{% endif %}"
@@ -1080,8 +1078,7 @@
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label" for="{{ technician_form.last_name.id_for_label }}"><i
-                                                class="fas fa-user me-1"></i>{{ technician_form.last_name.label
-                                            }}</label>
+                                                class="fas fa-user me-1"></i>{% trans "نام خانوادگی" %}</label>
                                         <input type="text" name="{{ technician_form.last_name.name }}"
                                             id="{{ technician_form.last_name.id_for_label }}"
                                             class="form-control-modern {% if technician_form.last_name.errors %}error{% endif %}"
@@ -1098,7 +1095,7 @@
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label" for="{{ technician_form.email.id_for_label }}"><i
-                                            class="fas fa-envelope me-1"></i>{{ technician_form.email.label }}</label>
+                                            class="fas fa-envelope me-1"></i>{% trans "ایمیل" %}</label>
                                     <input type="email" name="{{ technician_form.email.name }}"
                                         id="{{ technician_form.email.id_for_label }}"
                                         class="form-control-modern {% if technician_form.email.errors %}error{% endif %}"
@@ -1116,8 +1113,7 @@
                                     <div class="form-group">
                                         <label class="form-label"
                                             for="{{ technician_form.national_id.id_for_label }}"><i
-                                                class="fas fa-id-card me-1"></i>{{ technician_form.national_id.label
-                                            }}</label>
+                                                class="fas fa-id-card me-1"></i>{% trans "کد ملی" %}</label>
                                         <input type="text" name="{{ technician_form.national_id.name }}"
                                             id="{{ technician_form.national_id.id_for_label }}"
                                             class="form-control-modern {% if technician_form.national_id.errors %}error{% endif %}"
@@ -1134,8 +1130,7 @@
                                     <div class="form-group">
                                         <label class="form-label"
                                             for="{{ technician_form.employee_code.id_for_label }}"><i
-                                                class="fas fa-hashtag me-1"></i>{{ technician_form.employee_code.label
-                                            }}</label>
+                                                class="fas fa-hashtag me-1"></i>{% trans "کد کارمندی" %}</label>
                                         <input type="text" name="{{ technician_form.employee_code.name }}"
                                             id="{{ technician_form.employee_code.id_for_label }}"
                                             class="form-control-modern {% if technician_form.employee_code.errors %}error{% endif %}"
@@ -1153,7 +1148,7 @@
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label class="form-label" for="{{ technician_form.phone.id_for_label }}"><i
-                                                class="fas fa-phone me-1"></i>{{ technician_form.phone.label }}</label>
+                                                class="fas fa-phone me-1"></i>{% trans "تلفن" %}</label>
                                         <input type="tel" name="{{ technician_form.phone.name }}"
                                             id="{{ technician_form.phone.id_for_label }}"
                                             class="form-control-modern {% if technician_form.phone.errors %}error{% endif %}"
@@ -1169,8 +1164,7 @@
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label" for="{{ technician_form.department.id_for_label }}"><i
-                                                class="fas fa-building me-1"></i>{{ technician_form.department.label
-                                            }}</label>
+                                                class="fas fa-building me-1"></i>{% trans "بخش" %}</label>
                                         <select name="{{ technician_form.department.name }}"
                                             id="{{ technician_form.department.id_for_label }}"
                                             class="form-select-modern {% if technician_form.department.errors %}error{% endif %}">
@@ -1191,8 +1185,7 @@
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label class="form-label" for="{{ technician_form.password1.id_for_label }}"><i
-                                                class="fas fa-lock me-1"></i>{{ technician_form.password1.label
-                                            }}</label>
+                                                class="fas fa-lock me-1"></i>{% trans "رمز عبور" %}</label>
                                         <input type="password" name="{{ technician_form.password1.name }}"
                                             id="{{ technician_form.password1.id_for_label }}"
                                             class="form-control-modern {% if technician_form.password1.errors %}error{% endif %}"
@@ -1207,8 +1200,7 @@
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label" for="{{ technician_form.password2.id_for_label }}"><i
-                                                class="fas fa-lock me-1"></i>{{ technician_form.password2.label
-                                            }}</label>
+                                                class="fas fa-lock me-1"></i>{% trans "تکرار رمز عبور" %}</label>
                                         <input type="password" name="{{ technician_form.password2.name }}"
                                             id="{{ technician_form.password2.id_for_label }}"
                                             class="form-control-modern {% if technician_form.password2.errors %}error{% endif %}"
@@ -1260,8 +1252,7 @@
                                             </div>
                                             <div class="user-field">
                                                 <div class="field-label">{% trans "ایمیل" %}</div>
-                                                <div class="field-value email" title="{{ technician.email }}">{{
-                                                    technician.email }}</div>
+                                                <div class="field-value email" title="{{ technician.email|default:'' }}">{{ technician.email|default:"-" }}</div>
                                             </div>
                                             <div class="user-field">
                                                 <div class="field-label">{% trans "تاریخ عضویت" %}</div>
@@ -1315,7 +1306,7 @@
                                     <div class="form-group">
                                         <label class="form-label" for="{{ it_manager_form.first_name.id_for_label }}">
                                             <i class="fas fa-user me-1"></i>
-                                            {{ it_manager_form.first_name.label }}
+                                            {% trans "نام" %}
                                         </label>
                                         <input type="text" name="{{ it_manager_form.first_name.name }}"
                                             id="{{ it_manager_form.first_name.id_for_label }}"
@@ -1334,7 +1325,7 @@
                                     <div class="form-group">
                                         <label class="form-label" for="{{ it_manager_form.last_name.id_for_label }}">
                                             <i class="fas fa-user me-1"></i>
-                                            {{ it_manager_form.last_name.label }}
+                                            {% trans "نام خانوادگی" %}
                                         </label>
                                         <input type="text" name="{{ it_manager_form.last_name.name }}"
                                             id="{{ it_manager_form.last_name.id_for_label }}"
@@ -1354,7 +1345,7 @@
                                 <div class="form-group">
                                     <label class="form-label" for="{{ it_manager_form.email.id_for_label }}">
                                         <i class="fas fa-envelope me-1"></i>
-                                        {{ it_manager_form.email.label }}
+                                        {% trans "ایمیل" %}
                                     </label>
                                     <input type="email" name="{{ it_manager_form.email.name }}"
                                         id="{{ it_manager_form.email.id_for_label }}"
@@ -1374,7 +1365,7 @@
                                     <div class="form-group">
                                         <label class="form-label" for="{{ it_manager_form.national_id.id_for_label }}">
                                             <i class="fas fa-id-card me-1"></i>
-                                            {{ it_manager_form.national_id.label }}
+                                            {% trans "کد ملی" %}
                                         </label>
                                         <input type="text" name="{{ it_manager_form.national_id.name }}"
                                             id="{{ it_manager_form.national_id.id_for_label }}"
@@ -1394,7 +1385,7 @@
                                         <label class="form-label"
                                             for="{{ it_manager_form.employee_code.id_for_label }}">
                                             <i class="fas fa-hashtag me-1"></i>
-                                            {{ it_manager_form.employee_code.label }}
+                                            {% trans "کد کارمندی" %}
                                         </label>
                                         <input type="text" name="{{ it_manager_form.employee_code.name }}"
                                             id="{{ it_manager_form.employee_code.id_for_label }}"
@@ -1414,7 +1405,7 @@
                                 <div class="form-group">
                                     <label class="form-label" for="{{ it_manager_form.phone.id_for_label }}">
                                         <i class="fas fa-phone me-1"></i>
-                                        {{ it_manager_form.phone.label }}
+                                        {% trans "تلفن" %}
                                     </label>
                                     <input type="tel" name="{{ it_manager_form.phone.name }}"
                                         id="{{ it_manager_form.phone.id_for_label }}"
@@ -1434,7 +1425,7 @@
                                     <div class="form-group">
                                         <label class="form-label" for="{{ it_manager_form.password1.id_for_label }}">
                                             <i class="fas fa-lock me-1"></i>
-                                            {{ it_manager_form.password1.label }}
+                                            {% trans "رمز عبور" %}
                                         </label>
                                         <input type="password" name="{{ it_manager_form.password1.name }}"
                                             id="{{ it_manager_form.password1.id_for_label }}"
@@ -1452,7 +1443,7 @@
                                     <div class="form-group">
                                         <label class="form-label" for="{{ it_manager_form.password2.id_for_label }}">
                                             <i class="fas fa-lock me-1"></i>
-                                            {{ it_manager_form.password2.label }}
+                                            {% trans "تکرار رمز عبور" %}
                                         </label>
                                         <input type="password" name="{{ it_manager_form.password2.name }}"
                                             id="{{ it_manager_form.password2.id_for_label }}"
@@ -1512,8 +1503,7 @@
                                             </div>
                                             <div class="user-field">
                                                 <div class="field-label">{% trans "ایمیل" %}</div>
-                                                <div class="field-value email" title="{{ manager.email }}">{{
-                                                    manager.email }}</div>
+                                                <div class="field-value email" title="{{ manager.email|default:'' }}">{{ manager.email|default:"-" }}</div>
                                             </div>
                                             <div class="user-field">
                                                 <div class="field-label">{% trans "تاریخ عضویت" %}</div>
