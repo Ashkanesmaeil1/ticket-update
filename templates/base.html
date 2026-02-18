@@ -793,8 +793,8 @@
                             </a>
                         </li>
                         {% endif %}
-                        <!-- امانت داری - برای همه کاربران به جز مدیر IT -->
-                        {% if user.role != 'it_manager' %}
+                        <!-- امانت داری - برای همه کاربران به جز مدیر IT و سوپر ادمین -->
+                        {% if user.role != 'it_manager' and not user|is_admin_superuser_filter %}
                         <li class="nav-item position-relative">
                             <a class="nav-link {% if '/loan/' in request.path %}active{% endif %}"
                                 href="{% url 'tickets:loan_request' %}">
