@@ -1,0 +1,358 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+{% load static %}
+
+{% block title %}{% trans "امانت داری" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #06b6d4;
+        --dark: #1f2937;
+        --light: #f8fafc;
+        --border: #e2e8f0;
+        --text: #374151;
+        --text-light: #6b7280;
+    }
+
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .loan-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 1000px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .loan-header {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        color: white;
+        padding: 3rem 2rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .loan-header h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .loan-content {
+        padding: 2rem;
+    }
+
+    .form-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        margin-bottom: 2rem;
+    }
+
+    .form-header {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        color: white;
+        padding: 1.5rem 2rem;
+        border-radius: 16px 16px 0 0;
+        margin: -2rem -2rem 2rem -2rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .form-header h3 {
+        margin: 0;
+        font-weight: 700;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-label {
+        display: block;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+    }
+
+    .form-control-modern {
+        direction: rtl;
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        background: white;
+    }
+
+    .form-control-modern:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+
+    textarea.form-control-modern {
+        min-height: 120px;
+        resize: vertical;
+    }
+
+    .btn-submit {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .btn-submit:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.4);
+    }
+
+    .requests-list {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+    }
+
+    .list-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid var(--border);
+    }
+
+    .list-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .request-card {
+        background: var(--light);
+        border-radius: 16px;
+        padding: 1.5rem;
+        border: 2px solid var(--border);
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .request-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+
+    .status-badge.pending {
+        background: rgba(245, 158, 11, 0.1);
+        color: var(--warning);
+    }
+
+    .status-badge.approved {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--success);
+    }
+
+    .status-badge.rejected {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger);
+    }
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // تنظیم تاریخ و ساعت پیش‌فرض برای تحویل گرفتن (الان)
+    const now = new Date();
+    const startDate = now.toISOString().split('T')[0];
+    const startTime = now.toTimeString().slice(0, 5);
+    
+    document.getElementById('loan_start_date').value = startDate;
+    document.getElementById('loan_start_time').value = startTime;
+    
+    // تنظیم تاریخ و ساعت پیش‌فرض برای تحویل دادن (یک هفته بعد)
+    const endDate = new Date(now);
+    endDate.setDate(endDate.getDate() + 7);
+    const endDateStr = endDate.toISOString().split('T')[0];
+    const endTime = startTime; // همان ساعت
+    
+    document.getElementById('loan_end_date').value = endDateStr;
+    document.getElementById('loan_end_time').value = endTime;
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="loan-container">
+    <div class="loan-header">
+        <h1>
+            <i class="fas fa-hand-holding"></i>
+            {% trans "امانت داری" %}
+        </h1>
+    </div>
+
+    <div class="loan-content">
+        <!-- فرم ثبت درخواست -->
+        <div class="form-card">
+            <div class="form-header">
+                <i class="fas fa-plus-circle"></i>
+                <h3>{% trans "ثبت درخواست امانت" %}</h3>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label class="form-label" for="item_name">
+                        <i class="fas fa-box me-1"></i>
+                        {% trans "نام محصول/اقلام" %}
+                    </label>
+                    <input type="text" 
+                           id="item_name" 
+                           name="item_name" 
+                           class="form-control-modern" 
+                           placeholder="{% trans 'مثال: موس ، لپ تاپ' %}"
+                           required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="description">
+                        <i class="fas fa-align-right me-1"></i>
+                        {% trans "توضیحات درخواست" %}
+                    </label>
+                    <textarea id="description" 
+                              name="description" 
+                              class="form-control-modern" 
+                              placeholder="{% trans 'توضیحات کامل درخواست خود را وارد کنید...' %}"
+                              required></textarea>
+                </div>
+                
+                <p class="form-hint" style="font-size: 0.9rem; color: var(--text-light); margin-bottom: 1.5rem;">
+                    <i class="fas fa-info-circle me-1"></i>
+                    {% trans "تاریخ تحویل گرفتن و تحویل دادن توسط مدیر IT پس از تایید درخواست تعیین می‌شود." %}
+                </p>
+                
+                <button type="submit" class="btn-submit">
+                    <i class="fas fa-paper-plane"></i>
+                    {% trans "ثبت درخواست" %}
+                </button>
+            </form>
+        </div>
+
+        <!-- لیست درخواست‌های کاربر -->
+        <div class="requests-list">
+            <div class="list-header">
+                <div class="list-title">
+                    <i class="fas fa-list"></i>
+                    {% trans "درخواست‌های من" %}
+                </div>
+            </div>
+            
+            {% if user_requests %}
+                {% for request in user_requests %}
+                <div class="request-card">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                        <div>
+                            <h4 style="margin: 0 0 0.5rem 0; color: var(--text);">{{ request.item_name }}</h4>
+                            <p style="margin: 0; color: var(--text-light);">{{ request.description }}</p>
+                        </div>
+                        <span class="status-badge {{ request.status }}">
+                            {% if request.status == 'pending' %}
+                                <i class="fas fa-clock"></i>
+                            {% elif request.status == 'approved' %}
+                                <i class="fas fa-check-circle"></i>
+                            {% else %}
+                                <i class="fas fa-times-circle"></i>
+                            {% endif %}
+                            {{ request.get_status_display }}
+                        </span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.9rem; color: var(--text-light); margin-top: 0.5rem;">
+                        <div>
+                            <i class="fas fa-calendar me-1"></i>
+                            <strong>{% trans "تاریخ درخواست:" %}</strong> {{ request.created_at|persian_date }}
+                        </div>
+                        <div>
+                            <i class="fas fa-calendar-check me-1"></i>
+                            <strong>{% trans "تحویل گرفتن:" %}</strong> {% if request.loan_start_date %}{{ request.loan_start_date|persian_date }}{% else %}{% trans "تعیین نشده" %}{% endif %}
+                        </div>
+                        <div>
+                            <i class="fas fa-calendar-times me-1"></i>
+                            <strong>{% trans "تحویل دادن:" %}</strong> {% if request.loan_end_date %}{{ request.loan_end_date|persian_date }}{% else %}{% trans "تعیین نشده" %}{% endif %}
+                        </div>
+                        {% if request.reviewed_at %}
+                        <div>
+                            <i class="fas fa-user-check me-1"></i>
+                            <strong>{% trans "بررسی شده در:" %}</strong> {{ request.reviewed_at|persian_date }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if request.has_technical_issue %}
+                    <div style="margin-top: 1rem; padding: 1rem; background: rgba(245, 158, 11, 0.1); border-radius: 8px; border-right: 3px solid var(--warning);">
+                        <strong style="color: var(--warning);">
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            {% trans "مشکل فنی/جزئی:" %}
+                        </strong>
+                        <p style="margin: 0.5rem 0 0 0; color: var(--text);">{{ request.technical_issue_description }}</p>
+                    </div>
+                    {% endif %}
+                    {% if request.review_notes %}
+                    <div style="margin-top: 1rem; padding: 1rem; background: rgba(99, 102, 241, 0.05); border-radius: 8px; border-right: 3px solid var(--primary);">
+                        <strong>{% trans "یادداشت بررسی:" %}</strong>
+                        <p style="margin: 0.5rem 0 0 0;">{{ request.review_notes }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div style="text-align: center; padding: 3rem; color: var(--text-light);">
+                    <i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                    <p>{% trans "هنوز درخواستی ثبت نکرده‌اید." %}</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -326,10 +326,18 @@ class JalaliCalendarPicker {
     
     attachModalEventListeners() {
         console.log('Attaching modal event listeners...');
+        console.log('Overlay element:', this.overlay);
+        console.log('Overlay parentNode:', this.overlay?.parentNode);
         
         if (!this.overlay) {
             console.error('Cannot attach listeners: overlay not found');
             return;
+        }
+        
+        // Ensure overlay is attached to DOM before trying to replace it
+        if (!this.overlay.parentNode && document.body) {
+            console.log('⚠️ Overlay not attached to DOM, attaching now...');
+            document.body.appendChild(this.overlay);
         }
         
         // Remove old event listeners by cloning and replacing elements
@@ -345,7 +353,7 @@ class JalaliCalendarPicker {
         const self = this;
         
         // Remove and re-attach select button listener
-        if (selectBtn) {
+        if (selectBtn && selectBtn.parentNode) {
             // Clone button to remove all event listeners
             const newSelectBtn = selectBtn.cloneNode(true);
             selectBtn.parentNode.replaceChild(newSelectBtn, selectBtn);
@@ -379,7 +387,7 @@ class JalaliCalendarPicker {
         }
         
         // Re-attach cancel button listener
-        if (cancelBtn) {
+        if (cancelBtn && cancelBtn.parentNode) {
             const newCancelBtn = cancelBtn.cloneNode(true);
             cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
             newCancelBtn.addEventListener('click', (e) => {
@@ -390,7 +398,7 @@ class JalaliCalendarPicker {
         }
         
         // Re-attach close button listener
-        if (closeBtn) {
+        if (closeBtn && closeBtn.parentNode) {
             const newCloseBtn = closeBtn.cloneNode(true);
             closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
             newCloseBtn.addEventListener('click', (e) => {
@@ -401,7 +409,7 @@ class JalaliCalendarPicker {
         }
         
         // Re-attach navigation buttons
-        if (prevBtn) {
+        if (prevBtn && prevBtn.parentNode) {
             const newPrevBtn = prevBtn.cloneNode(true);
             prevBtn.parentNode.replaceChild(newPrevBtn, prevBtn);
             newPrevBtn.addEventListener('click', (e) => {
@@ -411,7 +419,7 @@ class JalaliCalendarPicker {
             }, true);
         }
         
-        if (nextBtn) {
+        if (nextBtn && nextBtn.parentNode) {
             const newNextBtn = nextBtn.cloneNode(true);
             nextBtn.parentNode.replaceChild(newNextBtn, nextBtn);
             newNextBtn.addEventListener('click', (e) => {
@@ -422,20 +430,24 @@ class JalaliCalendarPicker {
         }
         
         // Re-attach overlay click handler (but prevent it from interfering with button clicks)
-        // Remove old handler by replacing overlay
-        const newOverlay = this.overlay.cloneNode(false);
-        while (this.overlay.firstChild) {
-            newOverlay.appendChild(this.overlay.firstChild);
+        // IMPORTANT: Don't replace overlay - just attach/update event listeners
+        // Replacing overlay causes issues when modal is reused across multiple instances
+        // Instead, we'll use a flag-based approach or just attach listeners (they'll override)
+        if (this.overlay) {
+            // Don't replace overlay - just attach/update listeners
+            // Removing old listeners is not critical since we're using capture phase
+            console.log('✅ Attaching overlay click handler (without replacing overlay)');
+            
+            // Attach click handler to overlay
+            // Note: If there are multiple listeners, they'll all fire, but that's okay
+            // The last one attached will handle the event correctly
+            this.overlay.addEventListener('click', (e) => {
+                // Only close if clicking directly on overlay, not on modal content
+                if (e.target === this.overlay) {
+                    this.closeModal();
+                }
+            }, false);
         }
-        this.overlay.parentNode.replaceChild(newOverlay, this.overlay);
-        this.overlay = newOverlay;
-        
-        this.overlay.addEventListener('click', (e) => {
-            // Only close if clicking directly on overlay, not on modal content
-            if (e.target === this.overlay) {
-                this.closeModal();
-            }
-        }, false);
         
         // CRITICAL: Ensure modal stops propagation to prevent overlay handler from interfering
         if (this.modal) {
@@ -596,11 +608,8 @@ class JalaliCalendarPicker {
     async openModal() {
         console.log('=== openModal START ===');
         console.log('Current year:', this.currentYear, 'Current month:', this.currentMonth);
-        
-        // When reusing shared modal, re-bind select button to this instance so value goes to correct input
-        if (this.overlay) {
-            this.attachModalEventListeners();
-        }
+        console.log('Input element:', this.input);
+        console.log('Input element ID:', this.input?.id);
         
         // CRITICAL: Sync selectedDate with input value before opening modal
         // This ensures if user previously selected a date, it's preserved
@@ -612,8 +621,9 @@ class JalaliCalendarPicker {
         // Removed blocking fetch call to prevent frontend crashes
         // #endregion
         
+        // Create modal if it doesn't exist
         if (!this.overlay) {
-            console.error('Modal overlay not found! Creating modal...');
+            console.log('Modal overlay not found! Creating modal...');
             this.createModal();
         }
         
@@ -621,6 +631,18 @@ class JalaliCalendarPicker {
             console.error('Failed to create modal overlay!');
             alert('خطا در ایجاد تقویم. لطفاً صفحه را رفرش کنید.');
             return;
+        }
+        
+        // Ensure overlay is attached to DOM
+        if (!this.overlay.parentNode && document.body) {
+            console.log('⚠️ Overlay not attached to DOM, attaching now...');
+            document.body.appendChild(this.overlay);
+        }
+        
+        // When reusing shared modal, re-bind select button to this instance so value goes to correct input
+        // Do this AFTER ensuring overlay is in DOM
+        if (this.overlay) {
+            this.attachModalEventListeners();
         }
         
         // Ensure we have valid year and month - fetch from server if needed

@@ -22,7 +22,7 @@ from django.utils.translation import gettext_lazy as _
 from django.template.response import TemplateResponse
 from django.core.exceptions import ValidationError
 
-from .models import User, Ticket, Reply, Department, Branch, InventoryElement, ElementSpecification, Notification, TicketTask, TaskReply, TicketActivityLog, TicketCategory, DeadlineExtensionRequest
+from .models import User, Ticket, Reply, Department, Branch, InventoryElement, ElementSpecification, Notification, TicketTask, TaskReply, TicketActivityLog, TicketCategory, DeadlineExtensionRequest, LoanRequest
 from .services import notify_department_supervisor
 from .admin_security import get_admin_superuser_queryset_filter, is_admin_superuser
 
@@ -7641,6 +7641,206 @@ def get_departments_without_team_lead(request):
             'success': False,
             'error': str(e)
         }, status=500)
+
+# ==================== Loan Management Views ====================
+
+@login_required
+def loan_request(request):
+    """صفحه ثبت درخواست امانت برای کاربران - فقط درخواست متنی، تاریخ‌ها توسط مدیر IT تعیین می‌شود."""
+    if request.method == 'POST':
+        item_name = request.POST.get('item_name', '').strip()
+        description = request.POST.get('description', '').strip()
+        
+        if not item_name:
+            messages.error(request, _('لطفاً نام محصول را وارد کنید.'))
+        elif not description:
+            messages.error(request, _('لطفاً توضیحات درخواست را وارد کنید.'))
+        else:
+            try:
+                LoanRequest.objects.create(
+                    requester=request.user,
+                    item_name=item_name,
+                    description=description,
+                    status='pending'
+                )
+                messages.success(request, _('درخواست امانت شما با موفقیت ثبت شد. تاریخ تحویل گرفتن و تحویل دادن توسط مدیر IT تعیین خواهد شد.'))
+                return redirect('tickets:loan_request')
+            except Exception as e:
+                messages.error(request, _('خطا در ثبت درخواست: {}').format(str(e)))
+    
+    user_requests = LoanRequest.objects.filter(requester=request.user).order_by('-created_at')
+    
+    # علامت‌گذاری همه درخواست‌ها به عنوان مشاهده شده (فقط اگر فیلد viewed_at وجود دارد)
+    from django.utils import timezone
+    try:
+        user_requests.filter(viewed_at__isnull=True).update(viewed_at=timezone.now())
+    except Exception:
+        # اگر فیلد viewed_at وجود ندارد (migration اجرا نشده)، خطا را نادیده بگیر
+        pass
+    
+    context = {
+        'user_requests': user_requests,
+    }
+    return render(request, 'tickets/loan_request.html', context)
+
+@login_required
+def loan_management(request):
+    """صفحه مدیریت امانت‌داری برای مدیر IT"""
+    if request.user.role != 'it_manager':
+        messages.error(request, _('دسترسی رد شد. فقط مدیر IT میتواند این بخش را مشاهده کند.'))
+        return redirect('tickets:dashboard')
+    
+    # فیلتر وضعیت
+    status_filter = request.GET.get('status', '')
+    
+    # دریافت همه درخواست‌ها
+    requests = LoanRequest.objects.all().select_related('requester', 'reviewed_by').order_by('-created_at')
+    
+    if status_filter:
+        requests = requests.filter(status=status_filter)
+    
+    # Pagination
+    paginator = Paginator(requests, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # آمار
+    total_requests = LoanRequest.objects.count()
+    pending_requests = LoanRequest.objects.filter(status='pending').count()
+    approved_requests = LoanRequest.objects.filter(status='approved').count()
+    rejected_requests = LoanRequest.objects.filter(status='rejected').count()
+    
+    context = {
+        'page_obj': page_obj,
+        'status_filter': status_filter,
+        'total_requests': total_requests,
+        'pending_requests': pending_requests,
+        'approved_requests': approved_requests,
+        'rejected_requests': rejected_requests,
+    }
+    return render(request, 'tickets/loan_management.html', context)
+
+@login_required
+def loan_approve(request, loan_id):
+    """تایید درخواست امانت توسط مدیر IT - تعیین تاریخ تحویل دادن و تحویل گرفتن"""
+    if request.user.role != 'it_manager':
+        messages.error(request, _('دسترسی رد شد.'))
+        return redirect('tickets:dashboard')
+    
+    loan_request = get_object_or_404(LoanRequest, id=loan_id)
+    
+    if loan_request.status != 'pending':
+        messages.error(request, _('این درخواست قبلاً بررسی شده است.'))
+        return redirect('tickets:loan_management')
+    
+    from .calendar_services.jalali_calendar import JalaliCalendarService
+    from datetime import timedelta
+    
+    # پیش‌فرض: تحویل گرفتن = الان (زمان تایید)، تحویل دادن = یک هفته بعد
+    now_jalali = JalaliCalendarService.get_current_jalali_date()
+    one_week_later = timezone.now() + timedelta(days=7)
+    one_week_later_jalali = JalaliCalendarService.gregorian_to_jalali(one_week_later)
+    default_pickup_str = f"{now_jalali['year']}/{now_jalali['month']:02d}/{now_jalali['day']:02d} {now_jalali['hour']:02d}:{now_jalali['minute']:02d}"
+    default_return_str = f"{one_week_later_jalali['year']}/{one_week_later_jalali['month']:02d}/{one_week_later_jalali['day']:02d} {one_week_later_jalali['hour']:02d}:{one_week_later_jalali['minute']:02d}"
+    
+    if request.method == 'POST':
+        loan_end_date_str = request.POST.get('loan_end_date', '').strip()
+        loan_start_date_str = request.POST.get('loan_start_date', '').strip()
+        review_notes = request.POST.get('review_notes', '').strip()
+        has_technical_issue = request.POST.get('has_technical_issue') == 'on'
+        technical_issue_description = request.POST.get('technical_issue_description', '').strip()
+        
+        if not loan_end_date_str:
+            messages.error(request, _('لطفاً تاریخ تحویل دادن را انتخاب کنید.'))
+            return redirect('tickets:loan_approve', loan_id=loan_id)
+        if not loan_start_date_str:
+            messages.error(request, _('لطفاً تاریخ تحویل گرفتن را انتخاب کنید.'))
+            return redirect('tickets:loan_approve', loan_id=loan_id)
+        
+        if has_technical_issue and not technical_issue_description:
+            messages.error(request, _('لطفاً توضیحات مشکل فنی/جزئی را وارد کنید.'))
+            return redirect('tickets:loan_approve', loan_id=loan_id)
+        
+        def parse_jalali_datetime(s):
+            parts = s.strip().split()
+            if len(parts) != 2:
+                raise ValueError(_('فرمت تاریخ و زمان صحیح نیست.'))
+            date_parts = parts[0].split('/')
+            if len(date_parts) != 3:
+                raise ValueError(_('فرمت تاریخ صحیح نیست.'))
+            time_parts = parts[1].split(':')
+            if len(time_parts) != 2:
+                raise ValueError(_('فرمت زمان صحیح نیست.'))
+            y, m, d = int(date_parts[0]), int(date_parts[1]), int(date_parts[2])
+            h, mi = int(time_parts[0]), int(time_parts[1])
+            return JalaliCalendarService.jalali_to_gregorian(y, m, d, h, mi)
+        
+        try:
+            loan_end_date = parse_jalali_datetime(loan_end_date_str)
+            loan_start_date = parse_jalali_datetime(loan_start_date_str)
+            if loan_end_date <= loan_start_date:
+                messages.error(request, _('تاریخ تحویل دادن باید بعد از تاریخ تحویل گرفتن باشد.'))
+                return redirect('tickets:loan_approve', loan_id=loan_id)
+            loan_request.loan_end_date = loan_end_date
+            loan_request.loan_start_date = loan_start_date
+            loan_request.has_technical_issue = has_technical_issue
+            loan_request.technical_issue_description = technical_issue_description if has_technical_issue else ''
+            loan_request.status = 'approved'
+            loan_request.reviewed_by = request.user
+            loan_request.reviewed_at = timezone.now()
+            if review_notes:
+                loan_request.review_notes = review_notes
+            # Reset viewed_at تا کاربر متوجه تغییر شود
+            loan_request.viewed_at = None
+            loan_request.save()
+            messages.success(request, _('درخواست امانت تایید شد.'))
+            return redirect('tickets:loan_management')
+        except (ValueError, Exception) as e:
+            messages.error(request, _('خطا در تاریخ‌ها: {}').format(str(e)))
+            return redirect('tickets:loan_approve', loan_id=loan_id)
+    
+    context = {
+        'loan_request': loan_request,
+        'default_return_date': default_return_str,
+        'default_pickup_date': default_pickup_str,
+    }
+    return render(request, 'tickets/loan_approve.html', context)
+
+@login_required
+def loan_reject(request, loan_id):
+    """رد درخواست امانت توسط مدیر IT"""
+    if request.user.role != 'it_manager':
+        messages.error(request, _('دسترسی رد شد.'))
+        return redirect('tickets:dashboard')
+    
+    loan_request = get_object_or_404(LoanRequest, id=loan_id)
+    
+    if loan_request.status != 'pending':
+        messages.error(request, _('این درخواست قبلاً بررسی شده است.'))
+        return redirect('tickets:loan_management')
+    
+    if request.method == 'POST':
+        review_notes = request.POST.get('review_notes', '').strip()
+        
+        if not review_notes:
+            messages.error(request, _('لطفاً دلیل رد درخواست را وارد کنید.'))
+            return redirect('tickets:loan_reject', loan_id=loan_id)
+        
+        loan_request.status = 'rejected'
+        loan_request.reviewed_by = request.user
+        loan_request.reviewed_at = timezone.now()
+        loan_request.review_notes = review_notes
+        # Reset viewed_at تا کاربر متوجه تغییر شود
+        loan_request.viewed_at = None
+        loan_request.save()
+        
+        messages.success(request, _('درخواست امانت رد شد.'))
+        return redirect('tickets:loan_management')
+    
+    context = {
+        'loan_request': loan_request,
+    }
+    return render(request, 'tickets/loan_reject.html', context)
 
 @login_required
 def get_all_employee_departments(request):

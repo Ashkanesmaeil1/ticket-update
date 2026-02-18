@@ -8,9 +8,14 @@ from django.core.exceptions import ValidationError
 from .validators import validate_iranian_national_id, validate_iranian_mobile_number
 from .utils import normalize_national_id, normalize_employee_code
 from django.utils import timezone
+from datetime import timedelta
 import logging
 
 logger = logging.getLogger(__name__)
+
+def get_default_loan_end_date():
+    """تابع helper برای محاسبه تاریخ پیش‌فرض تحویل دادن (یک هفته بعد)"""
+    return timezone.now() + timedelta(days=7)
 
 def validate_employee_code(value):
     """Validate that employee code is exactly 4 digits (normalizes Persian/Arabic numerals)"""
@@ -1050,4 +1055,101 @@ class CalendarDay(models.Model):
         ordering = ['year', 'month', 'day']
     
     def __str__(self):
-        return f"{self.year}/{self.month:02d}/{self.day:02d}" 
+        return f"{self.year}/{self.month:02d}/{self.day:02d}"
+
+class LoanRequest(models.Model):
+    """
+    مدل برای درخواست‌های امانت‌داری
+    کاربران می‌توانند درخواست امانت محصولات را ثبت کنند و مدیر IT آن‌ها را تایید یا رد می‌کند.
+    """
+    STATUS_CHOICES = [
+        ('pending', _('در انتظار بررسی')),
+        ('approved', _('تایید شده')),
+        ('rejected', _('رد شده')),
+    ]
+    
+    requester = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='loan_requests',
+        verbose_name=_('درخواست‌دهنده'),
+        help_text=_('کاربری که درخواست امانت را ثبت کرده است')
+    )
+    
+    item_name = models.CharField(
+        _('نام محصول/اقلام'),
+        max_length=200,
+        help_text=_('نام محصول یا اقلام مورد نیاز (مثال: موس 1، لپ تاپ 1)')
+    )
+    
+    description = models.TextField(
+        _('توضیحات درخواست'),
+        help_text=_('توضیحات کامل درخواست امانت')
+    )
+    
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        verbose_name=_('وضعیت')
+    )
+    
+    reviewed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_loan_requests',
+        verbose_name=_('بررسی شده توسط'),
+        help_text=_('مدیر IT که این درخواست را بررسی کرده است')
+    )
+    
+    review_notes = models.TextField(
+        _('یادداشت بررسی'),
+        blank=True,
+        null=True,
+        help_text=_('یادداشت‌های مدیر IT در مورد این درخواست')
+    )
+    
+    loan_start_date = models.DateTimeField(
+        _('تاریخ تحویل گرفتن'),
+        help_text=_('تاریخ و زمان تحویل گرفتن محصول (توسط مدیر IT تعیین می‌شود)'),
+        null=True,
+        blank=True
+    )
+    
+    loan_end_date = models.DateTimeField(
+        _('تاریخ تحویل دادن'),
+        help_text=_('تاریخ و زمان تحویل دادن محصول (توسط مدیر IT تعیین می‌شود)'),
+        null=True,
+        blank=True
+    )
+    
+    has_technical_issue = models.BooleanField(
+        _('دارای مشکل فنی/جزئی'),
+        default=False,
+        help_text=_('آیا اقلام مشکل فنی یا جزئی دارد؟')
+    )
+    
+    technical_issue_description = models.TextField(
+        _('توضیحات مشکل فنی/جزئی'),
+        blank=True,
+        null=True,
+        help_text=_('توضیحات مشکل فنی یا جزئی اقلام')
+    )
+    
+    created_at = models.DateTimeField(_('تاریخ درخواست'), auto_now_add=True)
+    reviewed_at = models.DateTimeField(_('تاریخ بررسی'), null=True, blank=True)
+    viewed_at = models.DateTimeField(_('تاریخ مشاهده'), null=True, blank=True, help_text=_('زمانی که کاربر درخواست را مشاهده کرده است'))
+    
+    class Meta:
+        verbose_name = _("درخواست امانت")
+        verbose_name_plural = _("درخواست‌های امانت")
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['requester', 'status']),
+            models.Index(fields=['status']),
+        ]
+    
+    def __str__(self):
+        return f"{self.requester.get_full_name()} - {self.item_name} ({self.get_status_display()})" 

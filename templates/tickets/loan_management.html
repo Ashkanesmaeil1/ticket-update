@@ -1,0 +1,389 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+{% load persian_numbers %}
+
+{% block title %}{% trans "مدیریت امانت داری" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #06b6d4;
+        --dark: #1f2937;
+        --light: #f8fafc;
+        --border: #e2e8f0;
+        --text: #374151;
+        --text-light: #6b7280;
+    }
+
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .loan-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 1400px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .loan-header {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        color: white;
+        padding: 3rem 2rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .loan-header h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .stats-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-top: 2rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .stat-card {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 16px;
+        padding: 1.5rem;
+        text-align: center;
+        backdrop-filter: blur(10px);
+    }
+
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: 800;
+        color: white;
+        line-height: 1;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+        font-size: 1rem;
+        color: rgba(255, 255, 255, 0.9);
+        font-weight: 600;
+    }
+
+    .loan-content {
+        padding: 2rem;
+    }
+
+    .filter-section {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+    }
+
+    .filter-form {
+        display: flex;
+        gap: 1rem;
+        align-items: end;
+    }
+
+    .form-group {
+        flex: 1;
+    }
+
+    .form-label {
+        display: block;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+    }
+
+    .form-select-modern {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        background: white;
+        cursor: pointer;
+    }
+
+    .requests-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        width: 100%;
+    }
+
+    .request-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        border: 2px solid var(--border);
+        transition: all 0.3s ease;
+        position: relative;
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        overflow: visible;
+        flex-shrink: 0;
+    }
+
+    .request-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .request-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+    }
+
+    .request-card-body {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+
+    .status-badge.pending {
+        background: rgba(245, 158, 11, 0.1);
+        color: var(--warning);
+    }
+
+    .status-badge.approved {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--success);
+    }
+
+    .status-badge.rejected {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger);
+    }
+
+    .btn-action {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        border: none;
+        font-size: 0.9rem;
+    }
+
+    .btn-approve {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--success);
+        border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .btn-approve:hover {
+        background: var(--success);
+        color: white;
+    }
+
+    .btn-reject {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger);
+        border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    .btn-reject:hover {
+        background: var(--danger);
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="loan-container">
+    <div class="loan-header">
+        <h1>
+            <i class="fas fa-hand-holding"></i>
+            {% trans "مدیریت امانت داری" %}
+        </h1>
+        <div class="stats-cards">
+            <div class="stat-card">
+                <div class="stat-value">{{ total_requests|persian_digits }}</div>
+                <div class="stat-label">{% trans "کل درخواست‌ها" %}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ pending_requests|persian_digits }}</div>
+                <div class="stat-label">{% trans "در انتظار بررسی" %}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ approved_requests|persian_digits }}</div>
+                <div class="stat-label">{% trans "تایید شده" %}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ rejected_requests|persian_digits }}</div>
+                <div class="stat-label">{% trans "رد شده" %}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="loan-content">
+        <!-- فیلتر -->
+        <div class="filter-section">
+            <form method="get" class="filter-form">
+                <div class="form-group">
+                    <label class="form-label" for="status">{% trans "وضعیت" %}</label>
+                    <select class="form-select-modern" id="status" name="status">
+                        <option value="">{% trans "همه" %}</option>
+                        <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>{% trans "در انتظار بررسی" %}</option>
+                        <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>{% trans "تایید شده" %}</option>
+                        <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>{% trans "رد شده" %}</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-action btn-approve" style="flex: 0 0 auto;">
+                    <i class="fas fa-filter"></i>
+                    {% trans "فیلتر" %}
+                </button>
+            </form>
+        </div>
+
+        <!-- لیست درخواست‌ها -->
+        {% if page_obj %}
+        <div class="requests-list">
+            {% for loan_request in page_obj %}
+            <div class="request-card">
+                <div class="request-card-header">
+                    <div style="flex: 1;">
+                        <h4 style="margin: 0 0 0.5rem 0; color: var(--text);">{{ loan_request.item_name }}</h4>
+                        <p style="margin: 0 0 0.5rem 0; color: var(--text-light);">{{ loan_request.description }}</p>
+                        <div style="font-size: 0.9rem; color: var(--text-light); margin-top: 0.5rem;">
+                            <i class="fas fa-user me-1"></i>
+                            <strong>{% trans "درخواست‌دهنده:" %}</strong> {{ loan_request.requester.get_full_name }}
+                        </div>
+                    </div>
+                    <span class="status-badge {{ loan_request.status }}">
+                        {% if loan_request.status == 'pending' %}
+                            <i class="fas fa-clock"></i>
+                        {% elif loan_request.status == 'approved' %}
+                            <i class="fas fa-check-circle"></i>
+                        {% else %}
+                            <i class="fas fa-times-circle"></i>
+                        {% endif %}
+                        {{ loan_request.get_status_display }}
+                    </span>
+                </div>
+                <div class="request-card-body">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.5rem; font-size: 0.9rem; color: var(--text-light); margin-bottom: 1rem;">
+                        <div>
+                            <i class="fas fa-calendar me-1"></i>
+                            <strong>{% trans "تاریخ درخواست:" %}</strong> {{ loan_request.created_at|persian_date }}
+                        </div>
+                        <div>
+                            <i class="fas fa-calendar-check me-1"></i>
+                            <strong>{% trans "تحویل گرفتن:" %}</strong> {% if loan_request.loan_start_date %}{{ loan_request.loan_start_date|persian_date }}{% else %}{% trans "تعیین نشده" %}{% endif %}
+                        </div>
+                        <div>
+                            <i class="fas fa-calendar-times me-1"></i>
+                            <strong>{% trans "تحویل دادن:" %}</strong> {% if loan_request.loan_end_date %}{{ loan_request.loan_end_date|persian_date }}{% else %}{% trans "تعیین نشده" %}{% endif %}
+                        </div>
+                        {% if loan_request.reviewed_at %}
+                        <div>
+                            <i class="fas fa-user-check me-1"></i>
+                            <strong>{% trans "بررسی شده در:" %}</strong> {{ loan_request.reviewed_at|persian_date }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        {% if loan_request.status == 'pending' %}
+                        <div style="display: flex; gap: 0.5rem;">
+                            <a href="{% url 'tickets:loan_approve' loan_request.id %}" class="btn-action btn-approve">
+                                <i class="fas fa-check"></i>
+                                {% trans "تایید" %}
+                            </a>
+                            <a href="{% url 'tickets:loan_reject' loan_request.id %}" class="btn-action btn-reject">
+                                <i class="fas fa-times"></i>
+                                {% trans "رد" %}
+                            </a>
+                        </div>
+                        {% else %}
+                        <span></span>
+                        {% endif %}
+                    </div>
+                    {% if loan_request.has_technical_issue %}
+                    <div style="margin-top: 1rem; padding: 1rem; background: rgba(245, 158, 11, 0.1); border-radius: 8px; border-right: 3px solid var(--warning);">
+                        <strong style="color: var(--warning);">
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            {% trans "مشکل فنی/جزئی:" %}
+                        </strong>
+                        <p style="margin: 0.5rem 0 0 0; color: var(--text);">{{ loan_request.technical_issue_description }}</p>
+                    </div>
+                    {% endif %}
+                    {% if loan_request.review_notes %}
+                    <div style="margin-top: 1rem; padding: 1rem; background: rgba(99, 102, 241, 0.05); border-radius: 8px; border-right: 3px solid var(--primary);">
+                        <strong>{% trans "یادداشت بررسی:" %}</strong>
+                        <p style="margin: 0.5rem 0 0 0;">{{ loan_request.review_notes }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+            <div style="display: flex; justify-content: center; gap: 0.5rem; margin-top: 2rem;">
+                {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="btn-action btn-approve">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+                {% endif %}
+                <span style="padding: 0.5rem 1rem; background: white; border-radius: 8px; border: 1px solid var(--border);">
+                    {% trans "صفحه" %} {{ page_obj.number|persian_digits }} {% trans "از" %} {{ page_obj.paginator.num_pages|persian_digits }}
+                </span>
+                {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="btn-action btn-approve">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+        {% else %}
+            <div style="text-align: center; padding: 3rem; color: var(--text-light);">
+                <i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                <p>{% trans "هیچ درخواستی یافت نشد." %}</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

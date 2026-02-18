@@ -124,6 +124,12 @@ urlpatterns = [
     path('api/inventory/users/<int:user_id>/parent-elements/', views.get_parent_elements_for_user, name='get_parent_elements_for_user'),
     path('api/inventory/warehouse/<int:warehouse_id>/sub-elements/', views.get_warehouse_sub_elements, name='get_warehouse_sub_elements'),
     
+    # Loan Management (امانت داری)
+    path('loan/', views.loan_request, name='loan_request'),
+    path('loan/management/', views.loan_management, name='loan_management'),
+    path('loan/<int:loan_id>/approve/', views.loan_approve, name='loan_approve'),
+    path('loan/<int:loan_id>/reject/', views.loan_reject, name='loan_reject'),
+    
     # Ticket Task management (IT Manager)
     path('ticket-tasks/', views.ticket_task_list, name='ticket_task_list'),
     path('ticket-tasks/create/', views.ticket_task_create, name='ticket_task_create'),

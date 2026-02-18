@@ -749,10 +749,15 @@
                         - URL pattern: /tickets/inventory/
                         - This is SEPARATE from Department Warehouse system (flat structure above)
                         {% endcomment %}
-                        <li class="nav-item">
+                        <li class="nav-item position-relative">
                             <a class="nav-link {% if '/inventory/' in request.path and '/dwms/' not in request.path %}active{% endif %}"
                                 href="{% url 'tickets:inventory_management' %}">
                                 <i class="fas fa-boxes me-2"></i>{% trans "مدیریت موجودی" %}
+                                {% pending_loan_requests_count as pending_loans %}
+                                {% if pending_loans %}
+                                <span class="notification-badge position-absolute top-0 start-100 rounded-circle"
+                                    style="transform: translate(85%,-25%)!important;"></span>
+                                {% endif %}
                             </a>
                         </li>
                         <li class="nav-item">
@@ -782,6 +787,20 @@
                                 <i class="fas fa-network-wired me-2"></i>{% trans "دسترسی شبکه" %}
                                 {% unread_team_leader_notifications_count as team_leader_unread_count %}
                                 {% if team_leader_unread_count %}
+                                <span class="notification-badge position-absolute top-0 start-100 rounded-circle"
+                                    style="transform: translate(85%,-25%)!important;"></span>
+                                {% endif %}
+                            </a>
+                        </li>
+                        {% endif %}
+                        <!-- امانت داری - برای همه کاربران به جز مدیر IT -->
+                        {% if user.role != 'it_manager' %}
+                        <li class="nav-item position-relative">
+                            <a class="nav-link {% if '/loan/' in request.path %}active{% endif %}"
+                                href="{% url 'tickets:loan_request' %}">
+                                <i class="fas fa-hand-holding me-2"></i>{% trans "امانت داری" %}
+                                {% unseen_loan_updates_count as unseen_loans %}
+                                {% if unseen_loans %}
                                 <span class="notification-badge position-absolute top-0 start-100 rounded-circle"
                                     style="transform: translate(85%,-25%)!important;"></span>
                                 {% endif %}
