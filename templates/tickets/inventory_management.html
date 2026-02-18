@@ -2,6 +2,7 @@
 {% load i18n %}
 {% load persian_date %}
 {% load persian_numbers %}
+{% load notifications_tags %}
 
 {% block title %}{% trans "مدیریت موجودی" %} - {% trans "سیستم تیکت" %}{% endblock %}
 
@@ -83,6 +84,23 @@
         transform: translateY(-2px);
         color: white;
         text-decoration: none;
+    }
+
+    /* انیمیشن ریز برای بکگراند دکمه امانت داری */
+    @keyframes loanBackgroundGlow {
+        0% {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        50% {
+            background: rgba(255, 255, 255, 0.35);
+        }
+        100% {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    }
+
+    .loan-btn-animated {
+        animation: loanBackgroundGlow 2s ease-in-out infinite;
     }
 
     .inventory-content {
@@ -405,9 +423,10 @@
                 <i class="fas fa-plus"></i>
                 {% trans "افزودن عنصر جدید" %}
             </a>
-            <a href="{% url 'tickets:dashboard' %}" class="btn-modern">
-                <i class="fas fa-arrow-right"></i>
-                {% trans "بازگشت به داشبورد" %}
+            {% pending_loan_requests_count as pending_loans %}
+            <a href="{% url 'tickets:loan_management' %}" class="btn-modern {% if pending_loans %}loan-btn-animated{% endif %}">
+                <i class="fas fa-hand-holding"></i>
+                {% trans "امانت داری" %}
             </a>
         </div>
     </div>

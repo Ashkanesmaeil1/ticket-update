@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django import forms
 from django.utils.translation import gettext_lazy as _
-from .models import User, Ticket, Reply, Branch, Department, InventoryElement, ElementSpecification
+from .models import User, Ticket, Reply, Branch, Department, InventoryElement, ElementSpecification, LoanRequest
 from .utils import normalize_national_id, normalize_employee_code
 import logging
 
@@ -320,4 +320,27 @@ class ElementSpecificationAdmin(admin.ModelAdmin):
     list_display = ('element', 'key', 'value', 'updated_at')
     list_filter = ('element', 'updated_at')
     search_fields = ('key', 'value', 'element__name')
-    readonly_fields = ('created_at', 'updated_at') 
+    readonly_fields = ('created_at', 'updated_at')
+
+@admin.register(LoanRequest)
+class LoanRequestAdmin(admin.ModelAdmin):
+    list_display = ('id', 'requester', 'item_name', 'status', 'loan_start_date', 'loan_end_date', 'created_at', 'reviewed_by', 'reviewed_at')
+    list_filter = ('status', 'created_at', 'reviewed_at', 'loan_start_date', 'loan_end_date')
+    search_fields = ('item_name', 'description', 'requester__first_name', 'requester__last_name')
+    readonly_fields = ('created_at', 'reviewed_at')
+    
+    fieldsets = (
+        ('اطلاعات درخواست', {
+            'fields': ('requester', 'item_name', 'description')
+        }),
+        ('زمان‌بندی امانت', {
+            'fields': ('loan_start_date', 'loan_end_date')
+        }),
+        ('وضعیت بررسی', {
+            'fields': ('status', 'reviewed_by', 'review_notes', 'reviewed_at')
+        }),
+        ('زمان‌بندی سیستم', {
+            'fields': ('created_at',),
+            'classes': ('collapse',)
+        }),
+    ) 

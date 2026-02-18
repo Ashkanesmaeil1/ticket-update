@@ -1,0 +1,411 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load persian_date %}
+{% load static %}
+
+{% block title %}{% trans "تایید درخواست امانت" %} - {% trans "سیستم تیکت" %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/calendar_picker.css' %}?v=32">
+<style>
+    :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #06b6d4;
+        --dark: #1f2937;
+        --light: #f8fafc;
+        --border: #e2e8f0;
+        --text: #374151;
+        --text-light: #6b7280;
+    }
+
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Vazirmatn', 'IRANSans', Tahoma, Arial, sans-serif;
+    }
+
+    .loan-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        margin: 2rem auto;
+        max-width: 800px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .loan-header {
+        background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+        color: white;
+        padding: 3rem 2rem;
+        text-align: center;
+    }
+
+    .loan-header h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+    }
+
+    .loan-content {
+        padding: 2rem;
+    }
+
+    .form-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+    }
+
+    .request-info {
+        background: var(--light);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid var(--border);
+    }
+
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .info-row:last-child {
+        border-bottom: none;
+    }
+
+    .info-label {
+        font-weight: 600;
+        color: var(--text);
+    }
+
+    .info-value {
+        color: var(--text-light);
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-label {
+        display: block;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+    }
+
+    .deadline-date-wrapper {
+        position: relative;
+        width: 100%;
+    }
+
+    .deadline-date-wrapper input.form-control-modern {
+        direction: rtl;
+        width: 100%;
+        padding: 0.75rem 1rem 0.75rem 2.5rem !important;
+        border: 2px solid var(--border) !important;
+        border-radius: 12px !important;
+        font-size: 1rem !important;
+        font-weight: 500 !important;
+        transition: all 0.3s ease;
+        background: white !important;
+        cursor: pointer !important;
+        box-sizing: border-box !important;
+    }
+
+    .deadline-date-wrapper input.form-control-modern:focus {
+        outline: none !important;
+        border-color: var(--success) !important;
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1) !important;
+    }
+
+    .deadline-date-wrapper input.form-control-modern:hover {
+        border-color: var(--success) !important;
+    }
+
+    textarea.form-control-modern {
+        direction: rtl;
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        background: white;
+        min-height: 100px;
+        resize: vertical;
+    }
+
+    textarea.form-control-modern:focus {
+        outline: none;
+        border-color: var(--success);
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+    }
+
+    .btn-group {
+        display: flex;
+        gap: 1rem;
+        margin-top: 2rem;
+    }
+
+    .btn-submit {
+        flex: 1;
+        padding: 0.75rem 2rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        border: none;
+        text-decoration: none;
+    }
+
+    .btn-approve {
+        background: var(--success);
+        color: white;
+    }
+
+    .btn-approve:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-cancel {
+        background: var(--text-light);
+        color: white;
+    }
+
+    .btn-cancel:hover {
+        background: var(--text);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="loan-container">
+    <div class="loan-header">
+        <h1>
+            <i class="fas fa-check-circle"></i>
+            {% trans "تایید درخواست امانت" %}
+        </h1>
+    </div>
+
+    <div class="loan-content">
+        <div class="form-card">
+            <div class="request-info">
+                <div class="info-row">
+                    <span class="info-label">{% trans "نام محصول:" %}</span>
+                    <span class="info-value">{{ loan_request.item_name }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">{% trans "درخواست‌دهنده:" %}</span>
+                    <span class="info-value">{{ loan_request.requester.get_full_name }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">{% trans "تاریخ درخواست:" %}</span>
+                    <span class="info-value">{{ loan_request.created_at|persian_date }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">{% trans "توضیحات:" %}</span>
+                    <span class="info-value">{{ loan_request.description }}</span>
+                </div>
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+                <p class="form-hint" style="font-size: 0.9rem; color: var(--text-light); margin-bottom: 1.5rem;">
+                    <i class="fas fa-info-circle me-1"></i>
+                    {% trans "تاریخ تحویل گرفتن به صورت پیش‌فرض زمان فعلی است. تاریخ تحویل دادن به صورت پیش‌فرض یک هفته بعد از زمان فعلی است." %}
+                </p>
+
+                <div class="form-group">
+                    <label class="form-label" for="loan_start_date_input">
+                        <i class="fas fa-calendar-check me-1"></i>
+                        {% trans "۱. تاریخ و زمان تحویل گرفتن (پیش‌فرض: زمان فعلی)" %}
+                    </label>
+                    <div class="deadline-date-wrapper">
+                        <input type="text"
+                               name="loan_start_date"
+                               id="loan_start_date_input"
+                               class="form-control-modern"
+                               placeholder="{% trans 'برای انتخاب تاریخ و زمان کلیک کنید' %}"
+                               readonly
+                               autocomplete="off"
+                               required
+                               value="{{ default_pickup_date|default:'' }}">
+                        <i class="fas fa-calendar-alt" style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--text-light); pointer-events: none; z-index: 5;"></i>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="loan_end_date_input">
+                        <i class="fas fa-calendar-times me-1"></i>
+                        {% trans "۲. تاریخ و زمان تحویل دادن (پیش‌فرض: یک هفته بعد از تحویل گرفتن)" %}
+                    </label>
+                    <div class="deadline-date-wrapper">
+                        <input type="text"
+                               name="loan_end_date"
+                               id="loan_end_date_input"
+                               class="form-control-modern"
+                               placeholder="{% trans 'برای انتخاب تاریخ و زمان کلیک کنید' %}"
+                               readonly
+                               autocomplete="off"
+                               required
+                               value="{{ default_return_date|default:'' }}">
+                        <i class="fas fa-calendar-alt" style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--text-light); pointer-events: none; z-index: 5;"></i>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="review_notes">
+                        <i class="fas fa-sticky-note me-1"></i>
+                        {% trans "یادداشت بررسی (اختیاری)" %}
+                    </label>
+                    <textarea id="review_notes"
+                              name="review_notes"
+                              class="form-control-modern"
+                              placeholder="{% trans 'یادداشت‌های خود را وارد کنید...' %}"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; background: var(--light); border-radius: 12px; border: 2px solid var(--border); margin-bottom: 1rem;">
+                        <input type="checkbox"
+                               id="has_technical_issue"
+                               name="has_technical_issue"
+                               style="width: 20px; height: 20px; cursor: pointer; accent-color: var(--warning);">
+                        <label for="has_technical_issue" style="margin: 0; cursor: pointer; font-weight: 600; color: var(--text); flex: 1;">
+                            <i class="fas fa-exclamation-triangle me-1" style="color: var(--warning);"></i>
+                            {% trans "اقلام دارای مشکل فنی یا جزئی است" %}
+                        </label>
+                    </div>
+                    <div id="technical_issue_description_wrapper" style="display: none; margin-top: 1rem;">
+                        <label class="form-label" for="technical_issue_description">
+                            <i class="fas fa-comment-alt me-1"></i>
+                            {% trans "توضیحات مشکل فنی/جزئی" %}
+                        </label>
+                        <textarea id="technical_issue_description"
+                                  name="technical_issue_description"
+                                  class="form-control-modern"
+                                  placeholder="{% trans 'توضیحات مشکل فنی یا جزئی اقلام را وارد کنید...' %}"
+                                  rows="4"></textarea>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button type="submit" class="btn-submit btn-approve">
+                        <i class="fas fa-check"></i>
+                        {% trans "تایید درخواست" %}
+                    </button>
+                    <a href="{% url 'tickets:loan_management' %}" class="btn-submit btn-cancel">
+                        <i class="fas fa-times"></i>
+                        {% trans "انصراف" %}
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/calendar_picker.js' %}?v=32"></script>
+<script>
+(function() {
+    function initPickers() {
+        setTimeout(function() {
+            var pickupInput = document.getElementById('loan_start_date_input');
+            var returnInput = document.getElementById('loan_end_date_input');
+            if (!returnInput || !pickupInput || typeof JalaliCalendarPicker === 'undefined') return;
+
+            // محاسبه تحویل دادن = یک هفته بعد از تحویل گرفتن
+            function returnFromPickup(pickupStr) {
+                if (!pickupStr) return null;
+                var parts = pickupStr.trim().split(' ');
+                if (parts.length !== 2) return null;
+                var dp = parts[0].split('/');
+                if (dp.length !== 3) return null;
+                var y = parseInt(dp[0]), m = parseInt(dp[1]), d = parseInt(dp[2]);
+                var t = parts[1];
+                d += 7; // Add 7 days
+                // Approximate Jalali month overflow (months 1-6 have 31 days, 7-11 have 30, 12 has 29 or 30)
+                if (d > 31) {
+                    d -= 31;
+                    m++;
+                    if (m > 12) { m = 1; y++; }
+                }
+                return y + '/' + String(m).padStart(2, '0') + '/' + String(d).padStart(2, '0') + ' ' + t;
+            }
+
+            var pickupPicker = new JalaliCalendarPicker(pickupInput, {
+                apiUrl: '{% url "tickets:calendar_api" %}',
+                onSelect: function() {
+                    var v = pickupInput.value;
+                    if (v) {
+                        var def = returnFromPickup(v);
+                        if (def) {
+                            returnInput.value = def;
+                            if (window.returnPicker && window.returnPicker.setInitialDateSync) {
+                                window.returnPicker.setInitialDateSync();
+                            }
+                        }
+                    }
+                }
+            });
+            window.pickupPicker = pickupPicker;
+
+            var returnPicker = new JalaliCalendarPicker(returnInput, {
+                apiUrl: '{% url "tickets:calendar_api" %}'
+            });
+            window.returnPicker = returnPicker;
+
+            // اگر تاریخ تحویل گرفتن مقدار دارد ولی تحویل دادن خالی است، مقدار پیش‌فرض را تنظیم کن
+            if (pickupInput.value && !returnInput.value) {
+                var defaultReturn = returnFromPickup(pickupInput.value);
+                if (defaultReturn) {
+                    returnInput.value = defaultReturn;
+                    if (returnPicker && returnPicker.setInitialDateSync) {
+                        returnPicker.setInitialDateSync();
+                    }
+                }
+            }
+
+            // مدیریت نمایش/مخفی کردن فیلد توضیحات مشکل فنی
+            var technicalIssueCheckbox = document.getElementById('has_technical_issue');
+            var technicalIssueWrapper = document.getElementById('technical_issue_description_wrapper');
+            var technicalIssueTextarea = document.getElementById('technical_issue_description');
+
+            if (technicalIssueCheckbox && technicalIssueWrapper) {
+                function toggleTechnicalIssueField() {
+                    if (technicalIssueCheckbox.checked) {
+                        technicalIssueWrapper.style.display = 'block';
+                        technicalIssueTextarea.required = true;
+                    } else {
+                        technicalIssueWrapper.style.display = 'none';
+                        technicalIssueTextarea.required = false;
+                        technicalIssueTextarea.value = '';
+                    }
+                }
+
+                technicalIssueCheckbox.addEventListener('change', toggleTechnicalIssueField);
+                toggleTechnicalIssueField(); // تنظیم اولیه
+            }
+        }, 400);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initPickers);
+    else initPickers();
+})();
+</script>
+{% endblock %}
