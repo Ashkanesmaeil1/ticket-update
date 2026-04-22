@@ -88,28 +88,24 @@ def validate_iranian_mobile_number(value):
     - Only digits allowed
     - Valid Iranian mobile number format
     """
-    # Remove any non-digit characters
-    cleaned_value = re.sub(r'[^\d]', '', str(value))
-    
-    # Check if it's exactly 11 digits
-    if len(cleaned_value) != 11:
-        raise ValidationError(_('شماره موبایل باید دقیقاً ۱۱ رقم باشد.'))
-    
-    # Check if it starts with '09'
-    if not cleaned_value.startswith('09'):
-        raise ValidationError(_('شماره موبایل باید با ۰۹ شروع شود.'))
-    
-    # Check if all characters are digits
-    if not cleaned_value.isdigit():
-        raise ValidationError(_('شماره موبایل باید فقط شامل اعداد باشد.'))
-    
-    # Additional validation for Iranian mobile numbers
-    # Valid prefixes: 091, 092, 093, 094, 095, 096, 097, 098, 099
-    valid_prefixes = ['091', '092', '093', '094', '095', '096', '097', '098', '099']
-    if not any(cleaned_value.startswith(prefix) for prefix in valid_prefixes):
-        raise ValidationError(_('شماره موبایل با پیش‌شماره معتبر شروع نمی‌شود.'))
-    
-    return cleaned_value
+    # Keep parity with frontend format:
+    # /(^(0?9)|(\+?989))\d{2}\W?\d{3}\W?\d{4}/g
+    raw_value = str(value).strip()
+    mobile_pattern = re.compile(r'(^(0?9)|(\+?989))\d{2}\W?\d{3}\W?\d{4}$')
+
+    if not mobile_pattern.fullmatch(raw_value):
+        raise ValidationError(_('شماره موبایل نامعتبر است.'))
+
+    # Normalize stored value to canonical local format: 09XXXXXXXXX
+    digits_only = re.sub(r'[^\d]', '', raw_value)
+    if digits_only.startswith('989') and len(digits_only) == 12:
+        return f"0{digits_only[2:]}"
+    if digits_only.startswith('09') and len(digits_only) == 11:
+        return digits_only
+    if digits_only.startswith('9') and len(digits_only) == 10:
+        return f"0{digits_only}"
+
+    raise ValidationError(_('شماره موبایل نامعتبر است.'))
 
 
 # Regex validators for form fields
@@ -120,8 +116,8 @@ iranian_national_id_regex = RegexValidator(
 )
 
 iranian_mobile_regex = RegexValidator(
-    regex=r'^09\d{9}$',
-    message=_('شماره موبایل باید با ۰۹ شروع شده و ۱۱ رقم باشد.'),
+    regex=r'(^(0?9)|(\+?989))\d{2}\W?\d{3}\W?\d{4}$',
+    message=_('شماره موبایل نامعتبر است.'),
     code='invalid_mobile_number'
 )
 

@@ -71,6 +71,8 @@ class Department(models.Model):
     is_service_provider = models.BooleanField(
         _('ارائه‌دهنده خدمات'),
         default=False,
+        null=True,
+        blank=True,
         help_text=_('در صورتی که این بخش می‌تواند تیکت‌های پشتیبانی دریافت کند، این گزینه را فعال کنید')
     )
     service_provider_since = models.DateTimeField(
@@ -80,10 +82,12 @@ class Department(models.Model):
         help_text=_('تاریخ فعال‌سازی این بخش به عنوان ارائه‌دهنده خدمات')
     )
     is_active = models.BooleanField(_('فعال'), default=True)
-    can_receive_tickets = models.BooleanField(_('می‌تواند تیکت دریافت کند'), default=False, 
+    can_receive_tickets = models.BooleanField(_('می‌تواند تیکت دریافت کند'), default=False, null=True, blank=True,
                                              help_text=_('اگر فعال باشد، این بخش می‌تواند تیکت‌ها را مستقیماً از کاربران دریافت کند'))
-    has_warehouse = models.BooleanField(_('انبار'), default=False,
+    has_warehouse = models.BooleanField(_('انبار'), default=False, null=True, blank=True,
                                        help_text=_('اگر فعال باشد، سرپرست این بخش می‌تواند به ماژول انبار دسترسی داشته باشد'))
+    has_inventory = models.BooleanField(_('Inventory'), default=False, null=True, blank=True,
+                                       help_text=_('اگر فعال باشد، این بخش از ماژول Inventory استفاده می‌کند (مخصوص بخش‌های IT)'))
     supervisor = models.ForeignKey(
         'User',
         on_delete=models.SET_NULL,

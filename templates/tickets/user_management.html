@@ -819,6 +819,8 @@
                                             id="{{ employee_form.phone.id_for_label }}"
                                             class="form-control-modern {% if employee_form.phone.errors %}error{% endif %}"
                                             value="{{ employee_form.phone.value|default:'' }}"
+                                            pattern="(^(0?9)|(\+?989))\d{2}\W?\d{3}\W?\d{4}"
+                                            title="{% trans 'فرمت صحیح: 09123456789 یا +989123456789' %}"
                                             placeholder="{% trans 'شماره تلفن' %}">
                                         {% if employee_form.phone.errors %}
                                         <div class="error-message">
@@ -829,7 +831,6 @@
                                         {% endif %}
                                     </div>
 
-                                    {% if employee_form.department.field.widget.input_type != 'hidden' %}
                                     <div class="form-group">
                                         <label class="form-label" for="{{ employee_form.department.id_for_label }}">
                                             <i class="fas fa-building me-1"></i>
@@ -853,18 +854,6 @@
                                         </div>
                                         {% endif %}
                                     </div>
-                                    {% else %}
-                                    {# Hidden field for supervisors - department assignment done on Assign to Team
-                                    Leader page #}
-                                    {{ employee_form.department }}
-                                    <div class="form-group">
-                                        <div class="alert alert-info" style="margin-top: 0.5rem;">
-                                            <i class="fas fa-info-circle me-1"></i>
-                                            {% trans "برای سرپرستان، بخش باید از صفحه 'اختصاص سرپرست به بخش‌ها' تعیین
-                                            شود." %}
-                                        </div>
-                                    </div>
-                                    {% endif %}
                                 </div>
 
                                 <div class="form-group">
@@ -889,44 +878,6 @@
                                         {% endfor %}
                                     </div>
                                     {% endif %}
-                                </div>
-
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label class="form-label" for="{{ employee_form.password1.id_for_label }}">
-                                            <i class="fas fa-lock me-1"></i>
-                                            {% trans "رمز عبور" %}
-                                        </label>
-                                        <input type="password" name="{{ employee_form.password1.name }}"
-                                            id="{{ employee_form.password1.id_for_label }}"
-                                            class="form-control-modern {% if employee_form.password1.errors %}error{% endif %}"
-                                            placeholder="{% trans 'رمز عبور' %}">
-                                        {% if employee_form.password1.errors %}
-                                        <div class="error-message">
-                                            {% for error in employee_form.password1.errors %}
-                                            {{ error }}
-                                            {% endfor %}
-                                        </div>
-                                        {% endif %}
-                                    </div>
-
-                                    <div class="form-group">
-                                        <label class="form-label" for="{{ employee_form.password2.id_for_label }}">
-                                            <i class="fas fa-lock me-1"></i>
-                                            {% trans "تکرار رمز عبور" %}
-                                        </label>
-                                        <input type="password" name="{{ employee_form.password2.name }}"
-                                            id="{{ employee_form.password2.id_for_label }}"
-                                            class="form-control-modern {% if employee_form.password2.errors %}error{% endif %}"
-                                            placeholder="{% trans 'تکرار رمز عبور' %}">
-                                        {% if employee_form.password2.errors %}
-                                        <div class="error-message">
-                                            {% for error in employee_form.password2.errors %}
-                                            {{ error }}
-                                            {% endfor %}
-                                        </div>
-                                        {% endif %}
-                                    </div>
                                 </div>
 
                                 <button type="submit" class="btn-submit">
@@ -974,11 +925,7 @@
                                             <div class="user-field">
                                                 <div class="field-label">{% trans "بخش" %}</div>
                                                 <div class="field-value">
-                                                    {% if employee.department_role == 'manager' %}
-                                                    -
-                                                    {% else %}
                                                     {{ employee.department|default:"-" }}
-                                                    {% endif %}
                                                 </div>
                                             </div>
 
@@ -1153,6 +1100,8 @@
                                             id="{{ technician_form.phone.id_for_label }}"
                                             class="form-control-modern {% if technician_form.phone.errors %}error{% endif %}"
                                             value="{{ technician_form.phone.value|default:'' }}"
+                                            pattern="(^(0?9)|(\+?989))\d{2}\W?\d{3}\W?\d{4}"
+                                            title="{% trans 'فرمت صحیح: 09123456789 یا +989123456789' %}"
                                             placeholder="{% trans 'شماره تلفن' %}">
                                         {% if technician_form.phone.errors %}
                                         <div class="error-message">
@@ -1182,40 +1131,7 @@
                                         {% endif %}
                                     </div>
                                 </div>
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label class="form-label" for="{{ technician_form.password1.id_for_label }}"><i
-                                                class="fas fa-lock me-1"></i>{% trans "رمز عبور" %}</label>
-                                        <input type="password" name="{{ technician_form.password1.name }}"
-                                            id="{{ technician_form.password1.id_for_label }}"
-                                            class="form-control-modern {% if technician_form.password1.errors %}error{% endif %}"
-                                            placeholder="{% trans 'رمز عبور' %}">
-                                        {% if technician_form.password1.errors %}
-                                        <div class="error-message">
-                                            {% for error in technician_form.password1.errors %}
-                                            {{ error }}
-                                            {% endfor %}
-                                        </div>
-                                        {% endif %}
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label" for="{{ technician_form.password2.id_for_label }}"><i
-                                                class="fas fa-lock me-1"></i>{% trans "تکرار رمز عبور" %}</label>
-                                        <input type="password" name="{{ technician_form.password2.name }}"
-                                            id="{{ technician_form.password2.id_for_label }}"
-                                            class="form-control-modern {% if technician_form.password2.errors %}error{% endif %}"
-                                            placeholder="{% trans 'تکرار رمز عبور' %}">
-                                        {% if technician_form.password2.errors %}
-                                        <div class="error-message">
-                                            {% for error in technician_form.password2.errors %}
-                                            {{ error }}
-                                            {% endfor %}
-                                        </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                <button type="submit" class="btn-submit"><i class="fas fa-plus"></i>{% trans "ایجاد
-                                    کارشناس فنی" %}</button>
+                                <button type="submit" class="btn-submit"><i class="fas fa-plus"></i>{% trans "ایجاد کارشناس فنی" %}</button>
                             </form>
                         </div>
                     </div>
@@ -1411,6 +1327,8 @@
                                         id="{{ it_manager_form.phone.id_for_label }}"
                                         class="form-control-modern {% if it_manager_form.phone.errors %}error{% endif %}"
                                         value="{{ it_manager_form.phone.value|default:'' }}"
+                                        pattern="(^(0?9)|(\+?989))\d{2}\W?\d{3}\W?\d{4}"
+                                        title="{% trans 'فرمت صحیح: 09123456789 یا +989123456789' %}"
                                         placeholder="{% trans 'شماره تلفن' %}">
                                     {% if it_manager_form.phone.errors %}
                                     <div class="error-message">
@@ -1419,44 +1337,6 @@
                                         {% endfor %}
                                     </div>
                                     {% endif %}
-                                </div>
-
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label class="form-label" for="{{ it_manager_form.password1.id_for_label }}">
-                                            <i class="fas fa-lock me-1"></i>
-                                            {% trans "رمز عبور" %}
-                                        </label>
-                                        <input type="password" name="{{ it_manager_form.password1.name }}"
-                                            id="{{ it_manager_form.password1.id_for_label }}"
-                                            class="form-control-modern {% if it_manager_form.password1.errors %}error{% endif %}"
-                                            placeholder="{% trans 'رمز عبور' %}">
-                                        {% if it_manager_form.password1.errors %}
-                                        <div class="error-message">
-                                            {% for error in it_manager_form.password1.errors %}
-                                            {{ error }}
-                                            {% endfor %}
-                                        </div>
-                                        {% endif %}
-                                    </div>
-
-                                    <div class="form-group">
-                                        <label class="form-label" for="{{ it_manager_form.password2.id_for_label }}">
-                                            <i class="fas fa-lock me-1"></i>
-                                            {% trans "تکرار رمز عبور" %}
-                                        </label>
-                                        <input type="password" name="{{ it_manager_form.password2.name }}"
-                                            id="{{ it_manager_form.password2.id_for_label }}"
-                                            class="form-control-modern {% if it_manager_form.password2.errors %}error{% endif %}"
-                                            placeholder="{% trans 'تکرار رمز عبور' %}">
-                                        {% if it_manager_form.password2.errors %}
-                                        <div class="error-message">
-                                            {% for error in it_manager_form.password2.errors %}
-                                            {{ error }}
-                                            {% endfor %}
-                                        </div>
-                                        {% endif %}
-                                    </div>
                                 </div>
 
                                 <button type="submit" class="btn-submit">
@@ -1617,35 +1497,12 @@
             }
         }
 
-        // Function to toggle department field based on department role
+        // Department is always selectable for employee creation.
         function toggleDepartmentField() {
-            const departmentRoleInputs = document.querySelectorAll('input[name="department_role"]');
             const departmentSelect = document.getElementById('id_department');
-            const departmentFormGroup = departmentSelect ? departmentSelect.closest('.form-group') : null;
-
-            if (!departmentSelect || !departmentFormGroup) return;
-
-            let selectedRole = '';
-            departmentRoleInputs.forEach(input => {
-                if (input.checked) {
-                    selectedRole = input.value;
-                }
-            });
-
-            // Hide department field for supervisors (senior/manager) - handled server-side now
-            // This JS is just for backward compatibility if field is still visible
-            if (selectedRole === 'senior' || selectedRole === 'manager') {
-                if (departmentSelect.tagName === 'SELECT') {
-                    departmentSelect.disabled = true;
-                    departmentSelect.value = '';
-                    departmentSelect.style.opacity = '0.5';
-                }
-            } else {
-                if (departmentSelect.tagName === 'SELECT') {
-                    departmentSelect.disabled = false;
-                    departmentSelect.style.opacity = '1';
-                }
-            }
+            if (!departmentSelect || departmentSelect.tagName !== 'SELECT') return;
+            departmentSelect.disabled = false;
+            departmentSelect.style.opacity = '1';
         }
 
         // Listen to changes on department_role radios to toggle immediately

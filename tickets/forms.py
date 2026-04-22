@@ -1,4 +1,5 @@
 from django import forms
+from django.conf import settings
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import authenticate
 from django.utils.translation import gettext_lazy as _
@@ -425,9 +426,9 @@ class TicketStatusForm(forms.ModelForm):
         # Filter assigned_to based on user role
         if 'assigned_to' in self.fields:
             if user and user.role == 'it_manager':
-                # IT managers can assign to technicians
+                # IT managers can assign to technicians and IT managers (including themselves)
                 self.fields['assigned_to'].queryset = User.objects.filter(
-                    role='technician',
+                    Q(role='technician') | Q(role='it_manager'),
                     is_active=True
                 ).filter(admin_filter).order_by('first_name', 'last_name')
             elif user and user.role == 'technician':
@@ -1223,12 +1224,11 @@ class SupervisorAssignmentForm(forms.Form):
         log_debug('ENTRY', 'tickets/forms.py:479', 'SupervisorAssignmentForm.__init__ called', {})
         # #endregion
         
-        # Filter supervisors - only users with senior role
-        # IMPORTANT: Do NOT filter by department - a supervisor can be assigned to multiple departments
-        # Query should be evaluated fresh each time to ensure latest data
+        # Filter supervisors: active IT managers and employee leads.
+        # IMPORTANT: Do NOT filter by department - a supervisor can be assigned to multiple departments.
         supervisor_queryset = User.objects.filter(
-            role='employee',
-            department_role='senior',
+            Q(role='it_manager') |
+            Q(role='employee', department_role__in=['senior', 'manager']),
             is_active=True
         ).order_by('first_name', 'last_name')
         
@@ -1269,7 +1269,7 @@ class SupervisorAssignmentForm(forms.Form):
         # Method 1: Exclude departments with active FK supervisor
         depts_with_fk_supervisor = Department.objects.filter(
             is_active=True,
-            department_type='employee',
+            department_type__in=['employee', 'technician'],
             supervisor__isnull=False,
             supervisor__is_active=True
         ).values_list('id', flat=True)
@@ -1277,7 +1277,7 @@ class SupervisorAssignmentForm(forms.Form):
         # Method 2: Exclude departments with active M2M supervisors
         depts_with_m2m_supervisor = Department.objects.filter(
             is_active=True,
-            department_type='employee',
+            department_type__in=['employee', 'technician'],
             supervisors__is_active=True
         ).values_list('id', flat=True)
         
@@ -1292,7 +1292,7 @@ class SupervisorAssignmentForm(forms.Form):
                 is_active=True,
                 department__isnull=False,
                 department__is_active=True,
-                department__department_type='employee'
+                department__department_type__in=['employee', 'technician']
             ).values_list('department_id', flat=True).distinct()
         )
         
@@ -1303,12 +1303,12 @@ class SupervisorAssignmentForm(forms.Form):
         if all_excluded_dept_ids:
             dept_queryset = Department.objects.filter(
                 is_active=True,
-                department_type='employee'
+                department_type__in=['employee', 'technician']
             ).exclude(id__in=all_excluded_dept_ids).distinct().order_by('name')
         else:
             dept_queryset = Department.objects.filter(
                 is_active=True,
-                department_type='employee'
+                department_type__in=['employee', 'technician']
             ).distinct().order_by('name')
         
         # Set the queryset for the form field
@@ -1412,7 +1412,12 @@ class ITManagerProfileForm(forms.ModelForm):
         widgets = {
             'first_name': forms.TextInput(attrs={'class': 'form-control'}),
             'last_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'phone': forms.TextInput(attrs={'class': 'form-control'})
+            'phone': forms.TextInput(attrs={
+                'class': 'form-control',
+                'pattern': r'(^(0?9)|(\+?989))\d{2}\W?\d{3}\W?\d{4}',
+                'title': _('فرمت صحیح: 09123456789 یا +989123456789'),
+                'inputmode': 'tel'
+            })
         }
         labels = {
             'first_name': _('نام'),
@@ -1449,7 +1454,12 @@ class UserCreationByManagerForm(forms.ModelForm):
             'employee_code': forms.TextInput(attrs={'class': 'form-control'}),
             'first_name': forms.TextInput(attrs={'class': 'form-control'}),
             'last_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'phone': forms.TextInput(attrs={
+                'class': 'form-control',
+                'pattern': r'(^(0?9)|(\+?989))\d{2}\W?\d{3}\W?\d{4}',
+                'title': _('فرمت صحیح: 09123456789 یا +989123456789'),
+                'inputmode': 'tel'
+            }),
             'role': forms.Select(attrs={'class': 'form-select'}),
             'department': forms.Select(attrs={'class': 'form-select'}),
             'department_role': forms.Select(attrs={'class': 'form-select'})
@@ -1496,7 +1506,12 @@ class EmployeeCreationForm(forms.ModelForm):
             'first_name': forms.TextInput(attrs={'class': 'form-control'}),
             'last_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.EmailInput(attrs={'class': 'form-control'}),
-            'phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'phone': forms.TextInput(attrs={
+                'class': 'form-control',
+                'pattern': r'(^(0?9)|(\+?989))\d{2}\W?\d{3}\W?\d{4}',
+                'title': _('فرمت صحیح: 09123456789 یا +989123456789'),
+                'inputmode': 'tel'
+            }),
             'department': forms.Select(attrs={'class': 'form-select'}),
             'department_role': forms.Select(attrs={'class': 'form-select'})
         }
@@ -1629,7 +1644,12 @@ class TechnicianCreationForm(forms.ModelForm):
             'first_name': forms.TextInput(attrs={'class': 'form-control'}),
             'last_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.EmailInput(attrs={'class': 'form-control'}),
-            'phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'phone': forms.TextInput(attrs={
+                'class': 'form-control',
+                'pattern': r'(^(0?9)|(\+?989))\d{2}\W?\d{3}\W?\d{4}',
+                'title': _('فرمت صحیح: 09123456789 یا +989123456789'),
+                'inputmode': 'tel'
+            }),
             'department': forms.Select(attrs={'class': 'form-select'})
         }
         labels = {
@@ -1717,7 +1737,12 @@ class ITManagerCreationForm(forms.ModelForm):
             'first_name': forms.TextInput(attrs={'class': 'form-control'}),
             'last_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.EmailInput(attrs={'class': 'form-control'}),
-            'phone': forms.TextInput(attrs={'class': 'form-control'})
+            'phone': forms.TextInput(attrs={
+                'class': 'form-control',
+                'pattern': r'(^(0?9)|(\+?989))\d{2}\W?\d{3}\W?\d{4}',
+                'title': _('فرمت صحیح: 09123456789 یا +989123456789'),
+                'inputmode': 'tel'
+            })
         }
         labels = {
             'national_id': _('کد ملی'),
@@ -1763,7 +1788,12 @@ class EmployeeEditForm(forms.ModelForm):
             'first_name': forms.TextInput(attrs={'class': 'form-control'}),
             'last_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.EmailInput(attrs={'class': 'form-control'}),
-            'phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'phone': forms.TextInput(attrs={
+                'class': 'form-control',
+                'pattern': r'(^(0?9)|(\+?989))\d{2}\W?\d{3}\W?\d{4}',
+                'title': _('فرمت صحیح: 09123456789 یا +989123456789'),
+                'inputmode': 'tel'
+            }),
             'department': forms.Select(attrs={'class': 'form-select'}),
             'department_role': forms.RadioSelect(attrs={'class': 'form-check-input'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'})
@@ -1894,6 +1924,8 @@ class EmployeeEditForm(forms.ModelForm):
         from datetime import datetime
         log_path = r'c:\Users\User\Desktop\pticket-main\.cursor\debug.log'
         def log_form(hypothesis_id, location, message, data):
+            if not settings.DEBUG:
+                return
             try:
                 os.makedirs(os.path.dirname(log_path), exist_ok=True)
                 entry = {
@@ -2010,7 +2042,12 @@ class TechnicianEditForm(forms.ModelForm):
             'first_name': forms.TextInput(attrs={'class': 'form-control'}),
             'last_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.EmailInput(attrs={'class': 'form-control'}),
-            'phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'phone': forms.TextInput(attrs={
+                'class': 'form-control',
+                'pattern': r'(^(0?9)|(\+?989))\d{2}\W?\d{3}\W?\d{4}',
+                'title': _('فرمت صحیح: 09123456789 یا +989123456789'),
+                'inputmode': 'tel'
+            }),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'})
         }
         labels = {
@@ -2044,7 +2081,12 @@ class ITManagerEditForm(forms.ModelForm):
             'first_name': forms.TextInput(attrs={'class': 'form-control'}),
             'last_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.EmailInput(attrs={'class': 'form-control'}),
-            'phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'phone': forms.TextInput(attrs={
+                'class': 'form-control',
+                'pattern': r'(^(0?9)|(\+?989))\d{2}\W?\d{3}\W?\d{4}',
+                'title': _('فرمت صحیح: 09123456789 یا +989123456789'),
+                'inputmode': 'tel'
+            }),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'})
         }
         labels = {

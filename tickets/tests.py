@@ -79,6 +79,7 @@ class IranianMobileNumberValidatorTest(TestCase):
     def test_valid_mobile_numbers(self):
         """Test valid Iranian mobile numbers"""
         valid_numbers = [
+            '09014736590',
             '09123456789',
             '09234567890',
             '09345678901',
@@ -88,6 +89,10 @@ class IranianMobileNumberValidatorTest(TestCase):
             '09789012345',
             '09890123456',
             '09901234567',
+            '9123456789',
+            '+989123456789',
+            '0912-345-6789',
+            '0912 345 6789',
         ]
         
         for mobile in valid_numbers:
@@ -104,8 +109,8 @@ class IranianMobileNumberValidatorTest(TestCase):
             '0912345678',   # Too short
             '091234567890', # Too long
             '0912345678a',  # Contains letter
-            '0912345678-',  # Contains dash
-            '0912345678 ',  # Contains space
+            '09123--456789',  # Invalid separator placement
+            '09123  456789',  # Invalid separator placement
             '00123456789',  # Wrong prefix
             '12345678901',  # No prefix
         ]
@@ -115,7 +120,7 @@ class IranianMobileNumberValidatorTest(TestCase):
                 validate_iranian_mobile_number(mobile)
     
     def test_mobile_with_spaces_and_dashes(self):
-        """Test that spaces and dashes are properly removed"""
+        """Test spaces and dashes are accepted and normalized"""
         test_cases = [
             ('09123456789', '09123456789'),
             ('0912-345-6789', '09123456789'),

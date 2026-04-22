@@ -46,6 +46,7 @@ urlpatterns = [
     path('department-management/<int:department_id>/delete/', views.department_delete, name='department_delete'),
     path('department-management/<int:department_id>/toggle-tickets/', views.department_toggle_tickets, name='department_toggle_tickets'),
     path('department-management/<int:department_id>/toggle-warehouse/', views.department_toggle_warehouse, name='department_toggle_warehouse'),
+    path('department-management/<int:department_id>/toggle-inventory/', views.department_toggle_inventory, name='department_toggle_inventory'),
     
     # Supervisor assignment management
     path('supervisor-assignment/', views.supervisor_assignment, name='supervisor_assignment'),

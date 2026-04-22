@@ -90,6 +90,28 @@
         margin-bottom: 2rem;
     }
 
+    {% if user.role == 'employee' and user.department_role == 'senior' %}
+    /* Compact dashboard header only for non-technical supervisors */
+    .dashboard-container {
+        margin: 1.25rem auto 2rem;
+    }
+
+    .dashboard-header {
+        padding: 3.25rem 2rem 2rem;
+    }
+
+    .welcome-title {
+        font-size: 2.2rem;
+        margin-bottom: 0.75rem;
+        line-height: 1.35;
+    }
+
+    .welcome-subtitle {
+        font-size: 1rem;
+        margin-bottom: 1.25rem;
+    }
+    {% endif %}
+
     .dashboard-content {
         padding: 2rem;
     }
@@ -562,6 +584,18 @@
             justify-content: flex-start;
         }
     }
+
+    {% if user.role == 'employee' and user.department_role == 'senior' %}
+    @media (max-width: 768px) {
+        .dashboard-header {
+            padding: 1.75rem 1rem;
+        }
+
+        .welcome-title {
+            font-size: 1.7rem;
+        }
+    }
+    {% endif %}
 </style>
 {% endblock %}
 

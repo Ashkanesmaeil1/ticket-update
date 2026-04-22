@@ -21,6 +21,10 @@ from django.contrib.auth.decorators import user_passes_test
 from django.utils.translation import gettext_lazy as _
 from django.template.response import TemplateResponse
 from django.core.exceptions import ValidationError
+from django.db import transaction, close_old_connections
+import threading
+import logging
+
 
 from .models import User, Ticket, Reply, Department, Branch, InventoryElement, ElementSpecification, Notification, TicketTask, TaskReply, TicketActivityLog, TicketCategory, DeadlineExtensionRequest, LoanRequest
 from .services import notify_department_supervisor
@@ -28,6 +32,27 @@ from .admin_security import get_admin_superuser_queryset_filter, is_admin_superu
 
 # Marker stored in DeadlineExtensionRequest.review_comment when admin rejects but sets a new deadline (no extra DB column).
 EXTENSION_REJECTED_WITH_NEW_DEADLINE_MARKER = '\n[__REJECTED_WITH_NEW_DEADLINE__]'
+logger = logging.getLogger(__name__)
+
+
+def _run_async_after_commit(task_name, callback):
+    """
+    Run heavy side effects (mostly SMTP notifications) outside request path.
+    This keeps create/update responses snappy while preserving best-effort alerts.
+    """
+    def _start_background_job():
+        def _job():
+            close_old_connections()
+            try:
+                callback()
+            except Exception:
+                logger.exception("Async task failed: %s", task_name)
+            finally:
+                close_old_connections()
+
+        threading.Thread(target=_job, daemon=True, name=f"ticket-{task_name}").start()
+
+    transaction.on_commit(_start_background_job)
 
 
 def exclude_pending_approval_tickets(queryset):
@@ -1178,7 +1203,8 @@ def received_tickets_list(request):
     supervised_dept_ids = [d.id for d in supervised_depts]
     tickets = Ticket.objects.filter(
         target_department__in=supervised_dept_ids
-    ).order_by('-created_at') if supervised_dept_ids else Ticket.objects.none()
+    ).exclude(access_approval_status='pending').order_by(
+        '-created_at') if supervised_dept_ids else Ticket.objects.none()
     
     # Search functionality
     search_query = request.GET.get('search', '')
@@ -1424,6 +1450,7 @@ def ticket_detail(request, ticket_id):
         if 'status' in request.POST and can_change_status:
             # Store original status BEFORE creating the form instance
             original_status = ticket.status
+            original_assigned_to_id = ticket.assigned_to_id
             
             status_form = TicketStatusForm(request.POST, instance=ticket, user=user)
             status_form.user = user  # Store user for the save method
@@ -1434,52 +1461,74 @@ def ticket_detail(request, ticket_id):
                 
                 # Refresh the ticket object to get the final status after all auto-changes
                 ticket.refresh_from_db()
+                assigned_to_changed = original_assigned_to_id != ticket.assigned_to_id
                 
                 # Only send notification if status actually changed
                 if original_status != ticket.status:
-                    try:
-                        # Notify IT manager only for IT department tickets
-                        it_department = get_it_department()
-                        if it_department and (ticket.target_department == it_department or ticket.target_department is None):
-                            from tickets.services import get_status_display_persian as _pers
-                            _prev = _pers(original_status)
-                            _new = _pers(ticket.status)
-                            notify_it_manager(
-                                action_type='status_change',
-                                ticket=ticket,
-                                user=request.user,
-                                additional_info=f"وضعیت قبلی: {_prev}\nوضعیت جدید: {_new}"
-                            )
-                        
-                        # Create notification for IT managers about status change to resolved (only for IT tickets)
-                        if ticket.status == 'resolved' and it_department and (ticket.target_department == it_department or ticket.target_department is None):
-                            try:
-                                from .models import Notification
-                                from .services import get_status_display_persian
-                                it_managers = User.objects.filter(role='it_manager')
-                                for manager in it_managers:
-                                    status_persian = get_status_display_persian(ticket.status)
-                                    Notification.objects.create(
-                                        recipient=manager,
-                                        title=f"تغییر وضعیت تیکت به انجام شده: {ticket.title}",
-                                        message=f"وضعیت جدید: {status_persian}",
-                                        notification_type='status_done',
-                                        category='tickets',
-                                        ticket=ticket,
-                                        user_actor=request.user
-                                    )
-                            except Exception:
-                                pass
-                        
-                        # Notify employee about status change
-                        notify_employee_ticket_status_changed(ticket, request.user)
+                    it_department = get_it_department()
+                    is_it_ticket = bool(
+                        it_department and (ticket.target_department == it_department or ticket.target_department is None)
+                    )
+                    final_status = ticket.status
+                    actor = request.user
+
+                    def _send_status_change_notifications():
+                        try:
+                            # Notify IT manager only for IT department tickets
+                            if is_it_ticket:
+                                from tickets.services import get_status_display_persian as _pers
+                                _prev = _pers(original_status)
+                                _new = _pers(final_status)
+                                notify_it_manager(
+                                    action_type='status_change',
+                                    ticket=ticket,
+                                    user=actor,
+                                    additional_info=f"وضعیت قبلی: {_prev}\nوضعیت جدید: {_new}"
+                                )
+
+                            # Create notification for IT managers about status change to resolved (only for IT tickets)
+                            if final_status == 'resolved' and is_it_ticket:
+                                try:
+                                    from .models import Notification
+                                    from .services import get_status_display_persian
+                                    it_managers = User.objects.filter(role='it_manager')
+                                    status_persian = get_status_display_persian(final_status)
+                                    notifications = [
+                                        Notification(
+                                            recipient=manager,
+                                            title=f"تغییر وضعیت تیکت به انجام شده: {ticket.title}",
+                                            message=f"وضعیت جدید: {status_persian}",
+                                            notification_type='status_done',
+                                            category='tickets',
+                                            ticket=ticket,
+                                            user_actor=actor
+                                        )
+                                        for manager in it_managers
+                                    ]
+                                    if notifications:
+                                        Notification.objects.bulk_create(notifications)
+                                except Exception:
+                                    logger.exception("Failed to create resolved status notifications for ticket %s", ticket.id)
+
+                            # Notify employee about status change
+                            notify_employee_ticket_status_changed(ticket, actor)
+                        except Exception:
+                            logger.exception("Failed status change side effects for ticket %s", ticket.id)
+
+                    _run_async_after_commit(
+                        'ticket-status-change-notifications',
+                        _send_status_change_notifications
+                    )
+                    if assigned_to_changed:
+                        messages.success(request, _('تیکت با موفقیت اختصاص یافت.'))
+                    else:
                         messages.success(request, _('وضعیت تیکت با موفقیت بروزرسانی شد.'))
-                    except Exception as e:
-                        print(f"⚠️ Error in status change notification: {e}")
-                        messages.warning(request, _('وضعیت تیکت بروزرسانی شد اما در ارسال اعلان مشکلی پیش آمد.'))
                 else:
                     # Status didn't change
-                    messages.info(request, _('وضعیت تیکت تغییر نکرد.'))
+                    if assigned_to_changed:
+                        messages.success(request, _('تیکت با موفقیت اختصاص یافت.'))
+                    else:
+                        messages.info(request, _('وضعیت تیکت تغییر نکرد.'))
                 
                 return redirect('tickets:ticket_detail', ticket_id=ticket.id)
             else:
@@ -1693,42 +1742,63 @@ def ticket_create(request):
                         # Tickets requiring approval created by seniors/managers - no approval needed
                         if target_dept == it_department or not target_dept:
                             # Ticket is explicitly for IT (or legacy without target)
-                            notify_it_manager(
-                                action_type='create',
-                                ticket=ticket,
-                                user=request.user,
-                                additional_info=ticket.description
+                            _run_async_after_commit(
+                                'notify-it-manager-create',
+                                lambda: notify_it_manager(
+                                    action_type='create',
+                                    ticket=ticket,
+                                    user=request.user,
+                                    additional_info=ticket.description
+                                )
                             )
                         elif target_dept:
                             # Ticket is for another department -> notify that department's supervisor ONLY
-                            notify_department_supervisor(ticket, target_dept, request.user)
+                            _run_async_after_commit(
+                                'notify-department-supervisor',
+                                lambda: notify_department_supervisor(ticket, target_dept, request.user)
+                            )
                     else:
                         # Regular employee - notify their own team leader only (not IT)
                         from .services import notify_team_leader_network_access, notify_team_leader_access_email
                         print(f"🔍 About to notify team leader for ticket #{ticket.id} created by {request.user.get_full_name()}")
-                        notify_team_leader_network_access(ticket, request.user)
+                        _run_async_after_commit(
+                            'notify-team-leader-network-access',
+                            lambda: notify_team_leader_network_access(ticket, request.user)
+                        )
                         # Also send email to team leader instead of IT manager
-                        notify_team_leader_access_email('create', ticket, request.user, ticket.description)
+                        _run_async_after_commit(
+                            'notify-team-leader-access-email',
+                            lambda: notify_team_leader_access_email('create', ticket, request.user, ticket.description)
+                        )
                         print(f"🔍 Team leader notification call completed for ticket #{ticket.id}")
                         # DO NOT notify IT managers until approved
                 else:
                     # Tickets that don't require approval
                     if target_dept == it_department or not target_dept:
                         # Ticket is for IT department (or legacy without target)
-                        notify_it_manager(
-                            action_type='create',
-                            ticket=ticket,
-                            user=request.user,
-                            additional_info=ticket.description
+                        _run_async_after_commit(
+                            'notify-it-manager-create',
+                            lambda: notify_it_manager(
+                                action_type='create',
+                                ticket=ticket,
+                                user=request.user,
+                                additional_info=ticket.description
+                            )
                         )
                     elif target_dept:
                         # Ticket is for another department -> notify that department's supervisor ONLY
-                        notify_department_supervisor(ticket, target_dept, request.user)
+                        _run_async_after_commit(
+                            'notify-department-supervisor',
+                            lambda: notify_department_supervisor(ticket, target_dept, request.user)
+                        )
                 
                 # Notifications are now handled in the notify_it_manager function
                 
                 # Notify employee about their ticket creation
-                notify_employee_ticket_created(ticket)
+                _run_async_after_commit(
+                    'notify-employee-ticket-created',
+                    lambda: notify_employee_ticket_created(ticket)
+                )
                 messages.success(request, _('تیکت با موفقیت ایجاد شد.'))
                 return redirect('tickets:ticket_detail', ticket_id=ticket.id)
         else:
@@ -2008,48 +2078,53 @@ def ticket_delete(request, ticket_id):
             ticket_title = ticket.title
             ticket_description = ticket.description
             ticket_id = ticket.id
-            ticket_creator = ticket.created_by  # Store reference to ticket creator
+            requires_supervisor_approval = bool(
+                ticket.ticket_category and ticket.ticket_category.requires_supervisor_approval
+            )
+            access_approval_status = getattr(ticket, 'access_approval_status', 'not_required')
             
             ticket.delete()
             
             # Note: No email notification sent to the ticket creator (as requested)
             
             # Create a dummy ticket object for email notification to IT managers/team leaders
-            dummy_ticket = Ticket.objects.first()  # Get first ticket for template
-            if dummy_ticket:
-                # If access ticket pending approval, route delete email to team leader instead of IT manager
-                if ticket.ticket_category and ticket.ticket_category.requires_supervisor_approval and getattr(ticket, 'access_approval_status', 'not_required') == 'pending':
-                    from .services import notify_team_leader_access_email
-                    notify_team_leader_access_email(
-                        'delete',
-                        dummy_ticket,
-                        request.user,
-                        f"تیکت حذف شده:\nعنوان: {ticket_title}\nتوضیحات: {ticket_description}\nشماره تیکت: #{ticket_id}"
-                    )
-                else:
-                    notify_it_manager(
-                        action_type='delete',
-                        ticket=dummy_ticket,
-                        user=request.user,
-                        additional_info=f"تیکت حذف شده:\nعنوان: {ticket_title}\nتوضیحات: {ticket_description}\nشماره تیکت: #{ticket_id}"
-                    )
-            
-            # Create notification for IT managers about ticket deletion
-            try:
-                from .models import Notification
-                it_managers = User.objects.filter(role='it_manager')
-                for manager in it_managers:
-                    if manager != request.user:  # Don't notify yourself
-                        Notification.objects.create(
-                            recipient=manager,
-                            title=f"حذف تیکت: {ticket_title}",
-                            message=f"حذف شده توسط: {request.user.get_full_name()}\nشماره تیکت: #{ticket_id}",
-                            notification_type='ticket_urgent',  # Using existing type for deletions
-                            category='tickets',
-                            user_actor=request.user
+            def _send_delete_notifications():
+                dummy_ticket = Ticket.objects.first()  # Get first ticket for template
+                if dummy_ticket:
+                    # If access ticket pending approval, route delete email to team leader instead of IT manager
+                    if requires_supervisor_approval and access_approval_status == 'pending':
+                        from .services import notify_team_leader_access_email
+                        notify_team_leader_access_email(
+                            'delete',
+                            dummy_ticket,
+                            request.user,
+                            f"تیکت حذف شده:\nعنوان: {ticket_title}\nتوضیحات: {ticket_description}\nشماره تیکت: #{ticket_id}"
                         )
-            except Exception:
-                pass
+                    else:
+                        notify_it_manager(
+                            action_type='delete',
+                            ticket=dummy_ticket,
+                            user=request.user,
+                            additional_info=f"تیکت حذف شده:\nعنوان: {ticket_title}\nتوضیحات: {ticket_description}\nشماره تیکت: #{ticket_id}"
+                        )
+
+                # Create notification for IT managers about ticket deletion
+                try:
+                    it_managers = User.objects.filter(role='it_manager')
+                    for manager in it_managers:
+                        if manager != request.user:  # Don't notify yourself
+                            Notification.objects.create(
+                                recipient=manager,
+                                title=f"حذف تیکت: {ticket_title}",
+                                message=f"حذف شده توسط: {request.user.get_full_name()}\nشماره تیکت: #{ticket_id}",
+                                notification_type='ticket_urgent',  # Using existing type for deletions
+                                category='tickets',
+                                user_actor=request.user
+                            )
+                except Exception:
+                    pass
+
+            _run_async_after_commit('ticket-delete-notifications', _send_delete_notifications)
             
             messages.success(request, _('تیکت با موفقیت حذف شد.'))
             return redirect('tickets:ticket_list')
@@ -2819,605 +2894,42 @@ def edit_employee(request, user_id):
             return redirect('tickets:user_management')
         
         if request.method == 'POST':
-            # #region agent log - Setup logging first
-            import json
-            import os
-            import traceback
-            from datetime import datetime
-            log_path = r'c:\Users\User\Desktop\pticket-main\.cursor\debug.log'
-            def log_debug(hypothesis_id, location, message, data):
-                try:
-                    os.makedirs(os.path.dirname(log_path), exist_ok=True)
-                    entry = {
-                        'id': f'log_{int(datetime.now().timestamp() * 1000)}',
-                        'timestamp': int(datetime.now().timestamp() * 1000),
-                        'location': location,
-                        'message': message,
-                        'data': data,
-                        'sessionId': 'debug-session',
-                        'runId': 'run1',
-                        'hypothesisId': hypothesis_id
-                    }
-                    with open(log_path, 'a', encoding='utf-8') as f:
-                        f.write(json.dumps(entry, ensure_ascii=False) + '\n')
-                except Exception as e:
-                    # Fallback: try to write to a simpler log
-                    try:
-                        with open(log_path.replace('.log', '_error.log'), 'a') as f:
-                            f.write(f"Logging error: {e}\n")
-                    except:
-                        pass
-            
-            log_debug('ENTRY', 'tickets/views.py:2110', 'edit_employee POST request received', {
-                'user_id': user.id,
-                'method': request.method,
-                'request_user_id': request.user.id if request.user.is_authenticated else None,
-                'request_user_is_active': request.user.is_active if request.user.is_authenticated else None
-            })
-            # #endregion
-            
             form = EmployeeEditForm(request.POST, instance=user)
-            log_debug('FORM', 'tickets/views.py:2112', 'Form created', {
-                'form_valid': form.is_valid(),
-                'form_errors': form.errors if not form.is_valid() else {}
-            })
-            
             if form.is_valid():
                 try:
-                    
-                    # Capture old state BEFORE form save (critical for department transfer logic)
                     old_dept_id = user.department_id
-                    old_dept_role = user.department_role
-                    # Fetch old department fresh from database to avoid caching issues
-                    old_dept = Department.objects.filter(id=old_dept_id).first() if old_dept_id else None
-                    
-                    # CRITICAL: Capture ALL authentication-critical fields before save
-                    auth_fields_before = {
-                        'is_active': user.is_active,
-                        'role': user.role,
-                        'national_id': user.national_id,
-                        'employee_code': user.employee_code,
-                        'department_role': user.department_role,
-                        'has_usable_password': user.has_usable_password(),
-                    }
-                    
-                    log_debug('UPDATE', 'tickets/views.py:2142', 'Before user update - ALL fields', {
-                        'user_id': user.id,
-                        'user_name': user.get_full_name(),
-                        'old_department_id': old_dept_id,
-                        'old_department_name': old_dept.name if old_dept else None,
-                        'old_department_role': old_dept_role,
-                        'is_team_lead': old_dept_role in ['senior', 'manager'],
-                        'auth_fields': auth_fields_before
-                    })
-                    # #endregion
-                    
-                    # #region agent log - HYP_F: BEFORE form.save() - Track exact state
-                    log_debug('HYP_F', 'tickets/views.py:2182', 'BEFORE form.save() - User state check', {
-                        'user_id': user.id,
-                        'is_active_before_save': user.is_active,
-                        'national_id_before_save': user.national_id,
-                        'employee_code_before_save': user.employee_code,
-                        'password_hash_before_save': user.password[:20] if user.password else None,
-                        'role_before_save': user.role,
-                        'department_role_before_save': user.department_role
-                    })
-                    # #endregion
-                    
-                    # Save the form to update user fields
                     form.save()
-                    
-                    # #region agent log - HYP_F: IMMEDIATELY AFTER form.save() - Before refresh
-                    log_debug('HYP_F', 'tickets/views.py:2184', 'IMMEDIATELY AFTER form.save() - Before refresh_from_db()', {
-                        'user_id': user.id,
-                        'is_active_after_save': user.is_active,
-                        'national_id_after_save': user.national_id,
-                        'employee_code_after_save': user.employee_code,
-                        'password_hash_after_save': user.password[:20] if user.password else None,
-                        'role_after_save': user.role,
-                        'department_role_after_save': user.department_role
-                    })
-                    # #endregion
-                    
-                    # #region agent log - After user update
                     user.refresh_from_db()
                     new_dept_id = user.department_id
-                    new_dept_role = user.department_role
-                    # Fetch new department fresh from database to avoid caching
-                    new_dept = Department.objects.filter(id=new_dept_id).first() if new_dept_id else None
-                    
-                    # CRITICAL: Verify authentication fields were NOT corrupted
-                    auth_fields_after = {
-                        'is_active': user.is_active,
-                        'role': user.role,
-                        'national_id': user.national_id,
-                        'employee_code': user.employee_code,
-                        'department_role': user.department_role,
-                        'has_usable_password': user.has_usable_password(),
-                    }
-                    
-                    # Check for authentication field corruption
-                    auth_corruption = {}
-                    for field, before_value in auth_fields_before.items():
-                        after_value = auth_fields_after.get(field)
-                        if before_value != after_value and field != 'department_role':  # department_role can change
-                            auth_corruption[field] = {
-                                'before': before_value,
-                                'after': after_value
-                            }
-                    
-                    log_debug('UPDATE', 'tickets/views.py:2205', 'After form save and refresh - ALL fields', {
-                        'user_id': user.id,
-                        'new_department_id': new_dept_id,
-                        'new_department_name': new_dept.name if new_dept else None,
-                        'new_department_role': new_dept_role,
-                        'auth_fields': auth_fields_after,
-                        'auth_corruption_detected': bool(auth_corruption),
-                        'corrupted_fields': auth_corruption
-                    })
-                    
-                    # If authentication fields were corrupted, log critical error
-                    if auth_corruption:
-                        log_debug('CRITICAL', 'tickets/views.py:2217', 'AUTHENTICATION FIELDS CORRUPTED AFTER form.save()', {
-                            'user_id': user.id,
-                            'corrupted_fields': auth_corruption,
-                            'action_required': 'RESTORE_ORIGINAL_VALUES',
-                            'hypothesis': 'HYP_A - form.save() corrupted fields'
-                        })
-                        # Restore original authentication fields
-                        user.is_active = auth_fields_before['is_active']
-                        user.role = auth_fields_before['role']
-                        user.national_id = auth_fields_before['national_id']
-                        user.employee_code = auth_fields_before['employee_code']
-                        user.save(update_fields=['is_active', 'role', 'national_id', 'employee_code'])
-                        log_debug('RECOVERY', 'tickets/views.py:2229', 'Restored authentication fields', {
-                            'user_id': user.id,
-                            'restored_fields': ['is_active', 'role', 'national_id', 'employee_code']
-                        })
-                    # #endregion
-                    
-                    # #region Atomic Department Supervisor Update for Team Leads
-                    # CRITICAL: System-wide synchronized atomic transaction for Team Lead department transfer
-                    # This ensures data consistency when a Team Lead is transferred between departments
-                    # Uses Dept_ID (Department.id) as the primary identifier for all relational queries
-                    # 
-                    # FOUNDATION: Department ID (Dept_ID) is mandatory and unique (Django auto-generated primary key)
-                    # All operations use Dept_ID for robust relational mapping
                     from django.db import transaction
-                    # #region agent log - HYP_B: Track transaction state
-                    log_debug('HYP_B', 'tickets/views.py:2250', 'BEFORE transaction.atomic() - User state', {
-                        'user_id': user.id,
-                        'is_active_before_tx': user.is_active,
-                        'national_id_before_tx': user.national_id,
-                        'employee_code_before_tx': user.employee_code,
-                        'old_dept_id': old_dept_id,
-                        'new_dept_id': new_dept_id,
-                        'is_team_lead': user.department_role in ['senior', 'manager']
-                    })
-                    # #endregion
-                    try:
-                        with transaction.atomic():
-                            # PRE-UPDATE CHECK: Verify department change and user state
-                            # Re-check user state after refresh to ensure we have latest data
-                            user.refresh_from_db()
-                            is_team_lead = user.department_role in ['senior', 'manager']
-                            
-                            # CRITICAL: Detect Change using Dept_ID - Only proceed if department IDs are different
-                            # This is the foundation check that triggers the entire atomic update sequence
-                            dept_changed = False
-                            if old_dept_id and new_dept_id:
-                                dept_changed = old_dept_id != new_dept_id
-                            elif old_dept_id is not None or new_dept_id is not None:
-                                # User is being assigned to a department or removed from one
-                                dept_changed = True
-                            
-                            log_debug('UPDATE', 'tickets/views.py:2252', 'Atomic transaction started - Pre-update check', {
-                                'is_team_lead': is_team_lead,
-                                'department_role': user.department_role,
-                                'old_dept_id': old_dept_id,
-                                'new_dept_id': new_dept_id,
-                                'dept_changed': dept_changed,
-                                'user_id': user.id,
-                                'user_role': user.role,
-                                'user_is_active': user.is_active
-                            })
-                            
-                            # ABORT if no department change detected
-                            if not dept_changed:
-                                log_debug('SKIP', 'tickets/views.py:2265', 'No department change detected - skipping atomic update', {
-                                    'old_dept_id': old_dept_id,
-                                    'new_dept_id': new_dept_id
-                                })
-                                # Exit transaction early if no change
-                                pass
-                            
-                            if is_team_lead and dept_changed:
-                                # STEP 1: Cleanup Old Department (Dept A) - UNASSIGN Team Lead
-                                # CRITICAL: Unconditionally clear ALL supervisor relationships for old department
-                                if old_dept_id and old_dept_id != new_dept_id:
-                                    # Fetch Department by Dept_ID (robust relational mapping)
-                                    old_dept = Department.objects.filter(id=old_dept_id).first()
-                                    
-                                    if old_dept:
-                                        # Refresh to get latest state from database
-                                        old_dept.refresh_from_db()
-                                        
-                                        # Explicitly UNASSIGN: Clear FK supervisor if it points to this user
-                                        # UNCONDITIONAL: Always clear if it matches, regardless of other conditions
-                                        if old_dept.supervisor_id == user.id:
-                                            old_dept.supervisor = None
-                                            old_dept.save(update_fields=['supervisor'])
-                                            log_debug('UPDATE', 'tickets/views.py:2256', 'UNASSIGNED: Cleared FK supervisor from old department', {
-                                                'old_dept_id': old_dept_id,
-                                                'old_dept_name': old_dept.name,
-                                                'dept_id_used': old_dept.id,
-                                                'supervisor_id_before': user.id,
-                                                'supervisor_id_after': None
-                                            })
-                                        
-                                        # Explicitly UNASSIGN: Remove from M2M supervised_departments
-                                        # UNCONDITIONAL: Always remove old_dept from M2M, even if not currently present
-                                        # Force removal using both ORM and direct SQL for maximum reliability
-                                        try:
-                                            # First try ORM method
-                                            user.supervised_departments.remove(old_dept)
-                                        except:
-                                            pass
-                                        
-                                        # Also use direct SQL to ensure removal (works with SQLite, PostgreSQL, MySQL)
-                                        from django.db import connection
-                                        m2m_table = User.supervised_departments.through._meta.db_table
-                                        with connection.cursor() as cursor:
-                                            # Use parameterized query (works with all databases)
-                                            cursor.execute(
-                                                f"DELETE FROM {m2m_table} WHERE user_id = ? AND department_id = ?",
-                                                [user.id, old_dept_id]
-                                            )
-                                        
-                                        log_debug('UPDATE', 'tickets/views.py:2275', 'UNASSIGNED: Removed from M2M supervised_departments (unconditional)', {
-                                            'old_dept_id': old_dept_id,
-                                            'old_dept_name': old_dept.name,
-                                            'dept_id_used': old_dept.id,
-                                            'user_id': user.id,
-                                            'm2m_table': m2m_table
-                                        })
-                                
-                                # STEP 2: Assign to New Department (Dept B) - ASSIGN Team Lead
-                                if new_dept_id and new_dept_id != old_dept_id:
-                                    # Fetch Department by Dept_ID (robust relational mapping)
-                                    new_dept = Department.objects.filter(id=new_dept_id).first()
-                                    
-                                    if new_dept:
-                                        # Refresh to get latest state from database
-                                        new_dept.refresh_from_db()
-                                        
-                                        # #region agent log - Hypothesis A: Check supervisor_id state BEFORE assignment
-                                        log_debug('HYP_A', 'tickets/views.py:2343', 'BEFORE FK assignment check - supervisor_id state', {
-                                            'new_dept_id': new_dept_id,
-                                            'new_dept_name': new_dept.name,
-                                            'supervisor_id_before_check': new_dept.supervisor_id,
-                                            'supervisor_id_is_none': new_dept.supervisor_id is None,
-                                            'user_id': user.id,
-                                            'user_department_role': user.department_role
-                                        })
-                                        # #endregion
-                                        
-                                        # Explicitly ASSIGN: Set FK supervisor if department doesn't have another supervisor
-                                        if new_dept.supervisor_id is None:
-                                            # #region agent log - Hypothesis B: BEFORE save() call
-                                            log_debug('HYP_B', 'tickets/views.py:2347', 'BEFORE save() - About to assign FK supervisor', {
-                                                'new_dept_id': new_dept_id,
-                                                'new_dept_supervisor_id_before': new_dept.supervisor_id,
-                                                'user_id': user.id,
-                                                'will_assign_to_user': True
-                                            })
-                                            # #endregion
-                                            
+                    is_team_lead = user.department_role in ['senior', 'manager']
+                    dept_changed = old_dept_id != new_dept_id
+
+                    with transaction.atomic():
+                        if is_team_lead:
+                            if old_dept_id and dept_changed:
+                                old_dept = Department.objects.filter(id=old_dept_id).first()
+                                if old_dept and old_dept.supervisor_id == user.id:
+                                    old_dept.supervisor = None
+                                    old_dept.save(update_fields=['supervisor'])
+                                if old_dept:
+                                    user.supervised_departments.remove(old_dept)
+
+                            if new_dept_id:
+                                new_dept = Department.objects.filter(id=new_dept_id).first()
+                                if new_dept:
+                                    if new_dept.supervisor_id is None or new_dept.supervisor_id == user.id:
+                                        if new_dept.supervisor_id != user.id:
                                             new_dept.supervisor = user
                                             new_dept.save(update_fields=['supervisor'])
-                                            
-                                            # #region agent log - Hypothesis B: AFTER save() - Verify it actually saved
-                                            # Force fresh database query to verify the save actually committed
-                                            from django.db import connection
-                                            with connection.cursor() as cursor:
-                                                cursor.execute("SELECT supervisor_id FROM tickets_department WHERE id = %s", [new_dept_id])
-                                                row = cursor.fetchone()
-                                                db_supervisor_id = row[0] if row else None
-                                            
-                                            new_dept.refresh_from_db()
-                                            log_debug('HYP_B', 'tickets/views.py:2348', 'AFTER save() - Verify FK assignment committed', {
-                                                'new_dept_id': new_dept_id,
-                                                'new_dept_supervisor_id_after_refresh': new_dept.supervisor_id,
-                                                'direct_db_query_supervisor_id': db_supervisor_id,
-                                                'expected_user_id': user.id,
-                                                'assignment_successful': new_dept.supervisor_id == user.id,
-                                                'db_query_matches': db_supervisor_id == user.id
-                                            })
-                                            # #endregion
-                                            
-                                            log_debug('UPDATE', 'tickets/views.py:2235', 'ASSIGNED: Set FK supervisor on new department', {
-                                                'new_dept_id': new_dept_id,
-                                                'new_dept_name': new_dept.name,
-                                                'dept_id_used': new_dept.id,
-                                                'user_id': user.id
-                                            })
-                                        else:
-                                            # #region agent log - Hypothesis A: Check failed
-                                            log_debug('HYP_A', 'tickets/views.py:2346', 'FK assignment SKIPPED - supervisor_id is NOT None', {
-                                                'new_dept_id': new_dept_id,
-                                                'supervisor_id': new_dept.supervisor_id,
-                                                'user_id': user.id,
-                                                'assignment_blocked': True
-                                            })
-                                            # #endregion
-                                        
-                                        # Explicitly ASSIGN: Add to M2M supervised_departments
-                                        # Get current supervised departments (excluding the old one)
-                                        # #region agent log - Hypothesis C: BEFORE M2M add
-                                        current_supervised_ids_before = list(
-                                            user.supervised_departments.values_list('id', flat=True)
-                                        )
-                                        log_debug('HYP_C', 'tickets/views.py:2361', 'BEFORE M2M add - Current supervised departments', {
-                                            'new_dept_id': new_dept_id,
-                                            'current_supervised_ids': current_supervised_ids_before,
-                                            'new_dept_id_in_list': new_dept_id in current_supervised_ids_before,
-                                            'will_add_m2m': new_dept_id not in current_supervised_ids_before,
-                                            'user_id': user.id
-                                        })
-                                        # #endregion
-                                        
-                                        if new_dept_id not in current_supervised_ids_before:
-                                            user.supervised_departments.add(new_dept)
-                                            
-                                            # #region agent log - Hypothesis C: AFTER M2M add - Verify it actually added
-                                            # Force fresh database query to verify M2M was actually committed
-                                            from django.db import connection
-                                            m2m_table = User.supervised_departments.through._meta.db_table
-                                            with connection.cursor() as cursor:
-                                                cursor.execute(
-                                                    f"SELECT department_id FROM {m2m_table} WHERE user_id = %s AND department_id = %s",
-                                                    [user.id, new_dept_id]
-                                                )
-                                                m2m_row = cursor.fetchone()
-                                                m2m_exists_in_db = m2m_row is not None
-                                            
-                                            # Also refresh M2M relationship
-                                            current_supervised_ids_after = list(
-                                                user.supervised_departments.values_list('id', flat=True)
-                                            )
-                                            log_debug('HYP_C', 'tickets/views.py:2362', 'AFTER M2M add - Verify M2M assignment committed', {
-                                                'new_dept_id': new_dept_id,
-                                                'current_supervised_ids_after': current_supervised_ids_after,
-                                                'direct_db_query_m2m_exists': m2m_exists_in_db,
-                                                'm2m_add_successful': new_dept_id in current_supervised_ids_after,
-                                                'db_query_matches': m2m_exists_in_db == (new_dept_id in current_supervised_ids_after),
-                                                'user_id': user.id
-                                            })
-                                            # #endregion
-                                            
-                                            log_debug('UPDATE', 'tickets/views.py:2248', 'ASSIGNED: Added to M2M supervised_departments', {
-                                                'new_dept_id': new_dept_id,
-                                                'new_dept_name': new_dept.name,
-                                                'dept_id_used': new_dept.id,
-                                                'user_id': user.id
-                                            })
-                                
-                                # STEP 3: Preserve User Role Status - Ensure Team Lead role is maintained
-                                # The form.save() method already preserves department_role, but verify it here
-                                user.refresh_from_db()
-                                if user.department_role not in ['senior', 'manager']:
-                                    # This should not happen if form.save() worked correctly, but log it
-                                    log_debug('WARNING', 'tickets/views.py:2260', 'Team Lead role may have been lost', {
-                                        'user_id': user.id,
-                                        'current_department_role': user.department_role,
-                                        'expected_role': 'senior or manager'
-                                    })
-                            elif not is_team_lead:
-                                # If user is NOT a Team Lead, clear any supervisor relationships
-                                if old_dept_id:
-                                    old_dept = Department.objects.filter(id=old_dept_id).first()
-                                    if old_dept:
-                                        old_dept.refresh_from_db()
-                                        if old_dept.supervisor_id == user.id:
-                                            old_dept.supervisor = None
-                                            old_dept.save(update_fields=['supervisor'])
-                                user.supervised_departments.clear()
-                                log_debug('UPDATE', 'tickets/views.py:2275', 'Cleared supervisor relationships (not Team Lead)', {})
-                            
-                            # Final refresh to get latest committed state
-                            user.refresh_from_db()
-                            # Force database query to get fresh M2M data
-                            supervised_dept_ids = list(
-                                user.supervised_departments.values_list('id', flat=True)
-                            )
-                            
-                            # #region agent log - Hypothesis D: Direct DB query BEFORE verification (test for stale data)
-                            from django.db import connection
-                            with connection.cursor() as cursor:
-                                # Direct SQL query for FK supervisor on new department
-                                cursor.execute("SELECT supervisor_id FROM tickets_department WHERE id = %s", [new_dept_id])
-                                db_fk_row = cursor.fetchone()
-                                db_new_dept_supervisor_id = db_fk_row[0] if db_fk_row else None
-                                
-                                # Direct SQL query for M2M relationship
-                                m2m_table = User.supervised_departments.through._meta.db_table
-                                cursor.execute(
-                                    f"SELECT department_id FROM {m2m_table} WHERE user_id = %s AND department_id = %s",
-                                    [user.id, new_dept_id]
-                                )
-                                db_m2m_row = cursor.fetchone()
-                                db_m2m_exists = db_m2m_row is not None
-                            
-                            # Also check ORM state (might be cached)
-                            new_dept_orm_check = Department.objects.filter(id=new_dept_id).first()
-                            new_dept_orm_supervisor_id = new_dept_orm_check.supervisor_id if new_dept_orm_check else None
-                            
-                            log_debug('HYP_D', 'tickets/views.py:2478', 'BEFORE verification - Direct DB query vs ORM state', {
-                                'new_dept_id': new_dept_id,
-                                'direct_db_fk_supervisor_id': db_new_dept_supervisor_id,
-                                'orm_fk_supervisor_id': new_dept_orm_supervisor_id,
-                                'direct_db_m2m_exists': db_m2m_exists,
-                                'orm_m2m_in_list': new_dept_id in supervised_dept_ids,
-                                'expected_user_id': user.id,
-                                'fk_matches_direct_db': db_new_dept_supervisor_id == user.id,
-                                'fk_matches_orm': new_dept_orm_supervisor_id == user.id,
-                                'm2m_matches_direct_db': db_m2m_exists,
-                                'm2m_matches_orm': new_dept_id in supervised_dept_ids
-                            })
-                            # #endregion
-                            
-                            # POST-UPDATE VERIFICATION: System-wide verification of atomic transaction success
-                            # CRITICAL: Verify old department (Dept A) is unassigned and new department (Dept B) is assigned
-                            # Force fresh database queries to verify the committed state (bypass any caching)
-                            
-                            # Verify old department (Dept A) is unassigned
-                            old_dept_unassigned = True
-                            old_dept_verification = {}
+                                    user.supervised_departments.add(new_dept)
+                        else:
                             if old_dept_id:
-                                old_dept_check = Department.objects.filter(id=old_dept_id).first()
-                                if old_dept_check:
-                                    old_dept_check.refresh_from_db()
-                                    # Check FK supervisor
-                                    has_fk_supervisor = old_dept_check.supervisor_id == user.id
-                                    # Check M2M supervisor
-                                    has_m2m_supervisor = old_dept_id in supervised_dept_ids
-                                    # Old department should NOT have this user as supervisor
-                                    old_dept_unassigned = not (has_fk_supervisor or has_m2m_supervisor)
-                                    old_dept_verification = {
-                                        'dept_id': old_dept_id,
-                                        'dept_name': old_dept_check.name,
-                                        'has_fk_supervisor': has_fk_supervisor,
-                                        'has_m2m_supervisor': has_m2m_supervisor,
-                                        'is_unassigned': old_dept_unassigned
-                                    }
-                            
-                            # Verify new department (Dept B) is assigned
-                            new_dept_assigned = False
-                            new_dept_verification = {}
-                            if new_dept_id:
-                                new_dept_check = Department.objects.filter(id=new_dept_id).first()
-                                if new_dept_check:
-                                    new_dept_check.refresh_from_db()
-                                    # Check FK supervisor
-                                    has_fk_supervisor = new_dept_check.supervisor_id == user.id
-                                    # Check M2M supervisor
-                                    has_m2m_supervisor = new_dept_id in supervised_dept_ids
-                                    # New department SHOULD have this user as supervisor
-                                    new_dept_assigned = has_fk_supervisor or has_m2m_supervisor
-                                    new_dept_verification = {
-                                        'dept_id': new_dept_id,
-                                        'dept_name': new_dept_check.name,
-                                        'has_fk_supervisor': has_fk_supervisor,
-                                        'has_m2m_supervisor': has_m2m_supervisor,
-                                        'is_assigned': new_dept_assigned
-                                    }
-                            
-                            # CRITICAL: Verify user authentication fields are preserved
-                            auth_fields_after_tx = {
-                                'is_active': user.is_active,
-                                'role': user.role,
-                                'department_role': user.department_role,
-                                'national_id': user.national_id,
-                                'employee_code': user.employee_code
-                            }
-                            
-                            # Final verification: All checks must pass for system-wide synchronization
-                            verification_passed = (
-                                old_dept_unassigned and 
-                                new_dept_assigned and 
-                                user.department_role in ['senior', 'manager'] and
-                                user.is_active == auth_fields_before.get('is_active', True)
-                            )
-                            
-                            log_debug('UPDATE', 'tickets/views.py:2422', 'Final state after atomic update - System-wide verification', {
-                                'user_id': user.id,
-                                'department_id': user.department_id,
-                                'department_role': user.department_role,
-                                'supervised_dept_ids': supervised_dept_ids,
-                                'old_dept_id': old_dept_id,
-                                'new_dept_id': new_dept_id,
-                                'old_dept_verification': old_dept_verification,
-                                'new_dept_verification': new_dept_verification,
-                                'auth_fields_after_tx': auth_fields_after_tx,
-                                'transaction_complete': True,
-                                'verification_passed': verification_passed,
-                                'system_ready': verification_passed  # System is ready if verification passes
-                            })
-                            
-                            # If verification failed, log critical error for system-wide awareness
-                            if not verification_passed:
-                                log_debug('CRITICAL', 'tickets/views.py:2450', 'ATOMIC TRANSACTION VERIFICATION FAILED', {
-                                    'user_id': user.id,
-                                    'old_dept_unassigned': old_dept_unassigned,
-                                    'new_dept_assigned': new_dept_assigned,
-                                    'department_role_preserved': user.department_role in ['senior', 'manager'],
-                                    'action_required': 'MANUAL_INTERVENTION'
-                                })
-                    except Exception as e:
-                        # #region agent log - HYP_B: Transaction exception - Check if user state corrupted
-                        user.refresh_from_db()
-                        log_debug('HYP_B', 'tickets/views.py:2607', 'EXCEPTION in atomic transaction - Check user state after rollback', {
-                            'error': str(e),
-                            'traceback': traceback.format_exc(),
-                            'old_dept_id': old_dept_id,
-                            'new_dept_id': new_dept_id,
-                            'user_id': user.id,
-                            'is_active_after_exception': user.is_active,
-                            'national_id_after_exception': user.national_id,
-                            'employee_code_after_exception': user.employee_code,
-                            'department_id_after_exception': user.department_id,
-                            'auth_fields_expected': auth_fields_before,
-                            'transaction_rolled_back': True,
-                            'hypothesis': 'HYP_B - Exception may have corrupted user state'
-                        })
-                        # #endregion
-                        log_debug('ERROR', 'tickets/views.py:2607', 'Error in atomic transaction', {
-                            'error': str(e),
-                            'traceback': traceback.format_exc(),
-                            'old_dept_id': old_dept_id,
-                            'new_dept_id': new_dept_id
-                        })
-                        # Re-raise to ensure transaction rollback
-                        raise
-                    
-                    # #region agent log - Hypothesis E: Check assignment state IMMEDIATELY after transaction commits
-                    # Force fresh database query RIGHT after transaction to detect if assignment was cleared
-                    from django.db import connection
-                    with connection.cursor() as cursor:
-                        cursor.execute("SELECT supervisor_id FROM tickets_department WHERE id = %s", [new_dept_id])
-                        db_post_tx_row = cursor.fetchone()
-                        db_post_tx_supervisor_id = db_post_tx_row[0] if db_post_tx_row else None
-                        
-                        m2m_table = User.supervised_departments.through._meta.db_table
-                        cursor.execute(
-                            f"SELECT department_id FROM {m2m_table} WHERE user_id = %s AND department_id = %s",
-                            [user.id, new_dept_id]
-                        )
-                        db_post_tx_m2m_row = cursor.fetchone()
-                        db_post_tx_m2m_exists = db_post_tx_m2m_row is not None
-                    
-                    log_debug('HYP_E', 'tickets/views.py:2616', 'IMMEDIATELY after transaction commit - Check if assignment persists', {
-                        'new_dept_id': new_dept_id,
-                        'db_supervisor_id_after_tx': db_post_tx_supervisor_id,
-                        'db_m2m_exists_after_tx': db_post_tx_m2m_exists,
-                        'expected_user_id': user.id,
-                        'assignment_still_present': db_post_tx_supervisor_id == user.id or db_post_tx_m2m_exists,
-                        'fk_assignment_lost': db_post_tx_supervisor_id != user.id if db_post_tx_supervisor_id else True,
-                        'm2m_assignment_lost': not db_post_tx_m2m_exists
-                    })
-                    # #endregion
-                    # #endregion
-                    
-                    # #region agent log - HYP_E: Check session and request.user state before redirect
-                    log_debug('HYP_E', 'tickets/views.py:2644', 'BEFORE redirect - Session and request.user state check', {
-                        'request_user_id': request.user.id if request.user.is_authenticated else None,
-                        'request_user_is_active': request.user.is_active if request.user.is_authenticated else None,
-                        'request_user_has_session': hasattr(request, 'session'),
-                        'edited_user_id': user.id,
-                        'edited_user_is_active': user.is_active,
-                        'edited_user_can_login': user.is_active and user.national_id and user.employee_code
-                    })
-                    # #endregion
+                                old_dept = Department.objects.filter(id=old_dept_id).first()
+                                if old_dept and old_dept.supervisor_id == user.id:
+                                    old_dept.supervisor = None
+                                    old_dept.save(update_fields=['supervisor'])
+                            user.supervised_departments.clear()
                     
                     # Create notification for IT managers about employee edit
                     try:
@@ -3447,30 +2959,6 @@ def edit_employee(request, user_id):
                     ))
                     return redirect('tickets:user_management')
                 except Exception as e:
-                    # Log the exception for debugging
-                    try:
-                        # #region agent log - HYP_D: Exception caught - Check final user state
-                        if 'user' in locals():
-                            user.refresh_from_db()
-                            log_debug('HYP_D', 'tickets/views.py:2672', 'EXCEPTION caught - Final user state after exception', {
-                                'error': str(e),
-                                'traceback': traceback.format_exc(),
-                                'user_id': user.id,
-                                'is_active_after_exception': user.is_active,
-                                'national_id_after_exception': user.national_id,
-                                'employee_code_after_exception': user.employee_code,
-                                'department_id_after_exception': user.department_id,
-                                'can_login': user.is_active and user.national_id and user.employee_code,
-                                'hypothesis': 'HYP_D - Exception may have left user in corrupted state'
-                            })
-                        log_debug('EXCEPTION', 'tickets/views.py:2672', 'Exception in edit_employee', {
-                            'error': str(e),
-                            'traceback': traceback.format_exc(),
-                            'user_id': user.id if 'user' in locals() else None
-                        })
-                        # #endregion
-                    except:
-                        pass
                     messages.error(request, _('خطا در بروزرسانی اطلاعات کارمند: {}').format(str(e)))
             else:
                 # Show specific field errors to user
@@ -4303,7 +3791,7 @@ def department_create(request):
         if form.is_valid():
             # Additional validation to prevent IT Department creation
             department_name = form.cleaned_data.get('name', '').lower().strip()
-            if department_name in ['it department', 'it', 'information technology', 'information technology department']:
+            if department_name in ['it department', 'information technology department']:
                 messages.error(request, _('ایجاد بخش IT برای دلایل امنیتی مجاز نیست.'))
                 return redirect('tickets:department_management')
             
@@ -4340,7 +3828,7 @@ def department_edit(request, department_id):
         if form.is_valid():
             # Additional validation to prevent IT Department creation
             department_name = form.cleaned_data.get('name', '').lower().strip()
-            if department_name in ['it department', 'it', 'information technology', 'information technology department']:
+            if department_name in ['it department', 'information technology department']:
                 messages.error(request, _('ایجاد بخش IT برای دلایل امنیتی مجاز نیست.'))
                 return redirect('tickets:department_management')
             
@@ -4434,6 +3922,25 @@ def department_toggle_warehouse(request, department_id):
             messages.info(request, _('ماژول انبار برای بخش "{}" غیرفعال شد.').format(department.name))
         except Exception:
             messages.info(request, _('ماژول انبار برای بخش "{}" غیرفعال شد.').format(department.name))
+    
+    return redirect('tickets:department_management')
+
+@login_required
+@require_POST
+def department_toggle_inventory(request, department_id):
+    """Toggle has_inventory for a department"""
+    if not is_admin_superuser(request.user):
+        messages.error(request, _('دسترسی رد شد. فقط مدیر سیستم میتواند این بخش را دریافت کند.'))
+        return redirect('tickets:dashboard')
+    
+    department = get_object_or_404(Department, id=department_id)
+    department.has_inventory = not department.has_inventory
+    department.save(update_fields=['has_inventory'])
+    
+    if department.has_inventory:
+        messages.success(request, _('ماژول Inventory برای بخش "{}" فعال شد. این ماژول معمولاً برای بخش‌های IT استفاده می‌شود.').format(department.name))
+    else:
+        messages.info(request, _('ماژول Inventory برای بخش "{}" غیرفعال شد.').format(department.name))
     
     return redirect('tickets:department_management')
 
@@ -4604,7 +4111,7 @@ def category_create(request):
             category.description = form.cleaned_data.get('description', '')
             category.is_active = form.cleaned_data.get('is_active', True)
             category.sort_order = form.cleaned_data.get('sort_order', 0)
-            
+            category.requires_supervisor_approval = form.cleaned_data.get('requires_supervisor_approval', False)
             # Assign required foreign key relationships before saving
             # Department is excluded from the form for security (supervisor can only create for their own department)
             category.department = department
@@ -4674,7 +4181,6 @@ def category_edit(request, category_id):
     if request.method == 'POST':
         form = TicketCategoryForm(request.POST, instance=category)
         if form.is_valid():
-            category = form.save()
             messages.success(request, _('دسته‌بندی "{}" با موفقیت بروزرسانی شد.').format(category.name))
             return redirect('tickets:category_list')
         else:
@@ -4839,11 +4345,11 @@ def supervisor_assignment(request):
     else:
         form = SupervisorAssignmentForm()
     
-    # Get all supervisors and their departments (senior employees)
+    # Get all supervisors and their departments (employee leads + IT managers)
     # Include both M2M supervised_departments and FK supervisor relationships
     supervisors = User.objects.filter(
-        role='employee',
-        department_role__in=['senior', 'manager'],
+        Q(role='it_manager') |
+        Q(role='employee', department_role__in=['senior', 'manager']),
         is_active=True
     ).prefetch_related('supervised_departments').order_by('first_name', 'last_name')
     
@@ -4879,7 +4385,7 @@ def supervisor_assignment(request):
     # Method 1: Exclude departments with active FK supervisor
     depts_with_fk_supervisor = Department.objects.filter(
         is_active=True,
-        department_type='employee',
+        department_type__in=['employee', 'technician'],
         supervisor__isnull=False,
         supervisor__is_active=True
     ).values_list('id', flat=True)
@@ -4887,7 +4393,7 @@ def supervisor_assignment(request):
     # Method 2: Exclude departments with active M2M supervisors
     depts_with_m2m_supervisor = Department.objects.filter(
         is_active=True,
-        department_type='employee',
+        department_type__in=['employee', 'technician'],
         supervisors__is_active=True
     ).values_list('id', flat=True)
     
@@ -4903,7 +4409,7 @@ def supervisor_assignment(request):
             is_active=True,
             department__isnull=False,
             department__is_active=True,
-            department__department_type='employee'
+            department__department_type__in=['employee', 'technician']
         ).select_related('department').values_list('department_id', flat=True).distinct()
     )
     
@@ -4911,7 +4417,7 @@ def supervisor_assignment(request):
     # Check specific departments and their role-based leads
     all_depts_for_check = Department.objects.filter(
         is_active=True,
-        department_type='employee'
+        department_type__in=['employee', 'technician']
     ).select_related().prefetch_related('users')
     
     dept_analysis = []
@@ -4951,16 +4457,16 @@ def supervisor_assignment(request):
     # Combine all excluded department IDs
     all_excluded_dept_ids = set(depts_with_fk_supervisor) | set(depts_with_m2m_supervisor) | set(depts_with_role_based_leads)
     
-    # Final queryset: All active employee departments EXCEPT those with any type of Team Lead
+    # Final queryset: All active employee/technician departments EXCEPT those with any type of Team Lead
     if all_excluded_dept_ids:
         departments_without_supervisor = Department.objects.filter(
             is_active=True,
-            department_type='employee'
+            department_type__in=['employee', 'technician']
         ).exclude(id__in=all_excluded_dept_ids).distinct().order_by('name')
     else:
         departments_without_supervisor = Department.objects.filter(
             is_active=True,
-            department_type='employee'
+            department_type__in=['employee', 'technician']
         ).distinct().order_by('name')
     
     # #region agent log - Bug 1: Final filtered departments
@@ -4989,16 +4495,26 @@ def remove_supervisor_from_department(request, department_id):
     department = get_object_or_404(Department, id=department_id)
     
     if request.method == 'POST':
-        # Find supervisor through FK relationship
-        supervisor_fk = department.supervisor
+        supervisor_id = request.POST.get('supervisor_id')
+        supervisor = None
         
-        # Find supervisor through M2M relationship
-        supervisor_m2m = department.supervisors.filter(is_active=True).first()
+        # Prefer explicit supervisor from UI, so the correct assignment is removed.
+        if supervisor_id:
+            try:
+                supervisor = User.objects.get(id=supervisor_id, is_active=True)
+            except (User.DoesNotExist, ValueError, TypeError):
+                supervisor = None
         
-        # Use FK supervisor if available, otherwise use M2M supervisor
-        supervisor = supervisor_fk or supervisor_m2m
+        # Backward-compatible fallback for older posts without supervisor_id.
+        if supervisor is None:
+            supervisor_fk = department.supervisor
+            supervisor_m2m = department.supervisors.filter(is_active=True).first()
+            supervisor = supervisor_fk or supervisor_m2m
         
-        if supervisor:
+        if supervisor and (
+            department.supervisor_id == supervisor.id or
+            department.supervisors.filter(id=supervisor.id).exists()
+        ):
             # Remove from ManyToMany (works even if not present)
             supervisor.supervised_departments.remove(department)
             # Clear ForeignKey if it points to this supervisor
@@ -7482,20 +6998,17 @@ def get_employees_for_department(request, department_id):
                 'error': 'Unauthorized access'
             }, status=403)
         
-        # For supervisors: verify they manage this department
+        # For supervisors:
+        # - If they have sub-departments, allow their supervised departments.
+        # - If not, only allow their own department.
         if is_supervisor:
-            # CRITICAL: Call get_supervised_departments() which queries database directly
             supervised_depts = user.get_supervised_departments() if hasattr(user, 'get_supervised_departments') else []
             supervised_dept_ids = [dept.id for dept in supervised_depts]
-            log_debug('D', 'tickets/views.py:4916', 'API supervised departments check', {
-                'supervised_dept_ids': supervised_dept_ids,
-                'requested_dept_id': department.id,
-                'dept_in_supervised': department.id in supervised_dept_ids
-            })
-            
-            if department.id not in supervised_dept_ids:
-                # Supervisor doesn't manage this department - return empty list
-                log_debug('D', 'tickets/views.py:4923', 'Department not supervised - returning empty', {})
+            supervisor_department_id = user.department_id
+            has_sub_departments = any(dept_id != supervisor_department_id for dept_id in supervised_dept_ids)
+            allowed_dept_ids = supervised_dept_ids if has_sub_departments else ([supervisor_department_id] if supervisor_department_id else [])
+
+            if department.id not in allowed_dept_ids:
                 return JsonResponse({
                     'success': True,
                     'employees': []
@@ -7518,14 +7031,23 @@ def get_employees_for_department(request, department_id):
                     'success': True,
                     'employees': []
                 })
+
+        # IT manager restriction: only technical departments are allowed
+        if is_it_manager and department.department_type != 'technician':
+            return JsonResponse({
+                'success': True,
+                'employees': []
+            })
         
-        # Get employees from this department (including supervisors - سرپرست بخش)
+        # Build assignee list by actor:
+        # - IT manager -> technicians from selected technical department
+        # - supervisor/task creator -> employees from selected department
+        assignee_role = 'technician' if is_it_manager else 'employee'
         employees = User.objects.filter(
             department=department,
             is_active=True,
-            role='employee'
+            role=assignee_role
         )
-        # Allow assigning to department supervisor - no exclusion of senior/manager
 
         # Supervisors and task creators must not be able to assign tasks to themselves
         if (is_supervisor or is_task_creator) and user and user.id:

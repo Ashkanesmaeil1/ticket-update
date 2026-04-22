@@ -59,7 +59,7 @@ def warehouse_selection(request):
         try:
             depts_with_warehouse = Department.objects.filter(has_warehouse=True).order_by('name')
             for dept in depts_with_warehouse:
-                warehouse, _ = DepartmentWarehouse.objects.get_or_create(
+                warehouse, _created = DepartmentWarehouse.objects.get_or_create(
                     department=dept,
                     defaults={
                         'name': f"انبار {dept.name}",
@@ -92,17 +92,20 @@ def warehouse_selection(request):
     # Get warehouses for supervised departments
     for dept in supervised_depts:
         if dept.has_warehouse:
-            try:
-                warehouse = DepartmentWarehouse.objects.get(department=dept)
-                # Only add if not already in list (admin access may have already added it)
-                if not any(w['warehouse'].id == warehouse.id for w in warehouses_list):
-                    warehouses_list.append({
-                        'warehouse': warehouse,
-                        'department': dept,
-                        'access_type': 'supervisor',  # Track access type for UI
-                    })
-            except DepartmentWarehouse.DoesNotExist:
-                pass
+            warehouse, _created = DepartmentWarehouse.objects.get_or_create(
+                department=dept,
+                defaults={
+                    'name': f"انبار {dept.name}",
+                    'created_by': user,
+                }
+            )
+            # Only add if not already in list (admin access may have already added it)
+            if not any(w['warehouse'].id == warehouse.id for w in warehouses_list):
+                warehouses_list.append({
+                    'warehouse': warehouse,
+                    'department': dept,
+                    'access_type': 'supervisor',  # Track access type for UI
+                })
     
     # Get warehouses where user has delegated access (read or write)
     from .models import WarehouseAccess
@@ -192,7 +195,7 @@ def warehouse_dashboard(request, department_id):
     if (hasattr(user, 'is_staff') and user.is_staff) or (hasattr(user, 'is_superuser') and user.is_superuser):
         depts = Department.objects.filter(has_warehouse=True).order_by('name')
         for dept in depts:
-            w, _ = DepartmentWarehouse.objects.get_or_create(
+            w, _created = DepartmentWarehouse.objects.get_or_create(
                 department=dept,
                 defaults={'name': f"انبار {dept.name}", 'created_by': user}
             )
@@ -210,11 +213,11 @@ def warehouse_dashboard(request, department_id):
             supervised_depts.append(user.department)
         for dept in supervised_depts:
             if dept.has_warehouse:
-                try:
-                    w = DepartmentWarehouse.objects.get(department=dept)
-                    accessible_warehouses.append({'warehouse': w, 'department': dept})
-                except DepartmentWarehouse.DoesNotExist:
-                    pass
+                w, _created = DepartmentWarehouse.objects.get_or_create(
+                    department=dept,
+                    defaults={'name': f"انبار {dept.name}", 'created_by': user}
+                )
+                accessible_warehouses.append({'warehouse': w, 'department': dept})
         from .models import WarehouseAccess
         for acc in WarehouseAccess.objects.filter(user=user, is_active=True).select_related('warehouse', 'warehouse__department'):
             if not any(a['warehouse'].id == acc.warehouse.id for a in accessible_warehouses):

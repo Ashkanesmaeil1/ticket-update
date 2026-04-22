@@ -247,11 +247,10 @@
 document.addEventListener('DOMContentLoaded', function() {
     const departmentSelect = document.getElementById('{{ form.department.id_for_label }}');
     const assignedToSelect = document.getElementById('{{ form.assigned_to.id_for_label }}');
-    
-    departmentSelect.addEventListener('change', function() {
-        const departmentId = this.value;
+
+    function loadEmployees(departmentId) {
         assignedToSelect.innerHTML = '<option value="">{% trans "در حال بارگذاری..." %}</option>';
-        
+
         if (departmentId) {
             fetch(`/api/departments/${departmentId}/employees/`)
                 .then(response => response.json())
@@ -275,7 +274,16 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             assignedToSelect.innerHTML = '<option value="">{% trans "ابتدا بخش را انتخاب کنید" %}</option>';
         }
+    }
+
+    departmentSelect.addEventListener('change', function() {
+        loadEmployees(this.value);
     });
+
+    // Initial load for preselected/locked department
+    if (departmentSelect.value) {
+        loadEmployees(departmentSelect.value);
+    }
 });
 </script>
 <link rel="stylesheet" href="{% static 'css/calendar_picker.css' %}?v=30">

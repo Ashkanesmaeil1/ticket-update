@@ -1,4 +1,5 @@
 import smtplib
+import threading
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
@@ -1424,19 +1425,12 @@ def create_it_manager_login_notification(user, ip_address):
     except Exception as e:
         print(f"⚠️ Failed to create IT manager login notification: {e}")
 
-def notify_it_manager_user_management(action_type, user, actor):
-    """
-    Send a beautiful email notification to the IT manager about user management operations.
-    
-    Args:
-        action_type (str): Type of action (create, update, delete)
-        user: User object being managed
-        actor: User object who performed the action
-    """
+def _send_it_manager_user_management_email(action_type, user, actor):
+    """Send IT manager user-management email synchronously."""
     try:
         # Create email content
         html_content = create_user_management_email_template(action_type, user, actor)
-        
+
         # Get Persian subject text
         action_subject_map = {
             'create': 'ایجاد کاربر جدید',
@@ -1444,12 +1438,12 @@ def notify_it_manager_user_management(action_type, user, actor):
             'delete': 'حذف کاربر',
         }
         subject_text = action_subject_map.get(action_type, action_type)
-        
+
         # Create message with Persian subject
         msg = MIMEMultipart('related')
         # Add RTL marker to ensure proper text direction in subject
         msg["Subject"] = f"\u202B{subject_text}\u202C"
-        
+
         # Determine recipient (IT manager mailbox from config, fallback to first IT manager's email)
         cfg = EmailConfig.get_active()
         recipient_email = None
@@ -1459,17 +1453,17 @@ def notify_it_manager_user_management(action_type, user, actor):
             manager = User.objects.filter(role='it_manager').exclude(email='').first()
             if manager and manager.email:
                 recipient_email = manager.email
-        
+
         if recipient_email:
             msg["To"] = recipient_email
         else:
             print("❌ No recipient email found")
             return
-        
+
         # Create HTML part
         html_part = MIMEText(html_content, 'html', 'utf-8')
         msg.attach(html_part)
-        
+
         # Try to attach logo
         try:
             logo_path = os.path.join(settings.STATIC_ROOT, 'admin', 'img', 'white-pargsStar.webp')
@@ -1480,23 +1474,23 @@ def notify_it_manager_user_management(action_type, user, actor):
                     msg.attach(logo)
         except Exception as e:
             print(f"⚠️ Could not attach logo: {e}")
-        
+
         # Get email configuration
         cfg = EmailConfig.get_active()
         if not cfg:
             print("❌ No email configuration found")
             return
-        
+
         smtp_host = cfg.host
         smtp_port = cfg.port
         smtp_user = cfg.username
         smtp_pass = cfg.password
         use_tls = cfg.use_tls
         use_ssl = cfg.use_ssl
-        
+
         # Set From header
         msg["From"] = smtp_user if smtp_user else "noreply@pargasiran.com"
-        
+
         # Send email via configured backend
         if use_ssl:
             server = smtplib.SMTP_SSL(smtp_host, smtp_port)
@@ -1511,9 +1505,29 @@ def notify_it_manager_user_management(action_type, user, actor):
         finally:
             server.quit()
         print("✅ User management email sent successfully!")
-        
+
     except Exception as e:
         print(f"❌ Failed to send user management email: {e}")
+
+
+def notify_it_manager_user_management(action_type, user, actor):
+    """
+    Queue user-management notification email for IT manager without blocking request cycle.
+    
+    Args:
+        action_type (str): Type of action (create, update, delete)
+        user: User object being managed
+        actor: User object who performed the action
+    """
+    try:
+        email_thread = threading.Thread(
+            target=_send_it_manager_user_management_email,
+            args=(action_type, user, actor),
+            daemon=True,
+        )
+        email_thread.start()
+    except Exception as e:
+        print(f"❌ Failed to queue user management email: {e}")
 
 def create_user_management_email_template(action_type, user, actor):
     """Create a special email template for user management operations"""
